@@ -92,9 +92,25 @@
     .srow input[type=range]{flex:1}
     #connected{font-size:.82rem;color:#5DCAA5;margin-top:.3rem}
     audio{display:none}
+
+    /* SPLASH */
+    #splash{position:fixed;inset:0;background:var(--bg);z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;padding:2rem;text-align:center}
+    #splash.hidden{display:none}
+    #splash .big{font-size:4rem}
+    #splash h1{font-size:1.4rem;font-weight:700}
+    #splash p{font-size:.9rem;color:var(--muted);max-width:280px;line-height:1.6}
+    #btn-activate{background:var(--purple);color:#fff;border:none;border-radius:14px;padding:1rem 2.5rem;font-size:1.1rem;font-weight:700;cursor:pointer;box-shadow:0 0 30px rgba(127,119,221,.4);animation:pulse 2s ease-in-out infinite}
   </style>
 </head>
 <body>
+
+<!-- ECRAN ACTIVATION AUDIO -->
+<div id="splash">
+  <div class="big">🎵</div>
+  <h1>LARP Music</h1>
+  <p>Appuie sur le bouton pour activer le son et rejoindre la session</p>
+  <button id="btn-activate" onclick="activateAudio()">Activer le son</button>
+</div>
 
 <header>
   <div class="logo">🎵 LARP <span>Music</span></div>
@@ -195,7 +211,27 @@
 <script>
 const audio = document.getElementById('ap');
 let ws, adminPwd = '', currentTrackUrl = '';
-let progTimer;
+let progTimer, audioUnlocked = false;
+
+// ── Activation audio (obligatoire sur mobile) ──
+function activateAudio() {
+  // Joue un silence pour débloquer l'audio sur iOS/Android
+  audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+  audio.volume = 0;
+  audio.play().then(function() {
+    audio.pause();
+    audio.volume = 1;
+    audio.src = '';
+    audioUnlocked = true;
+    document.getElementById('splash').classList.add('hidden');
+    connect();
+  }).catch(function() {
+    // Si ca echoue quand meme, on cache le splash et on continue
+    audioUnlocked = true;
+    document.getElementById('splash').classList.add('hidden');
+    connect();
+  });
+}
 
 // ── WebSocket ──────────────────────────────────
 function connect() {
@@ -387,7 +423,7 @@ function tab(t){
   document.querySelectorAll('nav button')[t==='player'?0:1].classList.add('on');
 }
 
-connect();
+// connect() est appele par activateAudio() apres le clic du joueur
 </script>
 </body>
 </html>
