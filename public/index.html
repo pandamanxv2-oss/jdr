@@ -1,1138 +1,2878 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<title>JDR Ops</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --bg:#080810;--surf:#12121e;--surf2:#1a1a2e;--surf3:#0e0e18;
-  --purple:#7F77DD;--pbg:rgba(127,119,221,.15);
-  --teal:#1D9E75;--tbg:rgba(29,158,117,.15);
-  --coral:#D85A30;--cbg:rgba(216,90,48,.15);
-  --gold:#C9A84C;--gbg:rgba(201,168,76,.15);
-  --red:#e53e3e;--redbg:rgba(229,62,62,.15);
-  --text:#e8e8f0;--muted:#7878a0;--border:rgba(255,255,255,.07);
-  --r:10px;
-}
-html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif}
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StreamSync - P2P Audio & Game Broadcast</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- CDNs for WebRTC, Metadata extraction & Maps (Leaflet) -->
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-/* SPLASH */
-#splash{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.1rem;padding:2rem;text-align:center}
-#splash.hidden{display:none}
-.splash-logo{font-size:3rem}
-.splash-title{font-size:1.5rem;font-weight:900;letter-spacing:-.5px;color:var(--purple)}
-.splash-sub{font-size:.85rem;color:var(--muted);max-width:260px;line-height:1.5}
-.splash-input{width:100%;max-width:280px;background:var(--surf2);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:.7rem .9rem;font-size:1rem;outline:none;text-align:center;transition:border-color .2s}
-.splash-input:focus{border-color:var(--purple)}
-.splash-btn{width:100%;max-width:280px;background:var(--purple);color:#fff;border:none;border-radius:12px;padding:.9rem;font-size:1rem;font-weight:700;cursor:pointer;animation:glow 2s ease-in-out infinite}
-@keyframes glow{0%,100%{box-shadow:0 0 15px rgba(127,119,221,.4)}50%{box-shadow:0 0 30px rgba(127,119,221,.7)}}
+  <style>
+    /* DESIGN SYSTEM */
+    :root {
+      --bg-color: #05060a;
+      --bg-gradient: radial-gradient(circle at 50% 50%, #110c26 0%, #05060a 100%);
+      --panel-bg: rgba(13, 15, 27, 0.78);
+      --panel-border: rgba(255, 255, 255, 0.08);
+      
+      --primary: #8b5cf6;
+      --primary-glow: rgba(139, 92, 246, 0.4);
+      --primary-hover: #a78bfa;
+      
+      --secondary: #06b6d4;
+      --secondary-glow: rgba(6, 182, 212, 0.4);
+      
+      --danger: #ef4444;
+      --success: #10b981;
+      --warning: #f59e0b;
+      
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      
+      --glass-blur: blur(20px);
+      --shadow-lg: 0 20px 40px -15px rgba(0, 0, 0, 0.85);
+      --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
 
-/* WAITING SCREEN */
-#screen-waiting{position:fixed;inset:0;background:var(--bg);z-index:900;display:none;flex-direction:column;align-items:center;justify-content:center;gap:1.2rem;padding:2rem;text-align:center}
-#screen-waiting .admin-bypass{position:absolute;bottom:1.5rem;right:1.5rem;background:rgba(127,119,221,.15);color:rgba(127,119,221,.6);border:1px solid rgba(127,119,221,.2);border-radius:8px;padding:.4rem .8rem;font-size:.72rem;cursor:pointer}
-#screen-waiting.show{display:flex}
-.wait-pulse{font-size:3rem;animation:pulse 1.5s ease-in-out infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-.wait-title{font-size:1.2rem;font-weight:700;color:var(--purple)}
-.wait-players{font-size:.82rem;color:var(--muted);max-height:200px;overflow-y:auto;width:100%;max-width:280px}
-.wait-player-item{padding:.35rem .6rem;background:var(--surf2);border-radius:6px;margin-bottom:.3rem;font-size:.82rem}
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
 
-/* ROLE SCREEN */
-#screen-role{position:fixed;inset:0;background:var(--bg);z-index:900;display:none;flex-direction:column;align-items:center;justify-content:center;gap:1rem;padding:2rem;text-align:center}
-#screen-role.show{display:flex}
-.role-card{width:100%;max-width:300px;border-radius:16px;padding:2rem 1.5rem;border:2px solid;text-align:center;animation:cardReveal .6s cubic-bezier(.175,.885,.32,1.275)}
-@keyframes cardReveal{0%{transform:scale(.5) rotateY(90deg);opacity:0}100%{transform:scale(1) rotateY(0);opacity:1}}
-.role-card.civil{border-color:var(--teal);background:rgba(29,158,117,.1)}
-.role-card.tueur{border-color:var(--coral);background:rgba(216,90,48,.1)}
-.role-card.mossad{border-color:var(--gold);background:rgba(201,168,76,.1)}
-.role-icon{font-size:3.5rem;margin-bottom:.75rem}
-.role-name{font-size:1.4rem;font-weight:900;margin-bottom:.5rem}
-.role-name.civil{color:var(--teal)}.role-name.tueur{color:var(--coral)}.role-name.mossad{color:var(--gold)}
-.role-desc{font-size:.82rem;color:var(--muted);line-height:1.5}
-.role-wait{font-size:.78rem;color:var(--muted);animation:pulse 1.5s ease-in-out infinite}
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--bg-color);
+      background-image: var(--bg-gradient);
+      color: var(--text-main);
+      min-height: 100vh;
+      overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
+      line-height: 1.5;
+    }
 
-/* ELIMINATED SCREEN */
-#screen-dead{position:fixed;inset:0;background:rgba(8,4,4,.95);z-index:850;display:none;flex-direction:column;align-items:center;justify-content:center;gap:1rem;text-align:center;padding:2rem}
-#screen-dead.show{display:flex}
+    h1, h2, h3, h4 {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
 
-/* ANNOUNCEMENT OVERLAY */
-#ann-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:800;display:none;align-items:center;justify-content:center;padding:1.5rem}
-#ann-overlay.show{display:flex}
-.ann-box{background:var(--surf);border:2px solid var(--gold);border-radius:16px;padding:1.5rem;max-width:360px;width:100%;text-align:center;animation:slideUp .4s ease}
-@keyframes slideUp{0%{transform:translateY(40px);opacity:0}100%{transform:translateY(0);opacity:1}}
-.ann-from{font-size:.72rem;color:var(--gold);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.5rem}
-.ann-text{font-size:1.05rem;font-weight:600;line-height:1.5;margin-bottom:1rem}
-.ann-close{background:var(--gold);color:#000;border:none;border-radius:8px;padding:.55rem 1.5rem;font-weight:700;cursor:pointer;font-size:.9rem}
+    /* Glassmorphism Panel */
+    .glass-panel {
+      background: var(--panel-bg);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--panel-border);
+      border-radius: 22px;
+      box-shadow: var(--shadow-lg);
+      transition: var(--transition);
+    }
 
-/* MAIN APP */
-#app{display:none;flex-direction:column;height:100%}
-#app.show{display:flex}
+    .glass-panel:hover {
+      border-color: rgba(255, 255, 255, 0.12);
+    }
 
-/* HEADER */
-.hdr{background:var(--surf);border-bottom:1px solid var(--border);padding:.55rem .9rem;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:.5rem}
-.hdr-logo{font-size:.9rem;font-weight:800;color:var(--purple)}
-.hdr-center{display:flex;align-items:center;gap:.6rem;flex:1;justify-content:center}
-#timer-display{font-size:1rem;font-weight:700;font-family:monospace;color:var(--gold);letter-spacing:.05em}
-#phase-badge{font-size:.65rem;padding:2px 8px;border-radius:20px;background:var(--pbg);color:var(--purple);border:1px solid rgba(127,119,221,.3)}
-.hdr-right{display:flex;align-items:center;gap:.5rem}
-#conn-badge{font-size:.65rem;padding:2px 7px;border-radius:20px;background:var(--tbg);color:var(--teal);border:1px solid rgba(29,158,117,.3)}
-#conn-badge.off{background:var(--cbg);color:var(--coral);border-color:rgba(216,90,48,.3)}
-#my-role-badge{font-size:.65rem;padding:2px 8px;border-radius:20px;font-weight:700}
-#my-role-badge.civil{background:var(--tbg);color:var(--teal)}
-#my-role-badge.tueur{background:var(--cbg);color:var(--coral)}
-#my-role-badge.mossad{background:var(--gbg);color:var(--gold)}
+    /* Tabs Navigation */
+    .tabs-bar {
+      display: flex;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      padding: 4px;
+      gap: 4px;
+      margin-bottom: 20px;
+    }
 
-/* NAV */
-.nav{display:flex;background:var(--surf);border-bottom:1px solid var(--border);flex-shrink:0}
-.nav button{flex:1;padding:.55rem .2rem;background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);cursor:pointer;font-size:.7rem;transition:all .2s;position:relative}
-.nav button.on{color:var(--purple);border-bottom-color:var(--purple)}
-.nav-badge{display:none;position:absolute;top:4px;right:calc(50% - 14px);background:var(--coral);color:#fff;border-radius:50%;width:13px;height:13px;font-size:.55rem;align-items:center;justify-content:center}
-.nav-badge.show{display:inline-flex}
+    .tab-btn {
+      flex: 1;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      padding: 10px 16px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      font-family: 'Outfit', sans-serif;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: var(--transition);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
 
-/* VIEWS */
-.views{flex:1;overflow:hidden;position:relative}
-.view{display:none;position:absolute;inset:0;overflow-y:auto;padding:.8rem;flex-direction:column;gap:.75rem;align-items:center}
-.view.on{display:flex}
+    .tab-btn:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.03);
+    }
 
-/* MAP VIEW */
-#view-map{padding:0;display:none}
-#view-map.on{display:block}
-#map{width:100%;height:100%}
+    .tab-btn.active {
+      color: #fff;
+      background: var(--primary);
+      box-shadow: 0 4px 12px var(--primary-glow);
+    }
 
-/* CARDS */
-.card{background:var(--surf);border:1px solid var(--border);border-radius:var(--r);padding:.85rem;width:100%;max-width:500px}
-.card-title{font-size:.67rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:.7rem}
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border-radius: 12px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: var(--transition);
+      border: none;
+      color: #fff;
+      text-decoration: none;
+      font-family: 'Outfit', sans-serif;
+    }
 
-/* BUTTONS */
-.btn{display:inline-flex;align-items:center;gap:4px;padding:.42rem .85rem;border-radius:7px;border:none;cursor:pointer;font-size:.8rem;font-weight:500;transition:all .15s}
-.btn:active{transform:scale(.96)}.btn:disabled{opacity:.35;cursor:not-allowed}
-.b-p{background:var(--purple);color:#fff}.b-t{background:var(--teal);color:#fff}
-.b-c{background:var(--coral);color:#fff}.b-g{background:rgba(255,255,255,.1);color:var(--text)}
-.b-gold{background:var(--gbg);color:var(--gold);border:1px solid rgba(201,168,76,.3)}
-.b-red{background:var(--redbg);color:var(--red);border:1px solid rgba(229,62,62,.3)}
-.brow{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center}
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary) 0%, #7c3aed 100%);
+      box-shadow: 0 4px 15px var(--primary-glow);
+    }
 
-/* FORM ELEMENTS */
-.fin{background:var(--surf2);border:1px solid var(--border);border-radius:7px;color:var(--text);padding:.48rem .65rem;font-size:.82rem;outline:none;transition:border-color .2s;width:100%}
-.fin:focus{border-color:var(--purple)}
-select.fin option{background:var(--surf2)}
-.flabel{font-size:.72rem;color:var(--muted);margin-bottom:.28rem;display:block}
-.fgroup{margin-bottom:.6rem}
+    .btn-primary:hover {
+      background: linear-gradient(135deg, var(--primary-hover) 0%, var(--primary) 100%);
+      box-shadow: 0 6px 20px rgba(139, 92, 246, 0.7);
+      transform: translateY(-2px);
+    }
 
-/* TOGGLE */
-.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:.15rem 0}
-.toggle{position:relative;width:38px;height:22px;flex-shrink:0}
-.toggle input{opacity:0;width:0;height:0}
-.slider{position:absolute;inset:0;background:rgba(255,255,255,.12);border-radius:22px;cursor:pointer;transition:.25s}
-.slider:before{content:'';position:absolute;width:16px;height:16px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.25s}
-input:checked+.slider{background:var(--purple)}
-input:checked+.slider:before{transform:translateX(16px)}
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
 
-/* PROGRESS */
-.prog-wrap{height:3px;background:rgba(255,255,255,.1);border-radius:2px;margin-bottom:.3rem}
-.prog-bar{height:100%;border-radius:2px;transition:width .8s linear}
-#music-prog{background:var(--purple);width:0%}
-.trow{display:flex;justify-content:space-between;font-size:.67rem;color:var(--muted)}
-.srow{display:flex;align-items:center;gap:.5rem}
-.srow input[type=range]{flex:1;accent-color:var(--purple)}
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.2);
+      transform: translateY(-2px);
+    }
 
-/* CHAT */
-#chat-msgs{overflow-y:auto;display:flex;flex-direction:column;gap:.35rem;max-height:calc(100vh - 260px);min-height:150px;padding:.4rem 0}
-.cmsg{padding:.4rem .6rem;border-radius:8px;font-size:.78rem;line-height:1.4;max-width:88%;word-break:break-word}
-.cmsg.them{background:var(--surf2);align-self:flex-start}
-.cmsg.me{background:var(--pbg);align-self:flex-end;border:1px solid rgba(127,119,221,.2)}
-.cmsg.sys{background:none;align-self:center;color:var(--muted);font-size:.68rem;font-style:italic}
-.cmsg.ann{background:var(--gbg);border:1px solid rgba(201,168,76,.3);align-self:center;max-width:95%}
-.cmsg.priv{background:var(--cbg);border:1px solid rgba(216,90,48,.2)}
-.cmsg .from{font-size:.67rem;font-weight:600;opacity:.65;margin-bottom:.1rem}
-.chat-row{display:flex;gap:.4rem;margin-top:.5rem}
+    .btn-danger { background: linear-gradient(135deg, var(--danger) 0%, #dc2626 100%); }
+    .btn-danger:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4); }
+    .btn-success { background: linear-gradient(135deg, var(--success) 0%, #059669 100%); }
+    .btn-success:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4); }
+    .btn-warning { background: linear-gradient(135deg, var(--warning) 0%, #d97706 100%); }
+    .btn-warning:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(245, 158, 11, 0.4); }
 
-/* PLAYERS LIST */
-.player-row{display:flex;align-items:center;justify-content:space-between;padding:.42rem .6rem;background:var(--surf2);border-radius:7px;font-size:.78rem;margin-bottom:.3rem}
-.player-row .pr-name{font-weight:500;flex:1}
-.player-row .pr-role{font-size:.68rem;padding:2px 7px;border-radius:10px;margin-left:.4rem}
-.pr-role.civil{background:var(--tbg);color:var(--teal)}
-.pr-role.tueur{background:var(--cbg);color:var(--coral)}
-.pr-role.mossad{background:var(--gbg);color:var(--gold)}
-.pr-role.none{background:rgba(255,255,255,.07);color:var(--muted)}
-.player-row .pr-dead{font-size:.68rem;color:var(--red);margin-left:.4rem}
+    .btn-sm { padding: 8px 14px; font-size: 0.82rem; border-radius: 8px; }
+    .btn-circle { width: 48px; height: 48px; border-radius: 50%; padding: 0; }
+    .btn-play { width: 56px; height: 56px; }
 
-/* TRACK LIST */
-.track-item{display:flex;align-items:center;gap:.4rem;padding:.42rem .6rem;background:var(--surf2);border-radius:7px;border:1px solid var(--border);margin-bottom:.3rem}
-.track-item.active{border-color:var(--purple);background:var(--pbg)}
-.ti-info{flex:1;min-width:0}
-.ti-info strong{display:block;font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ti-info span{font-size:.67rem;color:var(--muted)}
-.ti-btns{display:flex;gap:.25rem;flex-shrink:0}
-.ti-btns button{padding:.22rem .48rem;font-size:.7rem;border-radius:5px;border:none;cursor:pointer;font-weight:500}
-.t-play{background:var(--pbg);color:var(--purple)}
-.t-pl{background:var(--gbg);color:var(--gold)}
-.t-del{background:var(--cbg);color:var(--coral)}
+    /* Form Fields */
+    .form-group {
+      margin-bottom: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      text-align: left;
+    }
 
-/* UPLOAD */
-#dropzone{border:2px dashed rgba(127,119,221,.3);border-radius:var(--r);padding:1.1rem;text-align:center;cursor:pointer;transition:all .2s;background:rgba(127,119,221,.03);margin-bottom:.6rem}
-#dropzone:hover,#dropzone.drag{border-color:var(--purple);background:var(--pbg)}
-#dropzone p{font-size:.78rem;color:var(--muted)}
-#dropzone strong{color:var(--purple)}
-#file-input{display:none}
-.upbar-wrap{height:4px;background:rgba(255,255,255,.1);border-radius:2px;overflow:hidden;margin:.5rem 0 .25rem}
-#upbar{height:100%;width:0%;background:var(--purple);transition:width .2s}
+    .form-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
 
-/* POI MARKERS */
-.poi-popup{font-size:.82rem;font-weight:600}
-.player-marker-label{background:rgba(0,0,0,.75);color:#fff;padding:2px 6px;border-radius:4px;font-size:.65rem;white-space:nowrap;border:1px solid rgba(255,255,255,.2)}
+    .form-input {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 10px 14px;
+      border-radius: 10px;
+      color: var(--text-main);
+      font-family: inherit;
+      font-size: 0.95rem;
+      transition: var(--transition);
+      width: 100%;
+    }
 
-/* ACTIONS */
-.action-item{display:flex;align-items:center;justify-content:space-between;padding:.42rem .6rem;background:var(--surf2);border-radius:7px;margin-bottom:.3rem;font-size:.78rem}
+    .form-input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 10px rgba(139, 92, 246, 0.2);
+    }
 
-/* NOTIF */
-#notif{position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);background:var(--surf);border:1px solid var(--purple);border-radius:9px;padding:.5rem 1rem;font-size:.78rem;z-index:600;opacity:0;transition:opacity .25s;pointer-events:none;max-width:88vw;text-align:center;white-space:nowrap}
-#notif.show{opacity:1}
+    /* Ambient Glow */
+    .bg-glow {
+      position: fixed;
+      width: 350px;
+      height: 350px;
+      border-radius: 50%;
+      filter: blur(120px);
+      opacity: 0.1;
+      pointer-events: none;
+      z-index: 0;
+    }
 
-/* MODAL */
-.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:700;align-items:center;justify-content:center;padding:1rem}
-.modal-bg.show{display:flex}
-.modal{background:var(--surf);border:1px solid var(--border);border-radius:var(--r);padding:1.1rem;width:100%;max-width:360px}
-.modal h3{font-size:.88rem;color:var(--purple);margin-bottom:.75rem}
-.modal-brow{display:flex;gap:.4rem;justify-content:flex-end;margin-top:.75rem}
-.err{color:#F0997B;font-size:.72rem;min-height:1em;margin-top:.25rem}
+    .blob-1 { background: var(--primary); top: 15%; left: 10%; }
+    .blob-2 { background: var(--secondary); bottom: 15%; right: 10%; }
 
-/* MUSIC MINI */
-.music-mini{background:var(--surf3);border-top:1px solid var(--border);padding:.5rem .9rem;flex-shrink:0;display:none}
-.music-mini.show{display:block}
-.mm-name{font-size:.75rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:.3rem}
-.mm-row{display:flex;align-items:center;gap:.5rem}
-.mm-btn{background:none;border:none;color:var(--text);cursor:pointer;font-size:.9rem;padding:2px}
+    /* Header */
+    header {
+      position: relative;
+      z-index: 10;
+      max-width: 1200px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 20px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
 
-audio{display:none}
-</style>
+    .logo-container { display: flex; align-items: center; gap: 10px; }
+    .logo-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+      box-shadow: 0 0 10px var(--primary);
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 99px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background-color: var(--text-dim); }
+    .status-live .status-dot {
+      background-color: var(--success);
+      box-shadow: 0 0 8px var(--success);
+      animation: pulse-live 1.5s infinite;
+    }
+
+    main {
+      flex-grow: 1;
+      position: relative;
+      z-index: 10;
+      max-width: 1200px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .hidden { display: none !important; }
+
+    /* Timer Countdown Banner */
+    .global-timer-banner {
+      width: 100%;
+      padding: 10px 16px;
+      border-radius: 12px;
+      background: rgba(239, 68, 68, 0.08);
+      border: 1px solid rgba(239, 68, 68, 0.15);
+      color: var(--danger);
+      text-align: center;
+      font-weight: 700;
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.15rem;
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 0 15px rgba(239, 68, 68, 0.1);
+    }
+
+    .global-timer-banner.warning {
+      background: rgba(245, 158, 11, 0.08);
+      border-color: rgba(245, 158, 11, 0.15);
+      color: var(--warning);
+      box-shadow: 0 0 15px rgba(245, 158, 11, 0.1);
+    }
+
+    /* ========================================================
+       LISTENER VIEW STYLES
+       ======================================================== */
+    .listener-layout {
+      max-width: 550px;
+      width: 100%;
+      margin: 20px auto;
+      display: flex;
+      flex-direction: column;
+      flex-grow: 1;
+    }
+
+    .gateway-overlay {
+      text-align: center;
+      padding: 40px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      align-items: center;
+    }
+
+    .gateway-logo {
+      width: 80px; height: 80px; border-radius: 24px;
+      background: rgba(139, 92, 246, 0.15);
+      border: 1px solid rgba(139, 92, 246, 0.3);
+      display: flex; justify-content: center; align-items: center;
+      color: var(--primary);
+    }
+
+    .gateway-title { font-size: 2rem; }
+    .gateway-desc { color: var(--text-muted); font-size: 0.88rem; line-height: 1.6; }
+
+    /* Player Console */
+    .player-card {
+      padding: 30px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 24px;
+    }
+
+    .artwork-wrapper {
+      position: relative;
+      width: 230px; height: 230px;
+      display: flex; justify-content: center; align-items: center;
+    }
+
+    .disc-container {
+      width: 220px; height: 220px;
+      border-radius: 50%; background: #0f1017;
+      border: 8px solid #1c1e30;
+      box-shadow: 0 15px 30px rgba(0,0,0,0.65), inset 0 0 0 10px rgba(0,0,0,0.85);
+      position: relative; overflow: hidden;
+    }
+
+    .disc-container::before {
+      content: ''; position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      border-radius: 50%;
+      background: repeating-radial-gradient(circle, transparent, transparent 4px, rgba(0,0,0,0.4) 5px, rgba(0,0,0,0.4) 6px);
+      z-index: 2;
+    }
+
+    .artwork-image { width: 100%; height: 100%; background-size: cover; background-position: center; border-radius: 50%; z-index: 1; }
+    .artwork-image.default-art { background-image: linear-gradient(135deg, #4f46e5 0%, #7c3aed 40%, #06b6d4 100%); }
+    .disc-center { position: absolute; width: 28px; height: 28px; background-color: var(--bg-color); border: 5px solid #3c4554; border-radius: 50%; z-index: 3; top: calc(50% - 14px); left: calc(50% - 14px); }
+    .spin { animation: spin 20s linear infinite; }
+
+    .visualizer-container { position: absolute; bottom: -12px; left: 0; right: 0; height: 30px; display: flex; justify-content: center; align-items: flex-end; gap: 4px; z-index: 5; }
+    .visualizer-container .bar { width: 4px; height: 3px; background-color: var(--primary); border-radius: 2px 2px 0 0; }
+    .visualizer-container .bar:nth-child(even) { background-color: var(--secondary); }
+    .playing .visualizer-container .bar { animation: bounce 0.8s ease-in-out infinite alternate; }
+    .playing .visualizer-container .bar:nth-child(1)  { animation-delay: 0.1s; animation-duration: 0.6s; }
+    .playing .visualizer-container .bar:nth-child(2)  { animation-delay: 0.3s; animation-duration: 0.8s; }
+    .playing .visualizer-container .bar:nth-child(3)  { animation-delay: 0.0s; animation-duration: 0.7s; }
+    .playing .visualizer-container .bar:nth-child(4)  { animation-delay: 0.5s; animation-duration: 0.9s; }
+    .playing .visualizer-container .bar:nth-child(5)  { animation-delay: 0.2s; animation-duration: 0.5s; }
+    .playing .visualizer-container .bar:nth-child(6)  { animation-delay: 0.4s; animation-duration: 0.75s; }
+    .playing .visualizer-container .bar:nth-child(7)  { animation-delay: 0.1s; animation-duration: 0.65s; }
+    .playing .visualizer-container .bar:nth-child(8)  { animation-delay: 0.6s; animation-duration: 0.85s; }
+
+    .song-title { font-size: 1.4rem; margin-bottom: 2px; }
+    .song-artist { color: var(--text-muted); font-size: 0.92rem; }
+
+    .progress-section { width: 100%; display: flex; flex-direction: column; gap: 8px; }
+    .time-info { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted); }
+    .progress-bar-container { width: 100%; height: 5px; background: rgba(255, 255, 255, 0.06); border-radius: 99px; overflow: hidden; }
+    .progress-bar-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--primary) 0%, var(--secondary) 100%); border-radius: 99px; }
+
+    /* Role Tab styling */
+    .role-card {
+      padding: 36px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .role-icon {
+      font-size: 5rem;
+      line-height: 1;
+      margin-bottom: 10px;
+      filter: drop-shadow(0 0 15px var(--primary-glow));
+    }
+
+    .role-name {
+      font-size: 1.8rem;
+      background: linear-gradient(135deg, #fff 50%, var(--text-muted) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 8px;
+    }
+
+    .role-desc {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+      max-width: 400px;
+    }
+
+    .role-blur {
+      filter: blur(12px) grayscale(0.5);
+      opacity: 0.2;
+      user-select: none;
+      pointer-events: none;
+    }
+
+    .reveal-table-container {
+      width: 100%;
+      margin-top: 20px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      padding-top: 20px;
+    }
+
+    .reveal-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.85rem;
+    }
+
+    .reveal-table th, .reveal-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    .reveal-table th {
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.75rem;
+    }
+
+    /* Map Tab styling */
+    .map-container {
+      width: 100%;
+      height: 480px;
+      border-radius: 18px;
+      border: 1px solid var(--panel-border);
+      position: relative;
+      overflow: hidden;
+      z-index: 1;
+    }
+
+    /* ========================================================
+       ADMIN VIEW STYLES
+       ======================================================== */
+    .admin-layout {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .admin-grid {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr 1fr;
+      gap: 24px;
+    }
+
+    @media (max-width: 950px) {
+      .admin-grid { grid-template-columns: 1fr; }
+    }
+
+    .admin-column { display: flex; flex-direction: column; gap: 20px; }
+    .column-card { padding: 24px; display: flex; flex-direction: column; gap: 20px; height: 100%; min-height: 520px; }
+    .column-title { font-size: 1.1rem; border-bottom: 1px solid rgba(255, 255, 255, 0.06); padding-bottom: 10px; }
+
+    .now-playing-panel {
+      display: flex; align-items: center; gap: 14px;
+      background: rgba(255, 255, 255, 0.02);
+      padding: 14px; border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    .artwork-thumb { width: 56px; height: 56px; border-radius: 10px; background-size: cover; background-position: center; }
+    .artwork-thumb.default-art { background-image: linear-gradient(135deg, #4f46e5 0%, #7c3aed 40%, #06b6d4 100%); }
+    .playing-details { flex-grow: 1; min-width: 0; }
+    .playing-details h2 { font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .playing-details p { font-size: 0.82rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .room-code-tag { display: inline-block; font-size: 0.75rem; font-weight: 600; color: var(--secondary); background: rgba(6, 182, 212, 0.1); padding: 2px 8px; border-radius: 6px; margin-top: 6px; }
+
+    .playback-controls { display: flex; justify-content: center; align-items: center; gap: 14px; }
+    .seek-slider { -webkit-appearance: none; width: 100%; height: 5px; background: rgba(255, 255, 255, 0.1); border-radius: 99px; outline: none; cursor: pointer; }
+    .seek-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: var(--primary); box-shadow: 0 0 6px var(--primary-glow); cursor: pointer; }
+
+    .upload-dropzone { border: 2px dashed rgba(255, 255, 255, 0.12); border-radius: 14px; padding: 20px; text-align: center; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--text-muted); transition: var(--transition); }
+    .upload-dropzone:hover, .upload-dropzone.dragover { border-color: var(--primary); color: var(--text-main); background: rgba(139, 92, 246, 0.04); }
+    .upload-dropzone span { color: var(--primary); font-weight: 600; }
+
+    .scroll-list { flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; max-height: 380px; padding-right: 4px; }
+    .list-empty { text-align: center; color: var(--text-dim); padding: 18px; font-size: 0.82rem; border: 1px dashed rgba(255, 255, 255, 0.04); border-radius: 10px; }
+
+    .song-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 10px; background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.04); transition: var(--transition); }
+    .song-item:hover { background: rgba(255, 255, 255, 0.04); transform: translateX(2px); }
+    .song-item-info { flex-grow: 1; min-width: 0; }
+    .song-item-title { font-size: 0.85rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .song-item-artist { font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .song-item-duration { font-size: 0.75rem; color: var(--text-dim); }
+    .song-item-actions { display: flex; gap: 2px; }
+
+    .icon-btn { background: none; border: none; cursor: pointer; color: var(--text-muted); width: 28px; height: 28px; border-radius: 6px; display: flex; justify-content: center; align-items: center; transition: var(--transition); }
+    .icon-btn:hover { background: rgba(255, 255, 255, 0.06); color: var(--text-main); }
+    .icon-btn-play:hover { color: var(--success); background: rgba(16, 185, 129, 0.1); }
+    .icon-btn-danger:hover { color: var(--danger); background: rgba(239, 68, 68, 0.1); }
+
+    .create-playlist-form { display: flex; gap: 8px; }
+    .create-playlist-form input { flex-grow: 1; }
+    .create-playlist-form button { width: 40px; padding: 0; }
+
+    .playlist-item { background: rgba(255, 255, 255, 0.015); border: 1px solid rgba(255, 255, 255, 0.03); border-radius: 12px; overflow: hidden; }
+    .playlist-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; cursor: pointer; }
+    .playlist-header:hover { background: rgba(255, 255, 255, 0.02); }
+    .playlist-meta { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; font-weight: 600; }
+    .playlist-count { font-size: 0.7rem; color: var(--text-dim); background: rgba(255, 255, 255, 0.05); padding: 2px 5px; border-radius: 4px; }
+    
+    .playlist-body { padding: 8px; background: rgba(0, 0, 0, 0.15); display: none; flex-direction: column; gap: 5px; border-top: 1px solid rgba(255, 255, 255, 0.03); }
+    .playlist-body.expanded { display: flex; }
+    .playlist-song-item { display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 6px; background: rgba(255, 255, 255, 0.01); border: 1px solid rgba(255,255,255,0.02); font-size: 0.78rem; }
+    .playlist-song-title { flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .playlist-song-actions { display: flex; gap: 2px; }
+    .playlist-song-actions .icon-btn { width: 22px; height: 22px; border-radius: 5px; }
+
+    /* Admin Game tab styles */
+    .game-console-grid {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr;
+      gap: 20px;
+    }
+
+    @media (max-width: 850px) {
+      .game-console-grid { grid-template-columns: 1fr; }
+    }
+
+    .form-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .form-row .form-group {
+      flex: 1;
+    }
+
+    .player-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      gap: 10px;
+    }
+
+    .player-row-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .player-row-meta input[type="checkbox"] {
+      width: 16px; height: 16px;
+      accent-color: var(--primary);
+    }
+
+    .player-row select {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--text-main);
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      outline: none;
+    }
+
+    .game-control-buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 10px;
+    }
+
+    .timer-badge-display {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--secondary);
+      background: rgba(6, 182, 212, 0.08);
+      border: 1px solid rgba(6, 182, 212, 0.2);
+      padding: 12px;
+      border-radius: 12px;
+      text-align: center;
+      font-family: 'Outfit';
+    }
+
+    /* Admin Map View */
+    .admin-map-layout {
+      display: grid;
+      grid-template-columns: 2.2fr 1fr;
+      gap: 20px;
+    }
+
+    @media (max-width: 850px) {
+      .admin-map-layout { grid-template-columns: 1fr; }
+    }
+
+    /* Modals & login gate */
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(3, 4, 6, 0.85); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); display: flex; justify-content: center; align-items: center; z-index: 150; padding: 20px; }
+    .modal-card { max-width: 400px; width: 100%; padding: 24px; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
+    .playlist-options-list { display: flex; flex-direction: column; gap: 8px; max-height: 200px; overflow-y: auto; margin: 10px 0; }
+    .playlist-select-btn { width: 100%; padding: 10px 14px; text-align: left; background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 10px; color: var(--text-main); font-family: inherit; font-weight: 600; cursor: pointer; transition: var(--transition); }
+    .playlist-select-btn:hover { background: rgba(139, 92, 246, 0.1); border-color: var(--primary); }
+
+    .login-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(4, 5, 10, 0.9); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); display: flex; justify-content: center; align-items: center; z-index: 100; padding: 20px; }
+    .login-card { max-width: 380px; width: 100%; padding: 32px; text-align: center; display: flex; flex-direction: column; gap: 16px; align-items: center; }
+    .login-logo { width: 70px; height: 70px; border-radius: 20px; background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); display: flex; justify-content: center; align-items: center; color: var(--primary); }
+    .login-error { color: var(--danger); font-size: 0.85rem; font-weight: 600; }
+  </style>
 </head>
 <body>
 
-<!-- SPLASH -->
-<div id="splash">
-  <div class="splash-logo">🕵️</div>
-  <div class="splash-title">JDR OPS</div>
-  <div class="splash-sub">Entre ton pseudo pour rejoindre l'opération</div>
-  <input class="splash-input" type="text" id="pseudo-in" placeholder="Ton pseudo..." maxlength="20" onkeydown="if(event.key==='Enter')joinGame()"/>
-  <button class="splash-btn" onclick="joinGame()">Rejoindre l'opération</button>
-</div>
+  <div class="bg-glow blob-1"></div>
+  <div class="bg-glow blob-2"></div>
 
-<!-- WAITING -->
-<div id="screen-waiting">
-  <div class="wait-pulse">⏳</div>
-  <div class="wait-title">En attente du lancement...</div>
-  <div style="font-size:.82rem;color:var(--muted);margin-bottom:.3rem">Joueurs connectés :</div>
-  <div class="wait-players" id="wait-players-list"></div>
-  <button class="admin-bypass" onclick="bypassToAdmin()">Mode admin</button>
-</div>
-
-<!-- ROLE REVEAL -->
-<div id="screen-role">
-  <div style="font-size:.78rem;color:var(--muted)">Votre mission</div>
-  <div class="role-card" id="role-card">
-    <div class="role-icon" id="role-icon">🃏</div>
-    <div class="role-name" id="role-name">?</div>
-    <div class="role-desc" id="role-desc">En attente...</div>
-  </div>
-  <div class="role-wait" id="role-wait">En attente du lancement de la partie...</div>
-</div>
-
-<!-- DEAD SCREEN -->
-<div id="screen-dead">
-  <div style="font-size:4rem">💀</div>
-  <div style="font-size:1.3rem;font-weight:800;color:var(--red)">Vous êtes éliminé</div>
-  <div style="font-size:.85rem;color:var(--muted)">L'admin peut vous réintégrer dans la partie</div>
-</div>
-
-<!-- ANNOUNCEMENT OVERLAY -->
-<div id="ann-overlay">
-  <div class="ann-box">
-    <div class="ann-from">📢 Annonce officielle</div>
-    <div class="ann-text" id="ann-text"></div>
-    <button class="ann-close" onclick="closeAnn()">Compris</button>
-  </div>
-</div>
-
-<!-- MODALS -->
-<div class="modal-bg" id="modal-pm">
-  <div class="modal">
-    <h3>Message privé à <span id="pm-to"></span></h3>
-    <input class="fin" type="text" id="pm-input" placeholder="Votre message..." maxlength="300" onkeydown="if(event.key==='Enter')sendPM()"/>
-    <div class="modal-brow">
-      <button class="btn b-g" onclick="closeModal('modal-pm')">Annuler</button>
-      <button class="btn b-c" onclick="sendPM()">Envoyer</button>
+  <!-- Header -->
+  <header>
+    <div class="logo-container">
+      <span class="logo-dot"></span>
+      <h2 style="font-family: 'Outfit';">StreamSync Play</h2>
     </div>
-  </div>
-</div>
-
-<div class="modal-bg" id="modal-poi">
-  <div class="modal">
-    <h3>Ajouter un point d'intérêt</h3>
-    <div class="fgroup"><label class="flabel">Nom du point</label><input class="fin" id="poi-label" placeholder="Ex: Cache d'armes" maxlength="40"/></div>
-    <div class="fgroup"><label class="flabel">Visible par</label>
-      <select class="fin" id="poi-visible">
-        <option value="all">Tout le monde</option>
-        <option value="civil">Civils uniquement</option>
-        <option value="tueur">Tueurs uniquement</option>
-        <option value="mossad">Mossad uniquement</option>
-        <option value="tueur,mossad">Tueurs + Mossad</option>
-        <option value="civil,mossad">Civils + Mossad</option>
-      </select>
-    </div>
-    <div class="fgroup"><label class="flabel">Couleur</label>
-      <div class="brow">
-        <button class="btn" style="background:#7F77DD;color:#fff" onclick="poiColor='#7F77DD';highlightColorBtn(this)">Bleu</button>
-        <button class="btn" style="background:#D85A30;color:#fff" onclick="poiColor='#D85A30';highlightColorBtn(this)">Rouge</button>
-        <button class="btn" style="background:#1D9E75;color:#fff" onclick="poiColor='#1D9E75';highlightColorBtn(this)">Vert</button>
-        <button class="btn" style="background:#C9A84C;color:#fff" onclick="poiColor='#C9A84C';highlightColorBtn(this)">Or</button>
+    
+    <div style="display: flex; align-items: center; gap: 14px;">
+      <button id="view-mode-btn" class="btn btn-secondary btn-sm">Accéder à l'Admin</button>
+      <div id="connection-status-badge" class="status-badge">
+        <span class="status-dot"></span>
+        <span id="connection-status-text">Hors ligne</span>
       </div>
     </div>
-    <div class="modal-brow">
-      <button class="btn b-g" onclick="closeModal('modal-poi')">Annuler</button>
-      <button class="btn b-p" onclick="confirmAddPoi()">Ajouter</button>
-    </div>
-  </div>
-</div>
+  </header>
 
-<div class="modal-bg" id="modal-action">
-  <div class="modal">
-    <h3>Créer une action</h3>
-    <div class="fgroup"><label class="flabel">Nom de l'action</label><input class="fin" id="action-label" placeholder="Ex: Éliminer"/></div>
-    <div class="fgroup"><label class="flabel">Pour quel rôle ?</label>
-      <select class="fin" id="action-role">
-        <option value="all">Tous</option>
-        <option value="civil">Civil</option>
-        <option value="tueur">Tueur</option>
-        <option value="mossad">Mossad</option>
-      </select>
-    </div>
-    <div class="fgroup"><label class="flabel">Message envoyé à l'admin quand utilisée</label><input class="fin" id="action-msg" placeholder="Ex: A utilisé Éliminer sur..."/></div>
-    <div class="modal-brow">
-      <button class="btn b-g" onclick="closeModal('modal-action')">Annuler</button>
-      <button class="btn b-p" onclick="saveAction()">Créer</button>
-    </div>
-  </div>
-</div>
-
-<div class="modal-bg" id="modal-announce">
-  <div class="modal">
-    <h3>Envoyer une annonce</h3>
-    <div class="fgroup"><label class="flabel">Message</label><textarea class="fin" id="ann-msg" rows="3" placeholder="Votre annonce..." style="resize:none"></textarea></div>
-    <div class="fgroup"><label class="flabel">Destinataires</label>
-      <select class="fin" id="ann-target">
-        <option value="all">Tout le monde</option>
-        <option value="civil">Civils</option>
-        <option value="tueur">Tueurs</option>
-        <option value="mossad">Mossad</option>
-      </select>
-    </div>
-    <div class="modal-brow">
-      <button class="btn b-g" onclick="closeModal('modal-announce')">Annuler</button>
-      <button class="btn b-gold" onclick="sendAnnounce()">Envoyer</button>
-    </div>
-  </div>
-</div>
-
-<!-- NOTIFICATIONS -->
-<div id="notif"></div>
-
-<!-- MAIN APP -->
-<div id="app">
-  <div class="hdr">
-    <div class="hdr-logo">🕵️ JDR</div>
-    <div class="hdr-center">
-      <div id="timer-display">--:--</div>
-      <div id="phase-badge">Attente</div>
-    </div>
-    <div class="hdr-right">
-      <div id="my-role-badge" style="display:none"></div>
-      <div id="conn-badge" class="off">...</div>
-    </div>
-  </div>
-
-  <div class="nav">
-    <button class="on" onclick="switchTab('map')">🗺 Carte</button>
-    <button onclick="switchTab('chat')" id="nav-chat">💬 Chat<span class="nav-badge" id="chat-badge"></span></button>
-    <button onclick="switchTab('players')">👥 Joueurs</button>
-    <button onclick="switchTab('actions')">⚡ Actions</button>
-    <button onclick="switchTab('admin')">🎛 Admin</button>
-  </div>
-
-  <div class="views">
-    <!-- MAP -->
-    <div id="view-map" class="view on">
-      <div id="map"></div>
+  <main>
+    <!-- Game Timer countdown banner (Visible when game is running) -->
+    <div id="global-timer-banner" class="global-timer-banner hidden">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+      </svg>
+      <span>Temps restant : </span>
+      <span id="global-timer-countdown">00:00</span>
     </div>
 
-    <!-- CHAT -->
-    <div id="view-chat" class="view">
-      <div class="card" style="flex:1;display:flex;flex-direction:column">
-        <div class="card-title">Chat global</div>
-        <div id="chat-msgs"></div>
-        <div class="chat-row">
-          <input class="fin" type="text" id="chat-in" placeholder="Votre message..." maxlength="300" onkeydown="if(event.key==='Enter')sendChat()"/>
-          <button class="btn b-p" onclick="sendChat()">▶</button>
+    <!-- ========================================================
+         VIEW 1: LISTENER VIEW (PUBLIC PLAYER / PLAYER INTERFACE)
+         ======================================================== -->
+    <div id="listener-view" class="listener-layout">
+      
+      <!-- Room Code & Pseudo gateway selector -->
+      <div id="listener-gateway" class="gateway-overlay glass-panel">
+        <div class="gateway-logo">
+          <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" fill="currentColor" opacity="0.15"/>
+            <path d="M19 10v1a7 7 0 0 1-14 0v-1M12 19v4M8 23h8"/>
+          </svg>
         </div>
-      </div>
-    </div>
-
-    <!-- PLAYERS -->
-    <div id="view-players" class="view">
-      <div class="card">
-        <div class="card-title">Joueurs connectés</div>
-        <div id="players-list"></div>
-      </div>
-    </div>
-
-    <!-- ACTIONS (rôle) -->
-    <div id="view-actions" class="view">
-      <div class="card" id="actions-card">
-        <div class="card-title">Vos actions disponibles</div>
-        <div id="my-actions-list"><p style="font-size:.78rem;color:var(--muted)">Pas d'actions disponibles pour votre rôle</p></div>
-      </div>
-      <div class="card">
-        <div class="card-title">Historique</div>
-        <div id="actions-log" style="font-size:.78rem;color:var(--muted);max-height:200px;overflow-y:auto"></div>
-      </div>
-    </div>
-
-    <!-- ADMIN -->
-    <div id="view-admin" class="view">
-      <div id="admin-gate" class="card">
-        <div class="card-title">Accès administrateur</div>
-        <div class="fgroup">
-          <label class="flabel">Mot de passe</label>
-          <input class="fin" type="password" id="admin-pass" placeholder="Mot de passe" onkeydown="if(event.key==='Enter')unlockAdmin()"/>
+        <h1 class="gateway-title">Rejoindre la Session</h1>
+        <p class="gateway-desc">Entrez le code de salon et votre nom d'utilisateur pour écouter la musique et recevoir votre rôle de jeu.</p>
+        
+        <div class="form-group" style="width: 100%; max-width: 300px;">
+          <label class="form-label">Nom d'utilisateur</label>
+          <input type="text" id="listener-username-input" class="form-input" placeholder="Votre nom" required style="text-align: center;">
         </div>
-        <button class="btn b-p" onclick="unlockAdmin()">Déverrouiller</button>
-        <div class="err" id="admin-err"></div>
+
+        <div class="form-group" style="width: 100%; max-width: 300px;">
+          <label class="form-label">Code de salon</label>
+          <input type="text" id="listener-room-input" class="form-input" placeholder="Code salon" value="1234" style="text-align: center; letter-spacing: 0.1em; font-weight: 700;">
+        </div>
+        
+        <button id="join-broadcast-btn" class="btn btn-primary" style="width: 100%; max-width: 300px; font-size: 1.05rem; margin-top: 10px;">Rejoindre la session</button>
       </div>
 
-      <div id="admin-panel" style="display:none;flex-direction:column;gap:.75rem;width:100%;max-width:500px">
+      <!-- Main Listener Tabs Controller (Visible once joined) -->
+      <div id="listener-panel" class="hidden" style="display: flex; flex-direction: column; width: 100%;">
+        <div class="tabs-bar">
+          <button class="tab-btn active" data-tab="listener-tab-music">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+            Musique
+          </button>
+          <button class="tab-btn" data-tab="listener-tab-role">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            Mon Rôle
+          </button>
+          <button class="tab-btn" data-tab="listener-tab-map">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>
+            Carte Satellite
+          </button>
+        </div>
 
-        <!-- PHASE CONTROL -->
-        <div class="card">
-          <div class="card-title">🎮 Phase du jeu</div>
-          <div class="brow" style="margin-bottom:.65rem">
-            <button class="btn b-g" onclick="setPhase('waiting')">⏳ Attente</button>
-            <button class="btn b-p" onclick="setPhase('roles')">🎭 Rôles</button>
-            <button class="btn b-t" onclick="setPhase('playing')">⚔️ Lancer</button>
-            <button class="btn b-c" onclick="setPhase('ended')">🏁 Fin</button>
-          </div>
-          <div class="fgroup">
-            <label class="flabel">Durée (minutes)</label>
-            <div class="brow">
-              <input class="fin" type="number" id="timer-dur" value="60" min="1" max="480" style="width:100px"/>
-              <button class="btn b-g" onclick="setTimerDuration()">Appliquer</button>
-              <button class="btn b-gold" onclick="wsSend({type:'pause_timer'})">⏸</button>
-              <button class="btn b-t" onclick="wsSend({type:'resume_timer'})">▶</button>
+        <!-- Sub-Tab 1: Music playback -->
+        <div id="listener-tab-music" class="tab-content">
+          <div id="listener-player" class="player-card glass-panel">
+            <div class="artwork-wrapper">
+              <div id="listener-disc" class="disc-container">
+                <div id="listener-artwork-img" class="artwork-image default-art"></div>
+                <div class="disc-center"></div>
+              </div>
+              <div id="listener-visualizer" class="visualizer-container">
+                <span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span>
+                <span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span>
+              </div>
+            </div>
+
+            <div style="width: 100%;">
+              <h1 id="listener-song-title" class="song-title">En attente de l'admin...</h1>
+              <p id="listener-song-artist" class="song-artist">Aucune musique diffusée</p>
+            </div>
+
+            <div class="progress-section">
+              <div class="time-info">
+                <span id="listener-current-time">0:00</span>
+                <span id="listener-total-time">0:00</span>
+              </div>
+              <div class="progress-bar-container">
+                <div id="listener-progress-fill" class="progress-bar-fill"></div>
+              </div>
+            </div>
+
+            <div class="info-alert">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+              </svg>
+              <span>Le son joue même en verrouillant le téléphone grâce à la connexion WebRTC active.</span>
             </div>
           </div>
-          <button class="btn b-red" onclick="if(confirm('Reset complet ?'))wsSend({type:'reset_game'})" style="margin-top:.4rem">🔄 Reset la partie</button>
         </div>
 
-        <!-- ROLES -->
-        <div class="card">
-          <div class="card-title">🎭 Attribution des rôles</div>
-          <div id="admin-players-list" style="margin-bottom:.65rem"></div>
-          <div class="fgroup">
-            <label class="flabel">Attribution automatique (entrez les rôles, ex: tueur,civil,civil,mossad)</label>
-            <input class="fin" id="auto-roles" placeholder="tueur,civil,civil,mossad"/>
+        <!-- Sub-Tab 2: Role Details -->
+        <div id="listener-tab-role" class="tab-content hidden">
+          <div class="glass-panel role-card">
+            
+            <!-- Default Waiting state -->
+            <div id="role-waiting-state">
+              <div class="role-icon">⏳</div>
+              <h2 class="role-name">Attente du lancement</h2>
+              <p class="role-desc">L'administrateur prépare la distribution des rôles. Dès le lancement de la partie, votre rôle s'affichera ici.</p>
+            </div>
+
+            <!-- Active Assigned state -->
+            <div id="role-active-state" class="hidden">
+              <div id="role-blur-container" class="role-blur">
+                <div id="player-role-icon" class="role-icon">🕵️</div>
+                <h2 id="player-role-name" class="role-name">Nom du Rôle</h2>
+                <p id="player-role-desc" class="role-desc">Description et objectif du rôle ici.</p>
+              </div>
+              
+              <button id="toggle-role-visibility-btn" class="btn btn-secondary btn-sm" style="margin-top: 24px; min-width: 160px;">Afficher le rôle</button>
+            </div>
+
+            <!-- Reveal Roles final state table -->
+            <div id="role-reveal-container" class="reveal-table-container hidden">
+              <h3 style="margin-bottom: 12px; font-family:'Outfit'; color:var(--secondary)">Révélation des Rôles</h3>
+              <table class="reveal-table">
+                <thead>
+                  <tr>
+                    <th>Joueur</th>
+                    <th>Rôle</th>
+                  </tr>
+                </thead>
+                <tbody id="reveal-table-body">
+                  <!-- Rendered dynamically -->
+                </tbody>
+              </table>
+            </div>
+
           </div>
-          <button class="btn b-p" onclick="autoAssignRoles()">Assigner automatiquement</button>
         </div>
 
-        <!-- ANNONCES -->
-        <div class="card">
-          <div class="card-title">📢 Annonces</div>
-          <button class="btn b-gold" onclick="openModal('modal-announce')">Envoyer une annonce</button>
-        </div>
-
-        <!-- CARTE ADMIN -->
-        <div class="card">
-          <div class="card-title">📍 Points d'intérêt</div>
-          <p style="font-size:.75rem;color:var(--muted);margin-bottom:.6rem">Clique sur la carte pour ajouter un point d'intérêt</p>
-          <div id="poi-list" style="max-height:150px;overflow-y:auto"></div>
-        </div>
-
-        <!-- ACTIONS -->
-        <div class="card">
-          <div class="card-title">⚡ Actions personnalisées</div>
-          <button class="btn b-p" style="margin-bottom:.6rem" onclick="openModal('modal-action')">+ Créer une action</button>
-          <div id="admin-actions-list"></div>
-        </div>
-
-        <!-- MUSIQUE -->
-        <div class="card">
-          <div class="card-title">🎵 Musique</div>
-          <div id="music-now" style="font-size:.78rem;color:var(--muted);margin-bottom:.55rem">Aucune piste</div>
-          <div class="brow" style="margin-bottom:.55rem">
-            <button class="btn b-g" onclick="wsSend({type:'music_prev'})">⏮</button>
-            <button class="btn b-t" onclick="musicPlay()">▶</button>
-            <button class="btn b-g" onclick="wsSend({type:'music_pause'})">⏸</button>
-            <button class="btn b-c" onclick="wsSend({type:'music_stop'})">⏹</button>
-            <button class="btn b-g" onclick="wsSend({type:'music_next'})">⏭</button>
+        <!-- Sub-Tab 3: Live Satellite Map -->
+        <div id="listener-tab-map" class="tab-content hidden">
+          <div class="glass-panel" style="padding: 16px;">
+            <div id="listener-map" class="map-container"></div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top: 10px; font-size: 0.8rem; color: var(--text-muted);">
+              <span id="gps-status-indicator">📡 Recherche de votre position GPS...</span>
+              <button id="recenter-gps-btn" class="btn btn-secondary btn-sm" style="padding: 4px 10px; font-size: 0.75rem;">Centrer sur moi</button>
+            </div>
           </div>
-          <div class="toggle-row" style="margin-bottom:.5rem">
-            <span style="font-size:.8rem">🔁 Boucle</span>
-            <label class="toggle"><input type="checkbox" id="loop-tog" onchange="wsSend({type:'music_loop',loop:this.checked})"/><span class="slider"></span></label>
-          </div>
-          <div class="srow" style="margin-bottom:.5rem">
-            <span style="font-size:.7rem;color:var(--muted)">🔈</span>
-            <input type="range" id="vol-sl" min="0" max="1" step="0.05" value="0.8" oninput="wsSend({type:'music_volume',volume:parseFloat(this.value)});document.getElementById('vol-lbl').textContent=Math.round(this.value*100)+'%'"/>
-            <span style="font-size:.7rem;color:var(--muted)">🔊</span>
-            <span id="vol-lbl" style="font-size:.75rem;min-width:2.5rem">80%</span>
-          </div>
-          <!-- Upload -->
-          <div id="dropzone" onclick="document.getElementById('file-input').click()" ondragover="dzEv(event,true)" ondragleave="dzEv(event,false)" ondrop="dzDrop(event)">
-            <p>Glisse un MP3 ici</p><p><strong>ou clique</strong></p>
-          </div>
-          <input type="file" id="file-input" accept="audio/*" onchange="uploadTrack(this.files[0])"/>
-          <div id="up-prog" style="display:none"><div class="upbar-wrap"><div id="upbar"></div></div><div id="up-lbl" style="font-size:.7rem;color:var(--muted);text-align:center"></div></div>
-          <div class="err" id="up-err"></div>
-          <div id="track-list" style="margin-top:.6rem;max-height:200px;overflow-y:auto"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Password authentication gate -->
+    <div id="admin-password-gate" class="login-overlay hidden">
+      <div class="login-card glass-panel">
+        <div class="login-logo">
+          <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+        </div>
+        <h2>Console Admin</h2>
+        <p class="login-desc">Saisissez le mot de passe administrateur.</p>
+        <div class="form-group" style="width: 100%;">
+          <input type="password" id="gate-password-input" class="form-input" placeholder="Mot de passe" required>
+        </div>
+        <button id="gate-submit-btn" class="btn btn-primary" style="width: 100%;">Se connecter</button>
+        <p id="gate-error-text" class="login-error hidden">Mot de passe incorrect</p>
+      </div>
+    </div>
+
+    <!-- ========================================================
+         VIEW 2: ADMIN VIEW (SECURED CONTROL DASHBOARD)
+         ======================================================== -->
+    <div id="admin-view" class="admin-layout hidden">
+
+      <!-- Main Admin Tabs Controller -->
+      <div id="admin-panel" style="display: flex; flex-direction: column; width: 100%;">
+        <div class="tabs-bar" style="max-width: 600px; margin: 0 auto 20px auto; width:100%">
+          <button class="tab-btn active" data-tab="admin-tab-music">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+            Console Audio
+          </button>
+          <button class="tab-btn" data-tab="admin-tab-game">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            Rôles & Chrono
+          </button>
+          <button class="tab-btn" data-tab="admin-tab-map">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>
+            Carte Admin
+          </button>
         </div>
 
-        <!-- PARTICIPANTS -->
-        <div class="card">
-          <div class="card-title">👥 Participants</div>
-          <div id="admin-conn" style="font-size:.78rem;color:var(--teal)">...</div>
+        <!-- Admin Tab 1: Music & Library (Existing grid) -->
+        <div id="admin-tab-music" class="tab-content">
+          <div id="admin-dashboard" class="admin-grid">
+            <!-- Left Panel: Playback status -->
+            <div class="admin-column">
+              <div class="glass-panel column-card">
+                <h3 class="column-title">Diffusion Actuelle</h3>
+                
+                <div class="now-playing-panel">
+                  <div class="artwork-preview">
+                    <div id="admin-artwork-preview" class="artwork-thumb default-art"></div>
+                  </div>
+                  <div class="playing-details">
+                    <h2 id="admin-song-title">Aucune musique diffusée</h2>
+                    <p id="admin-song-artist">Sélectionnez un son</p>
+                    <div class="room-code-tag">Salon : <span id="admin-room-code-display">-</span></div>
+                  </div>
+                </div>
+
+                <div class="progress-section">
+                  <div class="time-info">
+                    <span id="admin-current-time">0:00</span>
+                    <span id="admin-total-time">0:00</span>
+                  </div>
+                  <input type="range" id="admin-seek-slider" min="0" max="100" value="0" class="seek-slider">
+                </div>
+
+                <div class="playback-controls">
+                  <button id="admin-ctrl-prev" class="btn btn-secondary btn-circle" title="Précédent">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="m6 6 1.5 1.5L2 12l5.5 4.5L6 18l-7-6 7-6zM18 6l1.5 1.5L14 12l5.5 4.5L18 18l-7-6 7-6z"/></svg>
+                  </button>
+                  <button id="admin-ctrl-play" class="btn btn-primary btn-circle btn-play" title="Diffuser / Pause">
+                    <svg id="admin-play-icon" viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                    <svg id="admin-pause-icon" class="hidden" viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                  </button>
+                  <button id="admin-ctrl-stop" class="btn btn-secondary btn-circle" title="Arrêter">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 6h12v12H6z"/></svg>
+                  </button>
+                  <button id="admin-ctrl-next" class="btn btn-secondary btn-circle" title="Suivant">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 18l-1.5-1.5L10 12 4.5 7.5 6 6l7 6-7 6zm12 0l-1.5-1.5L21 12l-5.5-4.5 1.5-1.5 7 6-7 6z"/></svg>
+                  </button>
+                </div>
+
+                <div class="info-alert" style="margin-top: 10px;">
+                  <span id="admin-listeners-count-text">0 auditeur(s) connecté(s) en direct.</span>
+                </div>
+                
+                <div class="form-group" style="margin-top: auto;">
+                  <label class="form-label">Code Salon & Re-créer</label>
+                  <div style="display: flex; gap: 8px;">
+                    <input type="text" id="admin-room-input" class="form-input" value="1234" style="font-weight: 700; text-align: center;">
+                    <button id="admin-setup-room-btn" class="btn btn-secondary btn-sm">Changer</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Middle Panel: MP3 Library -->
+            <div class="admin-column">
+              <div class="glass-panel column-card">
+                <h3 class="column-title">Bibliothèque MP3</h3>
+                <div id="admin-dropzone" class="upload-dropzone">
+                  <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+                  </svg>
+                  <p>Glissez un MP3 ou <span>Parcourir</span></p>
+                  <input type="file" id="admin-file-input" accept="audio/mpeg,audio/mp3" multiple class="hidden">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                  <input type="text" id="admin-search-library" class="form-input" placeholder="Rechercher...">
+                </div>
+                <div id="admin-songs-list" class="scroll-list">
+                  <div class="list-empty">Aucune musique chargée.</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Panel: Playlists -->
+            <div class="admin-column">
+              <div class="glass-panel column-card">
+                <h3 class="column-title">Listes de lecture</h3>
+                <form id="admin-create-playlist-form" class="create-playlist-form">
+                  <input type="text" id="admin-new-playlist-name" class="form-input" placeholder="Nom de la playlist" required>
+                  <button type="submit" class="btn btn-primary">+</button>
+                </form>
+                <div id="admin-playlists-list" class="scroll-list">
+                  <div class="list-empty">Aucune playlist.</div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
+        <!-- Admin Tab 2: Game configuration & Roles -->
+        <div id="admin-tab-game" class="tab-content hidden">
+          <div class="game-console-grid">
+            
+            <!-- Left panel: Role Creator & List -->
+            <div class="glass-panel" style="padding: 24px; display:flex; flex-direction:column; gap: 20px;">
+              <h3 class="column-title">Création des Rôles</h3>
+              
+              <form id="admin-create-role-form" style="display:flex; flex-direction:column; gap: 12px;">
+                <div class="form-row">
+                  <div class="form-group" style="flex:2">
+                    <label class="form-label">Nom du rôle</label>
+                    <input type="text" id="role-name-input" class="form-input" placeholder="ex: Détective" required>
+                  </div>
+                  <div class="form-group" style="flex:1">
+                    <label class="form-label">Émojis / Icône</label>
+                    <input type="text" id="role-icon-input" class="form-input" placeholder="ex: 🕵️" required style="text-align: center;">
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Objectif / Description</label>
+                  <textarea id="role-desc-input" class="form-input" rows="3" placeholder="ex: Vous devez trouver le coupable..." required style="resize:none; font-family:inherit;"></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm">Créer le Rôle</button>
+              </form>
+
+              <h4 style="font-family:'Outfit'; font-size:1rem; border-top:1px solid rgba(255,255,255,0.06); padding-top:14px;">Rôles Enregistrés (<span id="role-pool-count">0</span>)</h4>
+              <div id="admin-roles-pool-list" class="scroll-list" style="max-height: 180px;">
+                <div class="list-empty">Aucun rôle créé.</div>
+              </div>
+            </div>
+
+            <!-- Right panel: Connected players & Active game config -->
+            <div class="glass-panel" style="padding: 24px; display:flex; flex-direction:column; gap: 20px;">
+              <h3 class="column-title">Configuration de la Partie</h3>
+
+              <div class="form-row" style="align-items: flex-end;">
+                <div class="form-group" style="flex:1">
+                  <label class="form-label">Durée de partie (min)</label>
+                  <input type="number" id="game-duration-input" class="form-input" min="1" max="180" value="10" style="text-align:center;">
+                </div>
+                <div style="flex:1; display:flex; flex-direction:column; gap:6px;">
+                  <span class="form-label">Statut</span>
+                  <div id="admin-game-status" class="timer-badge-display" style="padding: 8px 12px; font-size: 1rem;">Attente</div>
+                </div>
+              </div>
+
+              <!-- Connected Players list with role dropdowns -->
+              <h4 style="font-family:'Outfit'; font-size:1rem;">Joueurs Connectés (<span id="connected-players-count">0</span>)</h4>
+              <div id="admin-players-roles-list" class="scroll-list" style="max-height: 200px; gap:8px;">
+                <div class="list-empty">Aucun joueur dans le salon.</div>
+              </div>
+
+              <!-- Controls -->
+              <div style="margin-top:auto; display:flex; flex-direction:column; gap:10px;">
+                <div class="game-control-buttons">
+                  <button id="admin-distribute-random-btn" class="btn btn-secondary btn-sm" title="Assigne un rôle au hasard à chaque joueur sélectionné">Distribuer Aléatoirement</button>
+                  <button id="admin-start-game-btn" class="btn btn-success btn-sm">Lancer la Partie</button>
+                </div>
+                <div class="game-control-buttons">
+                  <button id="admin-add-time-1-btn" class="btn btn-secondary btn-sm hidden">+1 Min</button>
+                  <button id="admin-add-time-5-btn" class="btn btn-secondary btn-sm hidden">+5 Min</button>
+                </div>
+                <div class="game-control-buttons">
+                  <button id="admin-reveal-roles-btn" class="btn btn-warning btn-sm hidden">Révéler les Rôles</button>
+                  <button id="admin-stop-game-btn" class="btn btn-danger btn-sm hidden">Arrêter la Partie</button>
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Admin Tab 3: Interactive satellite Map points creator -->
+        <div id="admin-tab-map" class="tab-content hidden">
+          <div class="glass-panel" style="padding: 24px;">
+            <h3 class="column-title" style="margin-bottom: 14px;">Gestion des Points d'Intérêt</h3>
+            
+            <div class="admin-map-layout">
+              <div>
+                <div id="admin-map" class="map-container"></div>
+                <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 8px;">Clic gauche sur la carte satellite pour placer un point d'intérêt.</p>
+              </div>
+              
+              <div style="display:flex; flex-direction:column; gap:14px; min-width: 0;">
+                <h4 style="font-family:'Outfit'; font-size:1rem; border-bottom:1px solid rgba(255,255,255,0.06); padding-bottom:8px;">Points Créés (<span id="admin-map-points-count">0</span>)</h4>
+                <div id="admin-map-points-list" class="scroll-list" style="max-height: 400px; gap:8px;">
+                  <div class="list-empty">Aucun point d'intérêt.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Rename Modal -->
+  <div id="modal-rename" class="modal-overlay hidden">
+    <div class="modal-card glass-panel">
+      <h3 id="rename-modal-title">Renommer</h3>
+      <div class="form-group">
+        <label class="form-label" id="rename-lbl-1">Titre</label>
+        <input type="text" id="rename-val-1" class="form-input" required>
+      </div>
+      <div class="form-group" id="rename-group-2">
+        <label class="form-label">Artiste</label>
+        <input type="text" id="rename-val-2" class="form-input">
+      </div>
+      <div class="modal-actions">
+        <button id="rename-cancel" class="btn btn-secondary btn-sm">Annuler</button>
+        <button id="rename-save" class="btn btn-primary btn-sm">Enregistrer</button>
       </div>
     </div>
   </div>
 
-  <!-- MUSIC MINI PLAYER -->
-  <div class="music-mini" id="music-mini">
-    <div class="mm-name" id="mm-track-name">...</div>
-    <div class="prog-wrap"><div class="prog-bar" id="music-prog"></div></div>
-    <div class="trow"><span id="mm-tc">0:00</span><span id="mm-tt">0:00</span></div>
+  <!-- Add to Playlist Overlay -->
+  <div id="modal-playlists-menu" class="modal-overlay hidden">
+    <div class="modal-card glass-panel">
+      <h3>Ajouter à la playlist</h3>
+      <p id="playlists-menu-song-name" style="font-size: 0.9rem; color: var(--text-muted);"></p>
+      <div id="playlists-menu-list" class="playlist-options-list"></div>
+      <div class="modal-actions">
+        <button id="playlists-menu-cancel" class="btn btn-secondary btn-sm">Fermer</button>
+      </div>
+    </div>
   </div>
-</div>
 
-<audio id="audio" preload="auto"></audio>
+  <!-- HTML5 audio players -->
+  <audio id="admin-audio-element" preload="auto" style="display: none;"></audio>
+  <audio id="listener-audio-element" preload="auto" style="display: none;"></audio>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script>
-// ── STATE ──────────────────────────────────────
-var ws, myId='', myPseudo='', myRole=null, myAlive=true;
-var adminPwd='', isAdmin=false;
-var currentTab='map', chatUnread=0;
-var allPlayers=[], allPois=[], allActions=[], allTracks=[];
-var currentTrackUrl='', musicPlaylist=[];
-var progTimer, pendingPoi=null, poiColor='#7F77DD';
-var pmTargetId='', pmTargetName='';
-var gamePhase='waiting';
-var timerInterval=null, timerStart=null, timerDuration=3600, timerPaused=false, timerElapsed=0;
-var annQueue=[];
+  <!-- ========================================================
+       JAVASCRIPT LOGIC
+       ======================================================== -->
+  <script>
+    // INDEXEDDB CONFIG
+    const DB_NAME = 'StreamSyncP2PDB';
+    const DB_VERSION = 1;
+    let indexedDatabase = null;
 
-// ── MAP ────────────────────────────────────────
-var map=null, playerMarkers={}, poiMarkers={}, addingPoi=false;
-var myMarker=null, myAccCircle=null;
-var watchId=null;
-
-function initMap(){
-  if(map) return;
-  map = L.map('map',{zoomControl:true,attributionControl:false}).setView([48.8566,2.3522],15);
-  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:20}).addTo(map);
-
-  // Click pour ajouter POI (admin)
-  map.on('click',function(e){
-    if(!isAdmin) return;
-    pendingPoi={lat:e.latlng.lat, lng:e.latlng.lng};
-    openModal('modal-poi');
-  });
-  startGPS();
-}
-
-function startGPS(){
-  if(!navigator.geolocation) return;
-  watchId = navigator.geolocation.watchPosition(function(pos){
-    var lat=pos.coords.latitude, lng=pos.coords.longitude, acc=pos.coords.accuracy;
-    // Envoyer au serveur
-    if(ws&&ws.readyState===1) ws.send(JSON.stringify({type:'location_update',lat:lat,lng:lng,acc:acc}));
-    // Afficher ma position
-    if(!myMarker){
-      myMarker = L.circleMarker([lat,lng],{radius:8,fillColor:'#7F77DD',color:'#fff',weight:2,fillOpacity:1}).addTo(map);
-      myAccCircle = L.circle([lat,lng],{radius:acc,color:'#7F77DD',fillOpacity:.1,weight:1}).addTo(map);
-      map.setView([lat,lng],17);
-    } else {
-      myMarker.setLatLng([lat,lng]);
-      myAccCircle.setLatLng([lat,lng]);
-      myAccCircle.setRadius(acc);
+    function openDB() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains('audio_files')) {
+            db.createObjectStore('audio_files', { keyPath: 'id' });
+          }
+        };
+        req.onsuccess = (e) => {
+          indexedDatabase = e.target.result;
+          resolve(indexedDatabase);
+        };
+        req.onerror = (e) => reject(e.target.error);
+      });
     }
-  },{enableHighAccuracy:true,maximumAge:5000,timeout:10000});
-}
 
-function updatePlayerMarker(p){
-  if(!map||!p.location) return;
-  if(p.id===myId) return; // ma position gérée séparément
-  var lat=p.location.lat, lng=p.location.lng;
-  var color = p.alive ? '#1D9E75' : '#e53e3e';
-  if(!playerMarkers[p.id]){
-    var icon = L.divIcon({className:'',html:'<div style="background:'+color+';width:12px;height:12px;border-radius:50%;border:2px solid #fff;"></div>',iconSize:[12,12],iconAnchor:[6,6]});
-    var m = L.marker([lat,lng],{icon:icon}).addTo(map);
-    m.bindTooltip(p.pseudo,{permanent:true,direction:'top',className:'player-marker-label',offset:[0,-8]});
-    playerMarkers[p.id]=m;
-  } else {
-    playerMarkers[p.id].setLatLng([lat,lng]);
-  }
-}
+    function saveAudioFile(id, blob) {
+      return new Promise((resolve, reject) => {
+        if (!indexedDatabase) return reject("DB not initialized");
+        const tx = indexedDatabase.transaction('audio_files', 'readwrite');
+        const store = tx.objectStore('audio_files');
+        const req = store.put({ id, blob });
+        req.onsuccess = () => resolve();
+        req.onerror = (e) => reject(e.target.error);
+      });
+    }
 
-function removePlayerMarker(id){
-  if(playerMarkers[id]){map.removeLayer(playerMarkers[id]);delete playerMarkers[id];}
-}
+    function getAudioFile(id) {
+      return new Promise((resolve, reject) => {
+        if (!indexedDatabase) return reject("DB not initialized");
+        const tx = indexedDatabase.transaction('audio_files', 'readonly');
+        const store = tx.objectStore('audio_files');
+        const req = store.get(id);
+        req.onsuccess = (e) => resolve(e.target.result ? e.target.result.blob : null);
+        req.onerror = (e) => reject(e.target.error);
+      });
+    }
 
-function addPoiMarker(poi){
-  if(!map) return;
-  var icon = L.divIcon({className:'',html:'<div style="background:'+poi.color+';width:16px;height:16px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 6px '+poi.color+'"></div>',iconSize:[16,16],iconAnchor:[8,8]});
-  var m = L.marker([poi.lat,poi.lng],{icon:icon}).addTo(map);
-  m.bindPopup('<div class="poi-popup">'+esc(poi.label)+'</div>');
-  poiMarkers[poi.id]=m;
-}
+    function deleteAudioFile(id) {
+      return new Promise((resolve, reject) => {
+        if (!indexedDatabase) return reject("DB not initialized");
+        const tx = indexedDatabase.transaction('audio_files', 'readwrite');
+        const store = tx.objectStore('audio_files');
+        const req = store.delete(id);
+        req.onsuccess = () => resolve();
+        req.onerror = (e) => reject(e.target.error);
+      });
+    }
 
-function removePoiMarker(id){
-  if(poiMarkers[id]){map.removeLayer(poiMarkers[id]);delete poiMarkers[id];}
-}
+    // STATE CONFIG
+    let isEditingAdmin = false;
+    let isAdminAuthenticated = false;
+    const adminPasswordHash = "admin123";
 
-// ── SPLASH / JOIN ──────────────────────────────
-function joinGame(){
-  var p=(document.getElementById('pseudo-in').value||'').trim();
-  if(!p){document.getElementById('pseudo-in').focus();return;}
-  myPseudo=p;
-  // Débloquer audio
-  var audio=document.getElementById('audio');
-  audio.src='data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
-  audio.volume=0;
-  var done=function(){audio.pause();audio.volume=1;audio.src='';document.getElementById('splash').classList.add('hidden');connect();};
-  var pr=audio.play(); if(pr) pr.then(done).catch(done); else done();
-}
+    let localLibrary = {
+      songs: [],
+      playlists: []
+    };
 
-// ── WS ─────────────────────────────────────────
-function connect(){
-  var proto=location.protocol==='https:'?'wss':'ws';
-  ws=new WebSocket(proto+'://'+location.host);
-  ws.onopen=function(){
-    setBadge(true);
-    ws.send(JSON.stringify({type:'set_pseudo',pseudo:myPseudo}));
-    showScreen();
-  };
-  ws.onclose=function(){setBadge(false);setTimeout(connect,2000);};
-  ws.onmessage=function(e){handle(JSON.parse(e.data));};
-}
-
-function setBadge(ok){
-  var b=document.getElementById('conn-badge');
-  b.textContent=ok?myPseudo:'Déco';b.className=ok?'':'off';
-}
-
-function showScreen(){
-  document.getElementById('app').classList.add('show');
-  updatePhaseDisplay();
-  setTimeout(initMap,100);
-}
-
-function handle(msg){
-  switch(msg.type){
-    case 'welcome': myId=msg.id; break;
-    case 'game_state': applyGameState(msg); break;
-    case 'game_reset':
-      myRole=null;myAlive=true;gamePhase='waiting';
-      document.getElementById('my-role-badge').style.display='none';
-      updatePhaseDisplay();
-      Object.keys(playerMarkers).forEach(removePlayerMarker);
-      Object.keys(poiMarkers).forEach(removePoiMarker);
-      allPois=[];
-      showNotif('La partie a été réinitialisée');
-      break;
-    case 'timer_update':
-      timerPaused=msg.paused;timerElapsed=msg.elapsed||0;
-      if(!msg.paused&&msg.timerStart){timerStart=msg.timerStart;startTimerTick();}
-      if(msg.paused){clearInterval(timerInterval);}
-      timerDuration=msg.duration||timerDuration;
-      break;
-    case 'your_role':
-      myRole=msg.role;myAlive=msg.alive;
-      showRoleCard(msg.role);
-      updateRoleBadge();
-      renderMyActions();
-      break;
-    case 'players_update':
-      allPlayers=msg.players||[];
-      renderPlayers(msg.admin);
-      // Mettre à jour marqueurs
-      allPlayers.forEach(updatePlayerMarker);
-      updateWaitingScreen();
-      break;
-    case 'player_location':
-      // Mettre à jour marqueur
-      var found=allPlayers.find(function(p){return p.id===msg.id;});
-      if(found){found.location={lat:msg.lat,lng:msg.lng};updatePlayerMarker(found);}
-      else updatePlayerMarker({id:msg.id,pseudo:msg.pseudo,alive:msg.alive,location:{lat:msg.lat,lng:msg.lng}});
-      break;
-    case 'player_left': removePlayerMarker(msg.id); break;
-    case 'player_eliminated':
-      if(msg.id===myId){
-        myAlive=msg.alive;
-        if(!myAlive){document.getElementById('screen-dead').classList.add('show');}
-        else{document.getElementById('screen-dead').classList.remove('show');}
+    // Load Local Data
+    function loadLocalLibrary() {
+      const data = localStorage.getItem('streamsync_library');
+      if (data) {
+        try { localLibrary = JSON.parse(data); } catch (e) { console.error(e); }
       }
-      showNotif(msg.alive?msg.pseudo+' réintégré':msg.pseudo+' éliminé');
-      break;
-    case 'pois_update':
-      Object.keys(poiMarkers).forEach(removePoiMarker);
-      allPois=msg.pois||[];
-      allPois.forEach(function(poi){addPoiMarker(poi);});
-      renderPoiList();
-      break;
-    case 'poi_added': allPois.push(msg.poi);addPoiMarker(msg.poi);renderPoiList(); break;
-    case 'poi_removed': allPois=allPois.filter(function(p){return p.id!==msg.poiId;});removePoiMarker(msg.poiId);renderPoiList(); break;
-    case 'chat': addChat(msg); break;
-    case 'private_msg': addPrivateMsg(msg.from,msg.text,false);showNotif('MP de '+msg.from); break;
-    case 'private_msg_sent': addPrivateMsgSent(msg.toPseudo,msg.text); break;
-    case 'announcement': showAnn(msg.announcement); break;
-    case 'action_used':
-      addActionLog(msg.by+' a utilisé "'+msg.actionLabel+'"'+(msg.targetId?' sur un joueur':'')); break;
-    case 'music_sync': applyMusicState(msg.music); break;
-    case 'music_track_changed':
-      var audio=document.getElementById('audio');
-      audio.src=msg.trackUrl;currentTrackUrl=msg.trackUrl;
-      document.getElementById('mm-track-name').textContent=msg.trackName||'';
-      document.getElementById('music-now').textContent='En cours: '+(msg.trackName||'');
-      document.getElementById('music-mini').classList.add('show');
-      break;
-    case 'music_play':
-      var audio=document.getElementById('audio');
-      audio.currentTime=msg.currentTime+(Date.now()-msg.serverTime)/1000;
-      audio.play().catch(function(){});
-      startProgTimer(); break;
-    case 'music_pause':
-      var audio=document.getElementById('audio');
-      audio.pause();audio.currentTime=msg.currentTime;stopProgTimer(); break;
-    case 'music_stop':
-      var audio=document.getElementById('audio');
-      audio.pause();audio.currentTime=0;setMusicProg(0,0);stopProgTimer(); break;
-    case 'music_seek':
-      var audio=document.getElementById('audio');
-      var lag=msg.status==='playing'?(Date.now()-msg.serverTime)/1000:0;
-      audio.currentTime=msg.currentTime+lag;
-      if(msg.status!=='playing')audio.pause(); break;
-    case 'music_volume': document.getElementById('audio').volume=msg.volume; break;
-    case 'music_loop': document.getElementById('audio').loop=msg.loop; break;
-    case 'music_playlist': musicPlaylist=msg.playlist||[]; break;
-    case 'error': document.getElementById('admin-err').textContent=msg.message; break;
-  }
-}
+    }
+    function saveLocalLibrary() {
+      localStorage.setItem('streamsync_library', JSON.stringify(localLibrary));
+    }
 
-// ── GAME STATE ─────────────────────────────────
-function applyGameState(s){
-  gamePhase=s.phase;
-  timerStart=s.timerStart;timerDuration=s.timerDuration||3600;
-  timerPaused=s.timerPaused;timerElapsed=s.timerElapsed||0;
-  updatePhaseDisplay();
-  if(s.phase==='playing'&&!timerPaused){startTimerTick();}
-  if(s.announcements) s.announcements.forEach(function(a){addChat({from:'Annonce',text:a.text,isAnn:true,sys:false});});
-}
-
-function bypassToAdmin(){
-  document.getElementById('screen-waiting').classList.remove('show');
-  isAdmin=true;
-  switchTab('admin');
-}
-
-function updatePhaseDisplay(){
-  var badge=document.getElementById('phase-badge');
-  var labels={waiting:'Attente',roles:'Roles',playing:'En cours',ended:'Termine'};
-  badge.textContent=labels[gamePhase]||gamePhase;
-  // L'admin voit toujours l'app, jamais les ecrans de blocage
-  var blockScreens=!isAdmin;
-  document.getElementById('screen-waiting').classList.toggle('show', blockScreens&&gamePhase==='waiting');
-  document.getElementById('screen-role').classList.toggle('show', blockScreens&&gamePhase==='roles'&&!!myRole);
-  if(gamePhase==='playing'||gamePhase==='ended'){
-    document.getElementById('screen-waiting').classList.remove('show');
-    document.getElementById('screen-role').classList.remove('show');
-  }
-  if(!myAlive&&gamePhase==='playing'&&blockScreens){
-    document.getElementById('screen-dead').classList.add('show');
-  }
-  if(gamePhase==='waiting'){clearInterval(timerInterval);document.getElementById('timer-display').textContent='--:--';}
-}
-
-function startTimerTick(){
-  clearInterval(timerInterval);
-  timerInterval=setInterval(function(){
-    if(timerPaused||!timerStart) return;
-    var elapsed=timerElapsed+(Date.now()-timerStart);
-    var remaining=Math.max(0,(timerDuration*1000)-elapsed);
-    var s=Math.floor(remaining/1000);
-    var m=Math.floor(s/60);s=s%60;
-    document.getElementById('timer-display').textContent=(m<10?'0':'')+m+':'+(s<10?'0':'')+s;
-    if(remaining===0){clearInterval(timerInterval);}
-  },500);
-}
-
-function setPhase(phase){
-  if(phase==='playing'){
-    var dur=parseInt(document.getElementById('timer-dur').value)||60;
-    wsSend({type:'set_timer',duration:dur*60});
-  }
-  wsSend({type:'set_phase',phase:phase});
-}
-
-function setTimerDuration(){
-  var dur=parseInt(document.getElementById('timer-dur').value)||60;
-  wsSend({type:'set_timer',duration:dur*60});
-}
-
-// ── ROLE SCREEN ────────────────────────────────
-var ROLE_DATA={
-  civil:{icon:'👤',color:'var(--teal)',desc:'Vous êtes un civil. Survivez et identifiez le tueur.'},
-  tueur:{icon:'🔪',color:'var(--coral)',desc:'Vous êtes le tueur. Éliminez vos cibles discrètement.'},
-  mossad:{icon:'🕵️',color:'var(--gold)',desc:'Vous êtes un agent du Mossad. Neutralisez les menaces.'}
-};
-
-function showRoleCard(role){
-  var d=ROLE_DATA[role]||{icon:'🃏',color:'var(--muted)',desc:'Rôle inconnu'};
-  document.getElementById('role-icon').textContent=d.icon;
-  document.getElementById('role-name').textContent=role.charAt(0).toUpperCase()+role.slice(1);
-  document.getElementById('role-name').className='role-name '+role;
-  document.getElementById('role-desc').textContent=d.desc;
-  document.getElementById('role-card').className='role-card '+role;
-  if(gamePhase==='roles'&&!isAdmin){
-    document.getElementById('screen-role').classList.add('show');
-    document.getElementById('role-wait').style.display='block';
-  }
-}
-
-function updateRoleBadge(){
-  if(!myRole) return;
-  var d=ROLE_DATA[myRole]||{icon:'?'};
-  var b=document.getElementById('my-role-badge');
-  b.textContent=d.icon+' '+myRole;
-  b.className='my-role-badge '+myRole;  // wait, id not class
-  b.style.display='inline-flex';
-  b.style.fontSize='.65rem';b.style.padding='2px 8px';b.style.borderRadius='20px';b.style.fontWeight='700';
-  var colors={civil:'var(--tbg);color:var(--teal)',tueur:'var(--cbg);color:var(--coral)',mossad:'var(--gbg);color:var(--gold)'};
-  if(colors[myRole]) b.style.cssText+='background:'+colors[myRole];
-}
-
-// ── WAITING SCREEN ─────────────────────────────
-function updateWaitingScreen(){
-  var list=document.getElementById('wait-players-list');
-  if(!list) return;
-  list.innerHTML='';
-  allPlayers.forEach(function(p){
-    var div=document.createElement('div');div.className='wait-player-item';
-    div.textContent=p.pseudo+(p.id===myId?' (vous)':'');
-    list.appendChild(div);
-  });
-}
-
-// ── PLAYERS ────────────────────────────────────
-function renderPlayers(adminView){
-  var list=document.getElementById('players-list');
-  var adminList=document.getElementById('admin-players-list');
-  var connLbl=document.getElementById('admin-conn');
-  if(connLbl) connLbl.textContent=allPlayers.length+' joueur(s) connecté(s)';
-
-  if(list){
-    list.innerHTML='';
-    allPlayers.forEach(function(p){
-      var div=document.createElement('div');div.className='player-row';
-      var left=document.createElement('div');left.style.display='flex';left.style.alignItems='center';left.style.flex='1';
-      var name=document.createElement('span');name.className='pr-name';name.textContent=p.pseudo+(p.id===myId?' (vous)':'');
-      left.appendChild(name);
-      if(!p.alive){var dead=document.createElement('span');dead.className='pr-dead';dead.textContent='💀 Éliminé';left.appendChild(dead);}
-      div.appendChild(left);
-      if(p.id!==myId&&p.alive){
-        var btn=document.createElement('button');btn.className='btn b-c';btn.style.fontSize='.7rem';btn.style.padding='.2rem .5rem';btn.textContent='MP';
-        btn.onclick=(function(pid,pname){return function(){openPM(pid,pname);};})(p.id,p.pseudo);
-        div.appendChild(btn);
+    // ROLE POOL (Loaded from Admin LocalStorage)
+    let rolesPool = [];
+    function loadRolesPool() {
+      const data = localStorage.getItem('streamsync_roles_pool');
+      if (data) {
+        try { rolesPool = JSON.parse(data); } catch (e) { console.error(e); }
+      } else {
+        // Fallback mockup roles
+        rolesPool = [
+          { id: 'r1', name: 'Détective', icon: '🕵️', desc: 'Vous devez identifier le coupable de l\'intrigue.' },
+          { id: 'r2', name: 'Saboteur', icon: '💣', desc: 'Votre but est de saboter les points d\'intérêts sans vous faire prendre.' },
+          { id: 'r3', name: 'Témoin', icon: '👀', desc: 'Vous possédez un indice crucial. Coopérez avec le Détective.' }
+        ];
+        saveRolesPool();
       }
-      list.appendChild(div);
+    }
+    function saveRolesPool() {
+      localStorage.setItem('streamsync_roles_pool', JSON.stringify(rolesPool));
+    }
+
+    // MAP POINTS POOL
+    let mapPointsPool = [];
+    function loadMapPointsPool() {
+      const data = localStorage.getItem('streamsync_map_points');
+      if (data) {
+        try { mapPointsPool = JSON.parse(data); } catch (e) { console.error(e); }
+      }
+    }
+    function saveMapPointsPool() {
+      localStorage.setItem('streamsync_map_points', JSON.stringify(mapPointsPool));
+    }
+
+    // GAME RUNTIME STATE (Admin Side)
+    let gameStatus = 'waiting'; // 'waiting', 'playing', 'ended'
+    let gameEndTimestamp = 0;
+    let gameTimerInterval = null;
+    let playerAssignments = {}; // username -> roleId
+
+    function savePlayerAssignments() {
+      localStorage.setItem('streamsync_player_assignments', JSON.stringify(playerAssignments));
+    }
+    function loadPlayerAssignments() {
+      const data = localStorage.getItem('streamsync_player_assignments');
+      if (data) {
+        try { playerAssignments = JSON.parse(data); } catch (e) { playerAssignments = {}; }
+      } else {
+        playerAssignments = {};
+      }
+    }
+    function saveGameState() {
+      localStorage.setItem('streamsync_game_status', gameStatus);
+      localStorage.setItem('streamsync_game_end_timestamp', gameEndTimestamp.toString());
+    }
+    function loadGameState() {
+      gameStatus = localStorage.getItem('streamsync_game_status') || 'waiting';
+      gameEndTimestamp = Number(localStorage.getItem('streamsync_game_end_timestamp') || '0');
+      
+      if (gameStatus === 'playing' && gameEndTimestamp > Date.now()) {
+        // Resume countdown timer on load
+        startGameTimer();
+      } else {
+        gameStatus = 'waiting';
+        gameEndTimestamp = 0;
+      }
+    }
+
+    // PEERJS CONNECTIONS
+    let myPeer = null;
+    let roomCode = '1234';
+    let myUsername = 'Joueur';
+    
+    // Admin specific peers map
+    const connectedListeners = new Map(); // peerId -> { conn, username, role: null, lat: null, lng: null }
+    let adminStream = null;
+
+    // Listener specific connections
+    let listenerConnection = null;
+    let listenerMediaCall = null;
+    let listenerActiveMetadata = null;
+
+    // Maps Leaflet variables
+    let listenerMap = null;
+    let listenerUserMarker = null;
+    let listenerMapMarkers = [];
+    let watchGpsId = null;
+
+    let adminMap = null;
+    let adminMapMarkers = [];
+
+    // Audio Elements
+    const adminAudio = document.getElementById('admin-audio-element');
+    const listenerAudio = document.getElementById('listener-audio-element');
+
+    // UI elements switcher
+    const viewModeBtn = document.getElementById('view-mode-btn');
+    const listenerView = document.getElementById('listener-view');
+    const adminView = document.getElementById('admin-view');
+    const adminPasswordGate = document.getElementById('admin-password-gate');
+    const connectionStatusBadge = document.getElementById('connection-status-badge');
+    const connectionStatusText = document.getElementById('connection-status-text');
+
+    const globalTimerBanner = document.getElementById('global-timer-banner');
+    const globalTimerCountdown = document.getElementById('global-timer-countdown');
+
+    // TAB SWITCHING LOGIC (Modular setup for tab panels)
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const tabBtn = e.target.closest('.tab-btn');
+        const parent = tabBtn.parentElement;
+        
+        // Remove active class from brothers
+        parent.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        tabBtn.classList.add('active');
+
+        // Hide all tab contents in the same view scope
+        const tabId = tabBtn.getAttribute('data-tab');
+        const contentScope = tabId.startsWith('admin-') ? '#admin-panel' : '#listener-panel';
+        
+        document.querySelector(contentScope).querySelectorAll('.tab-content').forEach(content => {
+          content.classList.add('hidden');
+        });
+
+        // Show targets
+        const targetContent = document.getElementById(tabId);
+        targetContent.classList.remove('hidden');
+
+        // Leaflet InvalidateSize Hack (Forces redraw when maps display)
+        if (tabId === 'listener-tab-map' && listenerMap) {
+          setTimeout(() => { listenerMap.invalidateSize(); }, 200);
+        } else if (tabId === 'admin-tab-map' && adminMap) {
+          setTimeout(() => { adminMap.invalidateSize(); }, 200);
+        }
+      });
     });
-  }
 
-  if(adminList&&adminView){
-    adminList.innerHTML='';
-    allPlayers.forEach(function(p){
-      var div=document.createElement('div');div.className='player-row';
-      var left=document.createElement('div');left.style.display='flex';left.style.alignItems='center';left.style.flex='1';
-      var name=document.createElement('span');name.className='pr-name';name.textContent=p.pseudo;
-      left.appendChild(name);
-      if(p.role){var rb=document.createElement('span');rb.className='pr-role '+p.role;rb.textContent=p.role;left.appendChild(rb);}
-      if(!p.alive){var dead=document.createElement('span');dead.className='pr-dead';dead.textContent='💀';left.appendChild(dead);}
-      div.appendChild(left);
-      var brow=document.createElement('div');brow.style.display='flex';brow.style.gap='.25rem';
-      // Assign role
-      var sel=document.createElement('select');sel.className='fin';sel.style.width='80px';sel.style.fontSize='.72rem';sel.style.padding='.2rem .4rem';
-      ['civil','tueur','mossad'].forEach(function(r){var o=document.createElement('option');o.value=r;o.textContent=r;if(p.role===r)o.selected=true;sel.appendChild(o);});
-      var bassign=document.createElement('button');bassign.className='btn b-p';bassign.style.fontSize='.7rem';bassign.style.padding='.2rem .5rem';bassign.textContent='OK';
-      bassign.onclick=(function(pid,s){return function(){wsSend({type:'assign_role',playerId:pid,role:s.value});};})(p.id,sel);
-      // Eliminer/réintégrer
-      var belim=document.createElement('button');
-      belim.className=p.alive?'btn b-red':'btn b-t';
-      belim.style.fontSize='.7rem';belim.style.padding='.2rem .5rem';
-      belim.textContent=p.alive?'💀':'♻️';
-      belim.onclick=(function(pid,alive){return function(){wsSend({type:'eliminate',playerId:pid,alive:!alive});};})(p.id,p.alive);
-      brow.appendChild(sel);brow.appendChild(bassign);brow.appendChild(belim);
-      div.appendChild(brow);
-      adminList.appendChild(div);
+    // View Switcher logic
+    viewModeBtn.addEventListener('click', () => {
+      if (isEditingAdmin) {
+        // Switch to Listener View
+        isEditingAdmin = false;
+        viewModeBtn.textContent = "Accéder à l'Admin";
+        adminView.classList.add('hidden');
+        listenerView.classList.remove('hidden');
+        disconnectAdminPeer();
+        updateConnectionUI('offline');
+        stopGpsTracking();
+      } else {
+        // Switch to Admin View
+        if (isAdminAuthenticated) {
+          showAdminView();
+        } else {
+          adminPasswordGate.classList.remove('hidden');
+          document.getElementById('gate-password-input').focus();
+        }
+      }
     });
-  }
-}
 
-function autoAssignRoles(){
-  var raw=document.getElementById('auto-roles').value.trim();
-  if(!raw) return;
-  var roles=raw.split(',').map(function(r){return r.trim().toLowerCase();});
-  wsSend({type:'auto_assign_roles',roles:roles});
-  showNotif('Rôles assignés !');
-}
+    // Password submit verification
+    document.getElementById('gate-submit-btn').addEventListener('click', checkAdminPassword);
+    document.getElementById('gate-password-input').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') checkAdminPassword();
+    });
 
-// ── CHAT ───────────────────────────────────────
-function addChat(msg){
-  var box=document.getElementById('chat-msgs');
-  var div=document.createElement('div');
-  if(msg.system||msg.sys){div.className='cmsg sys';div.textContent=msg.text;}
-  else if(msg.isAnn){
-    div.className='cmsg ann';
-    var f=document.createElement('div');f.className='from';f.textContent='📢 Annonce';div.appendChild(f);
-    var t=document.createElement('div');t.textContent=msg.text;div.appendChild(t);
-  } else {
-    var isMe=msg.id===myId;
-    div.className='cmsg '+(isMe?'me':'them');
-    if(!isMe){var f=document.createElement('div');f.className='from';f.textContent=msg.from;div.appendChild(f);}
-    var t=document.createElement('div');t.textContent=msg.text;div.appendChild(t);
-  }
-  box.appendChild(div);box.scrollTop=box.scrollHeight;
-  if(currentTab!=='chat'&&!msg.system&&!msg.sys){chatUnread++;updateChatBadge();}
-}
-function addPrivateMsg(from,text){
-  var box=document.getElementById('chat-msgs');
-  var div=document.createElement('div');div.className='cmsg priv';
-  var f=document.createElement('div');f.className='from';f.textContent='🔒 '+from;div.appendChild(f);
-  var t=document.createElement('div');t.textContent=text;div.appendChild(t);
-  box.appendChild(div);box.scrollTop=box.scrollHeight;
-  if(currentTab!=='chat'){chatUnread++;updateChatBadge();}
-}
-function addPrivateMsgSent(toName,text){
-  var box=document.getElementById('chat-msgs');
-  var div=document.createElement('div');div.className='cmsg priv me';
-  var f=document.createElement('div');f.className='from';f.textContent='🔒 → '+toName;div.appendChild(f);
-  var t=document.createElement('div');t.textContent=text;div.appendChild(t);
-  box.appendChild(div);box.scrollTop=box.scrollHeight;
-}
-function sendChat(){
-  var inp=document.getElementById('chat-in');var txt=inp.value.trim();
-  if(!txt||!ws||ws.readyState!==1)return;
-  ws.send(JSON.stringify({type:'chat',text:txt}));inp.value='';
-}
-function updateChatBadge(){
-  var b=document.getElementById('chat-badge');
-  if(chatUnread>0){b.textContent=chatUnread>9?'9+':chatUnread;b.classList.add('show');}
-  else b.classList.remove('show');
-}
+    function checkAdminPassword() {
+      const inputPass = document.getElementById('gate-password-input').value;
+      const errorText = document.getElementById('gate-error-text');
+      
+      if (inputPass === adminPasswordHash) {
+        isAdminAuthenticated = true;
+        adminPasswordGate.classList.add('hidden');
+        errorText.classList.add('hidden');
+        document.getElementById('gate-password-input').value = '';
+        showAdminView();
+      } else {
+        errorText.classList.remove('hidden');
+      }
+    }
 
-// ── ANNOUNCEMENTS ──────────────────────────────
-function showAnn(ann){
-  addChat({isAnn:true,text:ann.text});
-  document.getElementById('ann-text').textContent=ann.text;
-  document.getElementById('ann-overlay').classList.add('show');
-  showNotif('Nouvelle annonce !');
-}
-function closeAnn(){document.getElementById('ann-overlay').classList.remove('show');}
-function sendAnnounce(){
-  var txt=document.getElementById('ann-msg').value.trim();
-  var target=document.getElementById('ann-target').value;
-  if(!txt)return;
-  wsSend({type:'announce',text:txt,targetRoles:[target]});
-  document.getElementById('ann-msg').value='';
-  closeModal('modal-announce');showNotif('Annonce envoyée !');
-}
+    function showAdminView() {
+      isEditingAdmin = true;
+      viewModeBtn.textContent = "Retour à l'Écoute";
+      listenerView.classList.add('hidden');
+      adminView.classList.remove('hidden');
+      
+      // Stop listener processes
+      stopListenerAudio();
+      stopGpsTracking();
+      
+      // Load tabs trigger
+      document.querySelector('#admin-panel [data-tab="admin-tab-music"]').click();
+      
+      // Initialize admin P2P session
+      initAdminPeer();
+    }
 
-// ── POI ────────────────────────────────────────
-function confirmAddPoi(){
-  if(!pendingPoi)return;
-  var label=document.getElementById('poi-label').value.trim()||'Point';
-  var visibleVal=document.getElementById('poi-visible').value;
-  var visibleTo=visibleVal==='all'?['all']:visibleVal.split(',');
-  wsSend({type:'add_poi',lat:pendingPoi.lat,lng:pendingPoi.lng,label:label,color:poiColor,visibleTo:visibleTo});
-  document.getElementById('poi-label').value='';
-  closeModal('modal-poi');pendingPoi=null;showNotif('Point ajouté !');
-}
-function highlightColorBtn(btn){
-  document.querySelectorAll('#modal-poi .brow .btn').forEach(function(b){b.style.outline='none';});
-  btn.style.outline='2px solid #fff';
-}
-function renderPoiList(){
-  var el=document.getElementById('poi-list');if(!el)return;
-  el.innerHTML='';
-  allPois.forEach(function(poi){
-    var div=document.createElement('div');div.className='action-item';
-    var span=document.createElement('span');span.textContent='● '+poi.label+' ('+poi.visibleTo.join(',')+')';
-    span.style.color=poi.color;
-    var btn=document.createElement('button');btn.className='btn b-c';btn.style.fontSize='.7rem';btn.style.padding='.2rem .5rem';btn.textContent='Suppr.';
-    btn.onclick=(function(id){return function(){wsSend({type:'remove_poi',poiId:id});};})(poi.id);
-    div.appendChild(span);div.appendChild(btn);el.appendChild(div);
-  });
-  if(!allPois.length) el.innerHTML='<p style="font-size:.76rem;color:var(--muted)">Aucun point. Clique sur la carte pour en ajouter.</p>';
-}
+    // Connection badges updates
+    function updateConnectionUI(status, text) {
+      connectionStatusBadge.className = 'status-badge';
+      if (status === 'live') {
+        connectionStatusBadge.classList.add('status-live');
+        connectionStatusText.textContent = text || 'En Direct';
+      } else if (status === 'connecting') {
+        connectionStatusText.textContent = 'Connexion...';
+      } else {
+        connectionStatusText.textContent = 'Hors ligne';
+      }
+    }
 
-// ── ACTIONS ────────────────────────────────────
-function renderMyActions(){
-  var el=document.getElementById('my-actions-list');if(!el)return;
-  var myActs=(allActions||[]).filter(function(a){return a.targetRole==='all'||a.targetRole===myRole;});
-  if(!myActs.length){el.innerHTML='<p style="font-size:.78rem;color:var(--muted)">Pas d\'actions pour votre rôle</p>';return;}
-  el.innerHTML='';
-  myActs.forEach(function(a){
-    var div=document.createElement('div');div.className='action-item';
-    var span=document.createElement('span');span.textContent=a.label;div.appendChild(span);
-    var btn=document.createElement('button');btn.className='btn b-p';btn.style.fontSize='.75rem';btn.textContent='Utiliser';
-    btn.onclick=(function(act){return function(){useAction(act);};})(a);
-    div.appendChild(btn);el.appendChild(div);
-  });
-}
-function useAction(action){
-  if(gamePhase!=='playing'||!myAlive){showNotif('Action impossible maintenant');return;}
-  // Si l'action nécessite une cible, sélectionner un joueur
-  ws.send(JSON.stringify({type:'use_action',actionId:action.id}));
-  showNotif('Action "'+action.label+'" envoyée à l\'admin');
-}
-function addActionLog(text){
-  var el=document.getElementById('actions-log');if(!el)return;
-  var div=document.createElement('div');div.style.marginBottom='.3rem';div.style.color='var(--gold)';
-  div.textContent='⚡ '+text;el.insertBefore(div,el.firstChild);
-}
-function loadActions(){
-  fetch('/api/actions').then(function(r){return r.json();}).then(function(acts){
-    allActions=acts;renderMyActions();renderAdminActions();
-  });
-}
-function renderAdminActions(){
-  var el=document.getElementById('admin-actions-list');if(!el)return;
-  el.innerHTML='';
-  allActions.forEach(function(a){
-    var div=document.createElement('div');div.className='action-item';
-    var info=document.createElement('div');
-    info.innerHTML='<strong style="font-size:.8rem">'+esc(a.label)+'</strong><span style="font-size:.7rem;color:var(--muted);margin-left:.5rem">'+a.targetRole+'</span>';
-    var btn=document.createElement('button');btn.className='btn b-c';btn.style.fontSize='.7rem';btn.style.padding='.2rem .5rem';btn.textContent='X';
-    btn.onclick=(function(id){return function(){deleteAction(id);};})(a.id);
-    div.appendChild(info);div.appendChild(btn);el.appendChild(div);
-  });
-}
-function saveAction(){
-  var label=document.getElementById('action-label').value.trim();
-  var role=document.getElementById('action-role').value;
-  var msg=document.getElementById('action-msg').value.trim();
-  if(!label)return;
-  fetch('/api/actions',{method:'POST',headers:{'Content-Type':'application/json','x-admin-password':adminPwd},body:JSON.stringify({label:label,targetRole:role,message:msg})})
-    .then(function(){closeModal('modal-action');loadActions();showNotif('Action créée !');});
-}
-function deleteAction(id){
-  fetch('/api/actions/'+id,{method:'DELETE',headers:{'x-admin-password':adminPwd}}).then(function(){loadActions();});
-}
+    // ========================================================
+    // ADMIN SERVICE: WebRTC Broadcasting & Core Game Loops
+    // ========================================================
+    const adminSongTitle = document.getElementById('admin-song-title');
+    const adminSongArtist = document.getElementById('admin-song-artist');
+    const adminArtworkPreview = document.getElementById('admin-artwork-preview');
+    const adminCurrentTimeEl = document.getElementById('admin-current-time');
+    const adminTotalTimeEl = document.getElementById('admin-total-time');
+    const adminSeekSlider = document.getElementById('admin-seek-slider');
+    const adminPlayIcon = document.getElementById('admin-play-icon');
+    const adminPauseIcon = document.getElementById('admin-pause-icon');
+    const adminListenersCountText = document.getElementById('admin-listeners-count-text');
 
-// ── MUSIC ──────────────────────────────────────
-var audio=document.getElementById('audio');
-audio.onloadedmetadata=function(){document.getElementById('mm-tt').textContent=fmt(audio.duration);};
-audio.addEventListener('ended',function(){if(!audio.loop&&musicPlaylist.length>1)wsSend({type:'music_next'});});
+    let adminActiveSongId = null;
+    let adminActivePlaylistId = null;
+    let isDraggingSeek = false;
+    let smoothProgressInterval = null;
 
-function applyMusicState(m){
-  if(!m) return;
-  if(m.trackUrl){audio.src=m.trackUrl;currentTrackUrl=m.trackUrl;document.getElementById('mm-track-name').textContent=m.trackName||'';document.getElementById('music-mini').classList.add('show');document.getElementById('music-now').textContent='En cours: '+(m.trackName||'');}
-  audio.volume=m.volume||0.8;audio.loop=!!m.loop;
-  musicPlaylist=m.playlist||[];
-  if(m.status==='playing'){var lag=(Date.now()-(m.startedAt||Date.now()))/1000;audio.currentTime=(m.currentTime||0)+lag;audio.play().catch(function(){});startProgTimer();}
-  else if(m.status==='paused'){audio.currentTime=m.currentTime||0;}
-}
-function musicPlay(){wsSend({type:'music_play',currentTime:audio.currentTime});}
-function startProgTimer(){stopProgTimer();progTimer=setInterval(function(){if(!isNaN(audio.duration))setMusicProg(audio.currentTime,audio.duration);},500);}
-function stopProgTimer(){clearInterval(progTimer);}
-function setMusicProg(c,t){var p=t?(c/t)*100:0;document.getElementById('music-prog').style.width=p+'%';document.getElementById('mm-tc').textContent=fmt(c);document.getElementById('mm-tt').textContent=fmt(t);}
-function fmt(s){s=Math.floor(s||0);return Math.floor(s/60)+':'+(s%60<10?'0':'')+s%60;}
+    function initAdminPeer() {
+      roomCode = document.getElementById('admin-room-input').value.trim() || '1234';
+      document.getElementById('admin-room-code-display').textContent = roomCode;
+      
+      updateConnectionUI('connecting');
 
-// ── TRACKS ─────────────────────────────────────
-function loadTracks(){
-  fetch('/api/tracks').then(function(r){return r.json();}).then(function(tracks){
-    allTracks=tracks;renderTrackList();
-  });
-}
-function renderTrackList(){
-  var el=document.getElementById('track-list');if(!el)return;
-  el.innerHTML='';
-  allTracks.forEach(function(t){
-    var div=document.createElement('div');div.className='track-item'+(currentTrackUrl===t.url?' active':'');
-    var info=document.createElement('div');info.className='ti-info';
-    var str=document.createElement('strong');str.title=t.name;str.textContent=t.name;
-    var sz=document.createElement('span');sz.textContent=(t.size/1024/1024).toFixed(1)+' Mo';
-    info.appendChild(str);info.appendChild(sz);div.appendChild(info);
-    var tb=document.createElement('div');tb.className='ti-btns';
-    var bp=document.createElement('button');bp.className='t-play';bp.textContent='Jouer';bp.onclick=(function(u,n){return function(){wsSend({type:'music_set_track',trackUrl:u,trackName:n});currentTrackUrl=u;document.getElementById('music-now').textContent='En cours: '+n;renderTrackList();};})(t.url,t.name);
-    var bd=document.createElement('button');bd.className='t-del';bd.textContent='X';bd.onclick=(function(fn){return function(){if(confirm('Supprimer ?'))fetch('/api/tracks/'+encodeURIComponent(fn),{method:'DELETE',headers:{'x-admin-password':adminPwd}}).then(loadTracks);};})(t.filename);
-    tb.appendChild(bp);tb.appendChild(bd);div.appendChild(tb);el.appendChild(div);
-  });
-}
+      const peerId = 'streamsync-admin-' + roomCode;
+      
+      if (myPeer) myPeer.destroy();
 
-// ── UPLOAD ─────────────────────────────────────
-function dzEv(e,on){e.preventDefault();document.getElementById('dropzone').className=on?'drag':'';}
-function dzDrop(e){e.preventDefault();document.getElementById('dropzone').className='';var f=e.dataTransfer.files[0];if(f)uploadTrack(f);}
-function uploadTrack(file){
-  if(!file)return;
-  document.getElementById('up-err').textContent='';
-  document.getElementById('up-prog').style.display='block';
-  var fd=new FormData();fd.append('track',file);
-  var xhr=new XMLHttpRequest();
-  xhr.open('POST','/api/upload');xhr.setRequestHeader('x-admin-password',adminPwd);
-  xhr.upload.onprogress=function(e){if(e.lengthComputable){var p=Math.round(e.loaded/e.total*100);document.getElementById('upbar').style.width=p+'%';document.getElementById('up-lbl').textContent='Upload '+p+'%';}};
-  xhr.onload=function(){document.getElementById('up-prog').style.display='none';if(xhr.status===200){loadTracks();showNotif('Upload réussi !');}else{var d=JSON.parse(xhr.responseText);document.getElementById('up-err').textContent=d.error||'Erreur';}};
-  xhr.send(fd);
-}
+      myPeer = new Peer(peerId, { debug: 1 });
 
-// ── ADMIN ──────────────────────────────────────
-function unlockAdmin(){
-  var p=document.getElementById('admin-pass').value;
-  if(!p){document.getElementById('admin-err').textContent='Mot de passe requis';return;}
-  adminPwd=p;isAdmin=true;
-  wsSend({type:'music_volume',volume:parseFloat(document.getElementById('vol-sl').value)});
-  document.getElementById('admin-err').textContent='';
-  setTimeout(function(){
-    if(document.getElementById('admin-err').textContent)return;
-    document.getElementById('admin-gate').style.display='none';
-    document.getElementById('admin-panel').style.display='flex';
-    loadTracks();loadActions();
-    // Demander l'état admin complet
-    wsSend({type:'set_phase',phase:gamePhase}); // refresh
-  },350);
-}
-function wsSend(obj){if(ws&&ws.readyState===1)ws.send(JSON.stringify(Object.assign({},obj,{password:adminPwd})));}
+      myPeer.on('open', (id) => {
+        console.log('Admin Peer initialized:', id);
+        updateConnectionUI('live', 'Salon Actif');
+        renderSongsList();
+        renderPlaylistsList();
+        renderRolesPoolList();
+        renderPlayersList();
+        syncAdminConsole();
+        initAdminMap();
+      });
 
-// ── PM ─────────────────────────────────────────
-function openPM(id,name){pmTargetId=id;pmTargetName=name;document.getElementById('pm-to').textContent=name;document.getElementById('pm-input').value='';openModal('modal-pm');setTimeout(function(){document.getElementById('pm-input').focus();},100);}
-function sendPM(){var txt=document.getElementById('pm-input').value.trim();if(!txt||!pmTargetId)return;ws.send(JSON.stringify({type:'private_msg',to:pmTargetId,text:txt}));closeModal('modal-pm');}
+      myPeer.on('error', (err) => {
+        console.error('Admin Peer error:', err);
+        updateConnectionUI('offline');
+        if (err.type === 'unavailable-id') {
+          alert('Ce code de salon est déjà utilisé par un autre administrateur.');
+        } else {
+          alert('Erreur PeerJS: ' + err.message);
+        }
+      });
 
-// ── UTILS ──────────────────────────────────────
-function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-function showNotif(txt){var n=document.getElementById('notif');n.textContent=txt;n.classList.add('show');setTimeout(function(){n.classList.remove('show');},2500);}
-function openModal(id){document.getElementById(id).classList.add('show');}
-function closeModal(id){document.getElementById(id).classList.remove('show');}
+      setupAdminAudioCapture();
 
-function switchTab(t){
-  currentTab=t;
-  document.querySelectorAll('.view').forEach(function(v){v.classList.remove('on');});
-  document.querySelectorAll('.nav button').forEach(function(b){b.classList.remove('on');});
-  document.getElementById('view-'+t).classList.add('on');
-  var tabs=['map','chat','players','actions','admin'];
-  var idx=tabs.indexOf(t);
-  if(idx>=0)document.querySelectorAll('.nav button')[idx].classList.add('on');
-  if(t==='chat'){chatUnread=0;updateChatBadge();}
-  if(t==='map'&&map){setTimeout(function(){map.invalidateSize();},100);}
-}
-</script>
+      // Manage incoming listeners handshakes
+      myPeer.on('connection', (conn) => {
+        console.log('New peer connection handshake request:', conn.peer);
+        
+        conn.on('open', () => {
+          // Add listener metadata placeholder
+          connectedListeners.set(conn.peer, {
+            conn: conn,
+            username: 'Joueur Anonyme',
+            role: null,
+            lat: null,
+            lng: null
+          });
+          updateConnectedListenersCount();
+          renderPlayersList();
+          // Wait for custom join packets
+          conn.on('data', (data) => {
+            if (data.type === 'join') {
+              console.log(`Peer ${conn.peer} identified as username: ${data.username}`);
+              const listener = connectedListeners.get(conn.peer);
+              if (listener) {
+                listener.username = data.username;
+                renderPlayersList();
+                
+                // Restore role if already assigned in persistent storage
+                const assignedRoleId = playerAssignments[data.username];
+                const assignedRole = rolesPool.find(r => r.id === assignedRoleId);
+                
+                // Send initial audio states
+                sendPlaybackDetailsTo(conn);
+                // Send current maps points
+                conn.send({ type: 'map_points', points: mapPointsPool });
+                
+                if (gameStatus === 'playing') {
+                  // Send role and game state to reconnecting user
+                  conn.send({
+                    type: 'role_assignment',
+                    role: assignedRole || null
+                  });
+                  conn.send({
+                    type: 'game_state',
+                    state: gameStatus,
+                    endTimestamp: gameEndTimestamp
+                  });
+                }
+              }
+            } else if (data.type === 'location_update') {
+              const listener = connectedListeners.get(conn.peer);
+              if (listener) {
+                listener.lat = data.lat;
+                listener.lng = data.lng;
+                updateAdminMapPlayerMarkers();
+              }
+            }
+          });
+          
+          // Connect call for WebRTC audio transmission
+          if (adminStream) {
+            setTimeout(() => {
+              myPeer.call(conn.peer, adminStream);
+            }, 600);
+          }
+        });
+
+        conn.on('close', () => {
+          connectedListeners.delete(conn.peer);
+          updateConnectedListenersCount();
+          renderPlayersList();
+          updateAdminMapPlayerMarkers();
+        });
+
+        conn.on('error', () => {
+          connectedListeners.delete(conn.peer);
+          updateConnectedListenersCount();
+          renderPlayersList();
+          updateAdminMapPlayerMarkers();
+        });
+      });
+    }
+
+    function disconnectAdminPeer() {
+      adminAudio.pause();
+      stopAdminSmoothProgress();
+      stopGameTimer();
+      
+      if (connectedListeners.size > 0) {
+        for (const [peerId, listener] of connectedListeners.entries()) {
+          listener.conn.close();
+        }
+        connectedListeners.clear();
+      }
+
+      if (myPeer) {
+        myPeer.destroy();
+        myPeer = null;
+      }
+      adminStream = null;
+      adminActiveSongId = null;
+      adminActivePlaylistId = null;
+      gameStatus = 'waiting';
+      updateAdminGameStatusDisplay();
+    }
+
+    function setupAdminAudioCapture() {
+      if (adminAudio.captureStream) {
+        adminStream = adminAudio.captureStream();
+      } else if (adminAudio.mozCaptureStream) {
+        adminStream = adminAudio.mozCaptureStream();
+      }
+    }
+
+    function updateConnectedListenersCount() {
+      const count = connectedListeners.size;
+      adminListenersCountText.textContent = `${count} auditeur(s) connecté(s) en direct.`;
+      document.getElementById('connected-players-count').textContent = count;
+    }
+
+    function broadcastData(payload) {
+      for (const [peerId, listener] of connectedListeners.entries()) {
+        if (listener.conn.open) {
+          listener.conn.send(payload);
+        }
+      }
+    }
+
+    function broadcastPlaybackDetails() {
+      if (connectedListeners.size === 0) return;
+      broadcastData(getPlaybackDetailsObject());
+    }
+
+    function sendPlaybackDetailsTo(conn) {
+      if (conn.open) {
+        conn.send(getPlaybackDetailsObject());
+      }
+    }
+
+    function getPlaybackDetailsObject() {
+      const song = localLibrary.songs.find(s => s.id === adminActiveSongId);
+      return {
+        type: 'meta',
+        songId: adminActiveSongId,
+        playlistId: adminActivePlaylistId,
+        title: song ? song.title : 'Aucun son diffusé',
+        artist: song ? song.artist : 'Sélectionnez une musique',
+        artwork: song ? song.artwork : null,
+        duration: adminAudio.duration || 0,
+        currentTime: adminAudio.currentTime || 0,
+        isPlaying: !adminAudio.paused
+      };
+    }
+
+    // MP3 Library management & playlists (restored from previous)
+    document.getElementById('admin-setup-room-btn').addEventListener('click', () => {
+      if (confirm('Changer de salon déconnectera tous les auditeurs. Continuer ?')) {
+        initAdminPeer();
+      }
+    });
+
+    const adminDropzone = document.getElementById('admin-dropzone');
+    const adminFileInput = document.getElementById('admin-file-input');
+
+    adminDropzone.addEventListener('click', () => adminFileInput.click());
+    adminFileInput.addEventListener('change', (e) => handleFilesUpload(e.target.files));
+    adminDropzone.addEventListener('dragover', (e) => { e.preventDefault(); adminDropzone.classList.add('dragover'); });
+    adminDropzone.addEventListener('dragleave', () => adminDropzone.classList.remove('dragover'));
+    adminDropzone.addEventListener('drop', (e) => { e.preventDefault(); adminDropzone.classList.remove('dragover'); handleFilesUpload(e.dataTransfer.files); });
+
+    async function handleFilesUpload(filesList) {
+      if (!filesList || filesList.length === 0) return;
+      for (let i = 0; i < filesList.length; i++) {
+        const file = filesList[i];
+        if (!file.name.endsWith('.mp3') && file.type !== 'audio/mpeg') {
+          alert('Format MP3 uniquement.');
+          continue;
+        }
+
+        const songId = 'song-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+        const fileName = file.name.replace(/\.mp3$/i, '');
+        
+        try {
+          await saveAudioFile(songId, file);
+        } catch (err) {
+          alert("Erreur DB: " + err.message);
+          continue;
+        }
+
+        jsmediatags.read(file, {
+          onSuccess: function(tag) {
+            let title = tag.tags.title || fileName;
+            let artist = tag.tags.artist || 'Artiste inconnu';
+            let artworkUrl = null;
+
+            if (tag.tags.picture) {
+              const picture = tag.tags.picture;
+              let base64String = "";
+              for (let j = 0; j < picture.data.length; j++) {
+                base64String += String.fromCharCode(picture.data[j]);
+              }
+              artworkUrl = "data:" + picture.format + ";base64," + window.btoa(base64String);
+            }
+
+            const audioNode = new Audio();
+            audioNode.src = URL.createObjectURL(file);
+            audioNode.addEventListener('loadedmetadata', () => {
+              const song = { id: songId, title, artist, duration: audioNode.duration, artwork: artworkUrl, uploadedAt: Date.now() };
+              localLibrary.songs.push(song);
+              saveLocalLibrary();
+              renderSongsList();
+              URL.revokeObjectURL(audioNode.src);
+            });
+          },
+          onError: function(error) {
+            const audioNode = new Audio();
+            audioNode.src = URL.createObjectURL(file);
+            audioNode.addEventListener('loadedmetadata', () => {
+              const song = { id: songId, title: fileName, artist: 'Artiste inconnu', duration: audioNode.duration, artwork: null, uploadedAt: Date.now() };
+              localLibrary.songs.push(song);
+              saveLocalLibrary();
+              renderSongsList();
+              URL.revokeObjectURL(audioNode.src);
+            });
+          }
+        });
+      }
+    }
+
+    const adminSongsList = document.getElementById('admin-songs-list');
+    const adminSearchLibrary = document.getElementById('admin-search-library');
+    adminSearchLibrary.addEventListener('input', renderSongsList);
+
+    function renderSongsList() {
+      const searchVal = adminSearchLibrary.value.toLowerCase();
+      const filtered = localLibrary.songs.filter(s => s.title.toLowerCase().includes(searchVal) || s.artist.toLowerCase().includes(searchVal));
+
+      adminSongsList.innerHTML = '';
+      if (filtered.length === 0) {
+        adminSongsList.innerHTML = `<div class="list-empty">Aucun résultat</div>`;
+        return;
+      }
+
+      filtered.sort((a,b) => b.uploadedAt - a.uploadedAt);
+      filtered.forEach(song => {
+        const item = document.createElement('div');
+        item.className = 'song-item';
+        if (adminActiveSongId === song.id) {
+          item.style.borderColor = 'rgba(139, 92, 246, 0.4)';
+          item.style.background = 'rgba(139, 92, 246, 0.05)';
+        }
+
+        item.innerHTML = `
+          <div class="song-item-info">
+            <div class="song-item-title">${song.title}</div>
+            <div class="song-item-artist">${song.artist}</div>
+          </div>
+          <div class="song-item-duration">${formatTime(song.duration)}</div>
+          <div class="song-item-actions">
+            <button class="icon-btn icon-btn-play play-btn"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
+            <button class="icon-btn add-btn"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button>
+            <button class="icon-btn edit-btn"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+            <button class="icon-btn icon-btn-danger del-btn"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/></svg></button>
+          </div>
+        `;
+
+        item.querySelector('.play-btn').addEventListener('click', () => adminPlayTrack(song.id));
+        item.querySelector('.add-btn').addEventListener('click', () => openAddToPlaylistMenu(song));
+        item.querySelector('.edit-btn').addEventListener('click', () => openRenameModal('song', song));
+        item.querySelector('.del-btn').addEventListener('click', () => deleteLibraryTrack(song));
+        adminSongsList.appendChild(item);
+      });
+    }
+
+    function syncAdminConsole() {
+      const song = localLibrary.songs.find(s => s.id === adminActiveSongId);
+      if (adminAudio.paused) {
+        adminPlayIcon.classList.remove('hidden');
+        adminPauseIcon.classList.add('hidden');
+        stopAdminSmoothProgress();
+      } else {
+        adminPlayIcon.classList.add('hidden');
+        adminPauseIcon.classList.remove('hidden');
+        startAdminSmoothProgress();
+      }
+
+      if (song) {
+        adminSongTitle.textContent = song.title;
+        adminSongArtist.textContent = song.artist;
+        adminTotalTimeEl.textContent = formatTime(song.duration);
+        adminSeekSlider.max = Math.floor(song.duration);
+        if (!isDraggingSeek) {
+          adminSeekSlider.value = Math.floor(adminAudio.currentTime);
+          adminCurrentTimeEl.textContent = formatTime(adminAudio.currentTime);
+        }
+        if (song.artwork) {
+          adminArtworkPreview.style.backgroundImage = `url('${song.artwork}')`;
+          adminArtworkPreview.classList.remove('default-art');
+        } else {
+          adminArtworkPreview.style.backgroundImage = 'none';
+          adminArtworkPreview.classList.add('default-art');
+        }
+      } else {
+        adminSongTitle.textContent = 'Aucune musique';
+        adminSongArtist.textContent = 'Sélectionnez un son';
+        adminCurrentTimeEl.textContent = '0:00';
+        adminTotalTimeEl.textContent = '0:00';
+        adminSeekSlider.value = 0;
+        adminArtworkPreview.style.backgroundImage = 'none';
+        adminArtworkPreview.classList.add('default-art');
+      }
+      broadcastPlaybackDetails();
+    }
+
+    function startAdminSmoothProgress() {
+      stopAdminSmoothProgress();
+      smoothProgressInterval = setInterval(() => {
+        if (isDraggingSeek) return;
+        adminSeekSlider.value = Math.floor(adminAudio.currentTime);
+        adminCurrentTimeEl.textContent = formatTime(adminAudio.currentTime);
+        broadcastPlaybackDetails();
+      }, 500);
+    }
+
+    function stopAdminSmoothProgress() {
+      if (smoothProgressInterval) {
+        clearInterval(smoothProgressInterval);
+        smoothProgressInterval = null;
+      }
+    }
+
+    const adminCtrlPlay = document.getElementById('admin-ctrl-play');
+    const adminCtrlStop = document.getElementById('admin-ctrl-stop');
+    const adminCtrlNext = document.getElementById('admin-ctrl-next');
+    const adminCtrlPrev = document.getElementById('admin-ctrl-prev');
+
+    adminCtrlPlay.addEventListener('click', () => {
+      if (adminActiveSongId) {
+        if (adminAudio.paused) adminAudio.play().then(syncAdminConsole);
+        else { adminAudio.pause(); syncAdminConsole(); }
+      } else if (localLibrary.songs.length > 0) {
+        adminPlayTrack(localLibrary.songs[0].id);
+      }
+    });
+
+    adminCtrlStop.addEventListener('click', () => { adminAudio.pause(); adminAudio.currentTime = 0; syncAdminConsole(); });
+    adminCtrlNext.addEventListener('click', adminSkipNext);
+    adminCtrlPrev.addEventListener('click', adminSkipPrev);
+
+    adminSeekSlider.addEventListener('mousedown', () => isDraggingSeek = true);
+    adminSeekSlider.addEventListener('touchstart', () => isDraggingSeek = true);
+    adminSeekSlider.addEventListener('input', (e) => adminCurrentTimeEl.textContent = formatTime(Number(e.target.value)));
+    adminSeekSlider.addEventListener('mouseup', (e) => { isDraggingSeek = false; adminAudio.currentTime = Number(e.target.value); syncAdminConsole(); });
+    adminSeekSlider.addEventListener('touchend', (e) => { isDraggingSeek = false; adminAudio.currentTime = Number(adminSeekSlider.value); syncAdminConsole(); });
+
+    async function adminPlayTrack(songId, playlistId = null) {
+      const song = localLibrary.songs.find(s => s.id === songId);
+      if (!song) return;
+      adminActiveSongId = songId;
+      adminActivePlaylistId = playlistId;
+
+      try {
+        const fileBlob = await getAudioFile(songId);
+        const objUrl = URL.createObjectURL(fileBlob);
+        adminAudio.src = objUrl;
+        adminAudio.play().then(() => {
+          syncAdminConsole();
+          renderSongsList();
+        });
+      } catch (err) {
+        alert("Lecture impossible: " + err.message);
+      }
+    }
+
+    function adminSkipNext() {
+      if (adminActivePlaylistId) {
+        const pl = localLibrary.playlists.find(p => p.id === adminActivePlaylistId);
+        if (!pl) return;
+        const currentIdx = pl.songs.indexOf(adminActiveSongId);
+        if (currentIdx !== -1 && currentIdx < pl.songs.length - 1) {
+          adminPlayTrack(pl.songs[currentIdx + 1], adminActivePlaylistId);
+        } else {
+          adminAudio.pause(); adminAudio.currentTime = 0; syncAdminConsole();
+        }
+      } else {
+        const currentIdx = localLibrary.songs.findIndex(s => s.id === adminActiveSongId);
+        if (currentIdx !== -1 && currentIdx < localLibrary.songs.length - 1) adminPlayTrack(localLibrary.songs[currentIdx + 1].id);
+      }
+    }
+
+    function adminSkipPrev() {
+      if (adminAudio.currentTime > 3) { adminAudio.currentTime = 0; syncAdminConsole(); return; }
+      if (adminActivePlaylistId) {
+        const pl = localLibrary.playlists.find(p => p.id === adminActivePlaylistId);
+        if (!pl) return;
+        const currentIdx = pl.songs.indexOf(adminActiveSongId);
+        if (currentIdx > 0) adminPlayTrack(pl.songs[currentIdx - 1], adminActivePlaylistId);
+      } else {
+        const currentIdx = localLibrary.songs.findIndex(s => s.id === adminActiveSongId);
+        if (currentIdx > 0) adminPlayTrack(localLibrary.songs[currentIdx - 1].id);
+      }
+    }
+
+    adminAudio.addEventListener('ended', adminSkipNext);
+
+    async function deleteLibraryTrack(song) {
+      if (confirm(`Supprimer "${song.title}" ?`)) {
+        await deleteAudioFile(song.id);
+        localLibrary.songs = localLibrary.songs.filter(s => s.id !== song.id);
+        localLibrary.playlists.forEach(pl => { pl.songs = pl.songs.filter(id => id !== song.id); });
+        if (adminActiveSongId === song.id) {
+          adminAudio.pause(); adminAudio.removeAttribute('src'); adminActiveSongId = null; adminActivePlaylistId = null;
+        }
+        saveLocalLibrary();
+        renderSongsList(); renderPlaylistsList(); syncAdminConsole();
+      }
+    }
+
+    const adminCreatePlaylistForm = document.getElementById('admin-create-playlist-form');
+    const adminPlaylistsList = document.getElementById('admin-playlists-list');
+
+    adminCreatePlaylistForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = document.getElementById('admin-new-playlist-name').value.trim();
+      if (!name) return;
+      localLibrary.playlists.push({ id: 'pl-' + Date.now(), name, songs: [] });
+      saveLocalLibrary();
+      document.getElementById('admin-new-playlist-name').value = '';
+      renderPlaylistsList();
+    });
+
+    let expandedAdminPlaylists = new Set();
+    function renderPlaylistsList() {
+      adminPlaylistsList.innerHTML = '';
+      if (localLibrary.playlists.length === 0) {
+        adminPlaylistsList.innerHTML = '<div class="list-empty">Aucune playlist.</div>';
+        return;
+      }
+
+      localLibrary.playlists.forEach(pl => {
+        const isExpanded = expandedAdminPlaylists.has(pl.id);
+        const item = document.createElement('div');
+        item.className = 'playlist-item';
+
+        item.innerHTML = `
+          <div class="playlist-header" data-id="${pl.id}">
+            <div class="playlist-meta">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="color:var(--primary)"><path d="M4 6H2v14a2 2 0 0 0 2 2h14v-2H4V6zm16-4H8a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm0 14H8V4h12v12z"/></svg>
+              <span class="playlist-name">${pl.name}</span>
+              <span class="playlist-count">${pl.songs.length}</span>
+            </div>
+            <div style="display:flex; gap: 4px;">
+              <button class="icon-btn icon-btn-play play-pl-btn"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
+              <button class="icon-btn edit-pl-btn"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+              <button class="icon-btn icon-btn-danger del-pl-btn"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/></svg></button>
+            </div>
+          </div>
+          <div class="playlist-body ${isExpanded ? 'expanded' : ''}">
+            <div class="playlist-body-tracks" id="admin-pl-tracks-${pl.id}"></div>
+          </div>
+        `;
+
+        item.querySelector('.playlist-header').addEventListener('click', (e) => {
+          if (e.target.closest('.icon-btn')) return;
+          if (expandedAdminPlaylists.has(pl.id)) expandedAdminPlaylists.delete(pl.id);
+          else expandedAdminPlaylists.add(pl.id);
+          renderPlaylistsList();
+        });
+
+        item.querySelector('.play-pl-btn').addEventListener('click', () => {
+          if (pl.songs.length === 0) return alert('Playlist vide.');
+          adminPlayTrack(pl.songs[0], pl.id);
+        });
+
+        item.querySelector('.edit-pl-btn').addEventListener('click', () => openRenameModal('playlist', pl));
+        item.querySelector('.del-pl-btn').addEventListener('click', () => deletePlaylist(pl));
+
+        const tracksContainer = item.querySelector('.playlist-body-tracks');
+        if (pl.songs.length === 0) {
+          tracksContainer.innerHTML = '<div class="list-empty">Aucun morceau</div>';
+        } else {
+          pl.songs.forEach((songId, index) => {
+            const song = localLibrary.songs.find(s => s.id === songId);
+            if (!song) return;
+            const trackItem = document.createElement('div');
+            trackItem.className = 'playlist-song-item';
+            trackItem.innerHTML = `
+              <span class="playlist-song-title">${index + 1}. ${song.title}</span>
+              <div class="playlist-song-actions">
+                <button class="icon-btn move-up"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2"><path d="m18 15-6-6-6 6"/></svg></button>
+                <button class="icon-btn move-down"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></button>
+                <button class="icon-btn icon-btn-danger remove-item"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+              </div>
+            `;
+            trackItem.querySelector('.move-up').addEventListener('click', () => movePlaylistTrack(pl.id, index, -1));
+            trackItem.querySelector('.move-down').addEventListener('click', () => movePlaylistTrack(pl.id, index, 1));
+            trackItem.querySelector('.remove-item').addEventListener('click', () => removePlaylistTrack(pl.id, index));
+            tracksContainer.appendChild(trackItem);
+          });
+        }
+        adminPlaylistsList.appendChild(item);
+      });
+    }
+
+    function deletePlaylist(pl) {
+      if (confirm(`Supprimer "${pl.name}" ?`)) {
+        localLibrary.playlists = localLibrary.playlists.filter(p => p.id !== pl.id);
+        if (adminActivePlaylistId === pl.id) adminActivePlaylistId = null;
+        saveLocalLibrary(); renderPlaylistsList();
+      }
+    }
+    function removePlaylistTrack(playlistId, index) {
+      const pl = localLibrary.playlists.find(p => p.id === playlistId);
+      if (pl) { pl.songs.splice(index, 1); saveLocalLibrary(); renderPlaylistsList(); }
+    }
+    function movePlaylistTrack(playlistId, index, direction) {
+      const pl = localLibrary.playlists.find(p => p.id === playlistId);
+      if (!pl) return;
+      const target = index + direction;
+      if (target < 0 || target >= pl.songs.length) return;
+      const temp = pl.songs[index]; pl.songs[index] = pl.songs[target]; pl.songs[target] = temp;
+      saveLocalLibrary(); renderPlaylistsList();
+    }
+
+    const modalRename = document.getElementById('modal-rename');
+    const renameModalTitleEl = document.getElementById('rename-modal-title');
+    const renameVal1 = document.getElementById('rename-val-1');
+    const renameVal2 = document.getElementById('rename-val-2');
+    const renameLbl1 = document.getElementById('rename-lbl-1');
+    const renameGroup2 = document.getElementById('rename-group-2');
+    let renameTargetType = null;
+    let renameTargetId = null;
+
+    function openRenameModal(type, target) {
+      renameTargetType = type; renameTargetId = target.id;
+      if (type === 'song') {
+        renameModalTitleEl.textContent = 'Renommer le morceau'; renameLbl1.textContent = 'Titre';
+        renameVal1.value = target.title; renameVal2.value = target.artist; renameGroup2.style.display = 'flex';
+      } else {
+        renameModalTitleEl.textContent = 'Renommer la playlist'; renameLbl1.textContent = 'Nom';
+        renameVal1.value = target.name; renameGroup2.style.display = 'none';
+      }
+      modalRename.classList.remove('hidden');
+    }
+    document.getElementById('rename-cancel').addEventListener('click', () => modalRename.classList.add('hidden'));
+    document.getElementById('rename-save').addEventListener('click', () => {
+      if (renameTargetType === 'song') {
+        const song = localLibrary.songs.find(s => s.id === renameTargetId);
+        if (song) { song.title = renameVal1.value.trim() || song.title; song.artist = renameVal2.value.trim() || song.artist; }
+      } else {
+        const pl = localLibrary.playlists.find(p => p.id === renameTargetId);
+        if (pl) pl.name = renameVal1.value.trim() || pl.name;
+      }
+      saveLocalLibrary(); modalRename.classList.add('hidden'); renderSongsList(); renderPlaylistsList(); syncAdminConsole();
+    });
+
+    const modalPlaylistsMenu = document.getElementById('modal-playlists-menu');
+    const playlistsMenuList = document.getElementById('playlists-menu-list');
+    const playlistsMenuSongName = document.getElementById('playlists-menu-song-name');
+    let playlistSongIdToAdd = null;
+
+    function openAddToPlaylistMenu(song) {
+      playlistSongIdToAdd = song.id;
+      playlistsMenuSongName.textContent = `Ajouter "${song.title}" à :`;
+      playlistsMenuList.innerHTML = '';
+      if (localLibrary.playlists.length === 0) playlistsMenuList.innerHTML = '<p class="text-muted">Aucune playlist.</p>';
+      else {
+        localLibrary.playlists.forEach(pl => {
+          const btn = document.createElement('button'); btn.className = 'playlist-select-btn'; btn.textContent = pl.name;
+          btn.addEventListener('click', () => {
+            if (!pl.songs.includes(playlistSongIdToAdd)) { pl.songs.push(playlistSongIdToAdd); saveLocalLibrary(); renderPlaylistsList(); }
+            modalPlaylistsMenu.classList.add('hidden');
+          });
+          playlistsMenuList.appendChild(btn);
+        });
+      }
+      modalPlaylistsMenu.classList.remove('hidden');
+    }
+    document.getElementById('playlists-menu-cancel').addEventListener('click', () => modalPlaylistsMenu.classList.add('hidden'));
+
+    // ========================================================
+    // GAME AND ROLE ENGINE (Admin Side Form Creators)
+    // ========================================================
+    const adminCreateRoleForm = document.getElementById('admin-create-role-form');
+    const adminRolesPoolList = document.getElementById('admin-roles-pool-list');
+    const adminPlayersRolesList = document.getElementById('admin-players-roles-list');
+    const adminGameStatus = document.getElementById('admin-game-status');
+    const gameDurationInput = document.getElementById('game-duration-input');
+
+    const adminStartGameBtn = document.getElementById('admin-start-game-btn');
+    const adminStopGameBtn = document.getElementById('admin-stop-game-btn');
+    const adminRevealRolesBtn = document.getElementById('admin-reveal-roles-btn');
+    const adminDistributeRandomBtn = document.getElementById('admin-distribute-random-btn');
+    const adminAddTime1Btn = document.getElementById('admin-add-time-1-btn');
+    const adminAddTime5Btn = document.getElementById('admin-add-time-5-btn');
+
+    // Create custom role
+    adminCreateRoleForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = document.getElementById('role-name-input').value.trim();
+      const icon = document.getElementById('role-icon-input').value.trim();
+      const desc = document.getElementById('role-desc-input').value.trim();
+
+      const newRole = { id: 'role-' + Date.now(), name, icon, desc };
+      rolesPool.push(newRole);
+      saveRolesPool();
+      
+      document.getElementById('role-name-input').value = '';
+      document.getElementById('role-icon-input').value = '';
+      document.getElementById('role-desc-input').value = '';
+
+      renderRolesPoolList();
+      renderPlayersList(); // Update select dropdowns
+    });
+
+    function renderRolesPoolList() {
+      adminRolesPoolList.innerHTML = '';
+      document.getElementById('role-pool-count').textContent = rolesPool.length;
+
+      if (rolesPool.length === 0) {
+        adminRolesPoolList.innerHTML = '<div class="list-empty">Aucun rôle créé.</div>';
+        return;
+      }
+
+      rolesPool.forEach(role => {
+        const item = document.createElement('div');
+        item.className = 'song-item'; // reuse layout styles
+        item.style.padding = '8px 12px';
+        item.innerHTML = `
+          <div style="font-size:1.5rem; margin-right: 8px;">${role.icon}</div>
+          <div class="song-item-info">
+            <div class="song-item-title">${role.name}</div>
+            <div class="song-item-artist" style="white-space:normal; line-height:1.2; margin-top:2px;">${role.desc}</div>
+          </div>
+          <button class="icon-btn icon-btn-danger delete-role-btn"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/></svg></button>
+        `;
+
+        item.querySelector('.delete-role-btn').addEventListener('click', () => {
+          rolesPool = rolesPool.filter(r => r.id !== role.id);
+          saveRolesPool();
+          renderRolesPoolList();
+          renderPlayersList();
+        });
+
+        adminRolesPoolList.appendChild(item);
+      });
+    }
+
+    // Render players list under Party config
+    function renderPlayersList() {
+      adminPlayersRolesList.innerHTML = '';
+      if (connectedListeners.size === 0) {
+        adminPlayersRolesList.innerHTML = '<div class="list-empty">Aucun joueur connecté.</div>';
+        return;
+      }
+
+      for (const [peerId, listener] of connectedListeners.entries()) {
+        const row = document.createElement('div');
+        row.className = 'player-row';
+        
+        let roleOptions = '<option value="">-- Aucun Rôle --</option>';
+        const assignedRoleId = playerAssignments[listener.username] || '';
+        rolesPool.forEach(role => {
+          const selected = assignedRoleId === role.id ? 'selected' : '';
+          roleOptions += `<option value="${role.id}" ${selected}>${role.icon} ${role.name}</option>`;
+        });
+
+        row.innerHTML = `
+          <div class="player-row-meta">
+            <input type="checkbox" class="player-checkbox" data-peer="${peerId}" checked>
+            <span style="font-weight:600; font-size:0.9rem;">${listener.username}</span>
+          </div>
+          <div>
+            <select class="player-role-select" data-peer="${peerId}">
+              ${roleOptions}
+            </select>
+          </div>
+        `;
+
+        // Update local map when select dropdown changes
+        row.querySelector('.player-role-select').addEventListener('change', (e) => {
+          const roleId = e.target.value;
+          if (roleId) {
+            playerAssignments[listener.username] = roleId;
+          } else {
+            delete playerAssignments[listener.username];
+          }
+          savePlayerAssignments();
+        });
+
+        adminPlayersRolesList.appendChild(row);
+      }
+    }
+
+    // Randomize role assignments
+    adminDistributeRandomBtn.addEventListener('click', () => {
+      if (rolesPool.length === 0) return alert('Veuillez créer des rôles d\'abord.');
+      
+      const checkedBoxes = document.querySelectorAll('.player-checkbox:checked');
+      if (checkedBoxes.length === 0) return alert('Aucun joueur sélectionné.');
+
+      const availableRoles = [...rolesPool];
+      playerAssignments = {};
+
+      checkedBoxes.forEach(box => {
+        const peerId = box.getAttribute('data-peer');
+        const listener = connectedListeners.get(peerId);
+        if (!listener) return;
+
+        if (availableRoles.length === 0) {
+          availableRoles.push(...rolesPool);
+        }
+        const randIdx = Math.floor(Math.random() * availableRoles.length);
+        const chosenRole = availableRoles.splice(randIdx, 1)[0];
+        playerAssignments[listener.username] = chosenRole.id;
+      });
+
+      savePlayerAssignments();
+      renderPlayersList();
+    });
+
+    // Start Game Trigger
+    adminStartGameBtn.addEventListener('click', () => {
+      if (connectedListeners.size === 0) return alert('Aucun joueur dans la session.');
+      const durationMin = parseFloat(gameDurationInput.value) || 10;
+      
+      // Send private role assignments to each peer
+      for (const [peerId, listener] of connectedListeners.entries()) {
+        const assignedRoleId = playerAssignments[listener.username];
+        const assignedRole = rolesPool.find(r => r.id === assignedRoleId);
+        
+        if (listener.conn.open) {
+          listener.conn.send({
+            type: 'role_assignment',
+            role: assignedRole || null
+          });
+        }
+      }
+
+      // Start global timer countdown
+      const durationSeconds = durationMin * 60;
+      gameEndTimestamp = Date.now() + (durationSeconds * 1000);
+      gameStatus = 'playing';
+      saveGameState();
+
+      // Broadcast game start to all listeners
+      broadcastData({
+        type: 'game_state',
+        state: gameStatus,
+        endTimestamp: gameEndTimestamp
+      });
+
+      startGameTimer();
+      updateAdminGameStatusDisplay();
+    });
+
+    // Dynamic timer controller loops
+    function startGameTimer() {
+      stopGameTimer();
+      updateGlobalTimerDisplay();
+      
+      gameTimerInterval = setInterval(() => {
+        const remaining = Math.max(0, Math.floor((gameEndTimestamp - Date.now()) / 1000));
+        
+        if (remaining <= 0) {
+          // Game ended naturally
+          gameStatus = 'ended';
+          saveGameState();
+          broadcastData({ type: 'game_state', state: gameStatus, endTimestamp: 0 });
+          stopGameTimer();
+          updateAdminGameStatusDisplay();
+        } else {
+          updateGlobalTimerDisplay();
+        }
+      }, 1000);
+    }
+
+    function stopGameTimer() {
+      if (gameTimerInterval) {
+        clearInterval(gameTimerInterval);
+        gameTimerInterval = null;
+      }
+    }
+
+    function updateGlobalTimerDisplay() {
+      const remaining = Math.max(0, Math.floor((gameEndTimestamp - Date.now()) / 1000));
+      const textTime = formatTime(remaining);
+      
+      // Update Admin status badge timer
+      adminGameStatus.textContent = textTime;
+      
+      // Also update visual top banner
+      globalTimerBanner.classList.remove('hidden');
+      globalTimerCountdown.textContent = textTime;
+      
+      if (remaining < 60) {
+        globalTimerBanner.className = 'global-timer-banner'; // red warning
+      } else {
+        globalTimerBanner.className = 'global-timer-banner warning'; // amber warning
+      }
+    }
+
+    function updateAdminGameStatusDisplay() {
+      if (gameStatus === 'playing') {
+        adminGameStatus.className = 'timer-badge-display';
+        adminStartGameBtn.classList.add('hidden');
+        adminDistributeRandomBtn.classList.add('hidden');
+        gameDurationInput.disabled = true;
+
+        adminStopGameBtn.classList.remove('hidden');
+        adminRevealRolesBtn.classList.remove('hidden');
+        adminAddTime1Btn.classList.remove('hidden');
+        adminAddTime5Btn.classList.remove('hidden');
+      } else {
+        // waiting / ended state
+        stopGameTimer();
+        globalTimerBanner.classList.add('hidden');
+        adminGameStatus.textContent = gameStatus === 'ended' ? 'Terminé' : 'Attente';
+        
+        adminStartGameBtn.classList.remove('hidden');
+        adminDistributeRandomBtn.classList.remove('hidden');
+        gameDurationInput.disabled = false;
+
+        adminStopGameBtn.classList.add('hidden');
+        adminRevealRolesBtn.classList.add('hidden');
+        adminAddTime1Btn.classList.add('hidden');
+        adminAddTime5Btn.classList.add('hidden');
+      }
+    }
+
+    // Add time handlers
+    adminAddTime1Btn.addEventListener('click', () => addTimeToGame(1));
+    adminAddTime5Btn.addEventListener('click', () => addTimeToGame(5));
+
+    function addTimeToGame(minutes) {
+      if (gameStatus !== 'playing') return;
+      gameEndTimestamp += minutes * 60 * 1000;
+      saveGameState();
+      
+      // Broadcast update
+      broadcastData({
+        type: 'timer_update',
+        endTimestamp: gameEndTimestamp
+      });
+      updateGlobalTimerDisplay();
+    }
+
+    // Stop game manually
+    adminStopGameBtn.addEventListener('click', () => {
+      if (confirm('Arrêter la partie en cours ? Les chronos et rôles seront réinitialisés.')) {
+        gameStatus = 'waiting';
+        gameEndTimestamp = 0;
+        playerAssignments = {};
+        savePlayerAssignments();
+        saveGameState();
+        broadcastData({ type: 'game_state', state: gameStatus, endTimestamp: 0 });
+        updateAdminGameStatusDisplay();
+        renderPlayersList();
+      }
+    });
+
+    // Reveal roles table to everyone
+    adminRevealRolesBtn.addEventListener('click', () => {
+      if (confirm('Voulez-vous révéler tous les rôles à tous les joueurs connectés ?')) {
+        const assignmentsList = [];
+        
+        for (const [peerId, listener] of connectedListeners.entries()) {
+          const assignedRoleId = playerAssignments[listener.username];
+          const assignedRole = rolesPool.find(r => r.id === assignedRoleId);
+          assignmentsList.push({
+            username: listener.username,
+            roleName: assignedRole ? assignedRole.name : 'Aucun',
+            roleIcon: assignedRole ? assignedRole.icon : '❌'
+          });
+        }
+
+        broadcastData({
+          type: 'reveal_roles',
+          assignments: assignmentsList
+        });
+
+        alert("Les rôles ont été révélés sur tous les terminaux.");
+      }
+    });
+
+
+    // ========================================================
+    // SATELLITE MAP ENGINE (Leaflet.js & Admin Points creator)
+    // ========================================================
+    const adminMapPointsList = document.getElementById('admin-map-points-list');
+
+    // Admin side map setup
+    function initAdminMap() {
+      if (adminMap) return; // already initialized
+
+      // ESRI Satellite Imagery layer (free, no API key)
+      const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 19,
+        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, USDA, USGS, and the GIS User Community'
+      });
+
+      // Default center coordinates (Paris)
+      adminMap = L.map('admin-map', {
+        center: [48.8566, 2.3522],
+        zoom: 13,
+        layers: [satelliteLayer]
+      });
+
+      // Left-click map to place marker
+      adminMap.on('click', (e) => {
+        const name = prompt("Entrez le nom de ce point d'intérêt :");
+        if (!name) return;
+
+        const newPoint = {
+          id: 'pt-' + Date.now(),
+          name: name,
+          lat: e.latlng.lat,
+          lng: e.latlng.lng
+        };
+
+        mapPointsPool.push(newPoint);
+        saveMapPointsPool();
+        renderAdminMapPointsList();
+        syncAdminMapMarkers();
+        
+        // Broadcast new points list to all players
+        broadcastData({
+          type: 'map_points',
+          points: mapPointsPool
+        });
+      });
+
+      loadMapPointsPool();
+      renderAdminMapPointsList();
+      syncAdminMapMarkers();
+    }
+
+    function renderAdminMapPointsList() {
+      adminMapPointsList.innerHTML = '';
+      document.getElementById('admin-map-points-count').textContent = mapPointsPool.length;
+
+      if (mapPointsPool.length === 0) {
+        adminMapPointsList.innerHTML = '<div class="list-empty">Aucun point d\'intérêt posé.</div>';
+        return;
+      }
+
+      mapPointsPool.forEach(pt => {
+        const item = document.createElement('div');
+        item.className = 'song-item';
+        item.style.padding = '8px 12px';
+        item.innerHTML = `
+          <div style="font-size:1.2rem; margin-right: 8px;">📍</div>
+          <div class="song-item-info">
+            <div class="song-item-title">${pt.name}</div>
+            <div class="song-item-artist" style="font-size:0.75rem;">Lat: ${pt.lat.toFixed(4)} / Lng: ${pt.lng.toFixed(4)}</div>
+          </div>
+          <div style="display:flex; gap:2px;">
+            <button class="icon-btn focus-pt-btn" title="Centrer la carte"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg></button>
+            <button class="icon-btn icon-btn-danger delete-pt-btn" title="Supprimer"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/></svg></button>
+          </div>
+        `;
+
+        item.querySelector('.focus-pt-btn').addEventListener('click', () => {
+          adminMap.setView([pt.lat, pt.lng], 16);
+        });
+
+        item.querySelector('.delete-pt-btn').addEventListener('click', () => {
+          mapPointsPool = mapPointsPool.filter(p => p.id !== pt.id);
+          saveMapPointsPool();
+          renderAdminMapPointsList();
+          syncAdminMapMarkers();
+          
+          broadcastData({ type: 'map_points', points: mapPointsPool });
+        });
+
+        adminMapPointsList.appendChild(item);
+      });
+    }
+
+    // Refresh markers plotted on admin map
+    function syncAdminMapMarkers() {
+      // Clear existing markers
+      adminMapMarkers.forEach(m => adminMap.removeLayer(m));
+      adminMapMarkers = [];
+
+      // Custom red icon for admin points
+      const redIcon = L.divIcon({
+        html: '<div style="background-color:#ef4444; width:12px; height:12px; border-radius:50%; border:2px solid white; box-shadow:0 0 8px rgba(0,0,0,0.5)"></div>',
+        className: 'custom-div-icon',
+        iconSize: [12, 12],
+        iconAnchor: [6, 6]
+      });
+
+      mapPointsPool.forEach(pt => {
+        const marker = L.marker([pt.lat, pt.lng], { icon: redIcon })
+          .bindPopup(`<b>${pt.name}</b><br>Point d'intérêt`)
+          .addTo(adminMap);
+        adminMapMarkers.push(marker);
+      });
+    }
+
+    // Optional: Draw blue markers for players on admin's map
+    let adminPlayerMarkers = new Map(); // peerId -> LeafletMarker
+    function updateAdminMapPlayerMarkers() {
+      if (!adminMap) return;
+
+      // Remove existing
+      adminPlayerMarkers.forEach(marker => adminMap.removeLayer(marker));
+      adminPlayerMarkers.clear();
+
+      const blueIcon = L.divIcon({
+        html: '<div style="background-color:#06b6d4; width:14px; height:14px; border-radius:50%; border:2px solid white; box-shadow:0 0 8px #06b6d4"></div>',
+        className: 'custom-div-icon',
+        iconSize: [14, 14],
+        iconAnchor: [7, 7]
+      });
+
+      for (const [peerId, listener] of connectedListeners.entries()) {
+        if (listener.lat && listener.lng) {
+          const marker = L.marker([listener.lat, listener.lng], { icon: blueIcon })
+            .bindPopup(`<b>Joueur: ${listener.username}</b>`)
+            .addTo(adminMap);
+          adminPlayerMarkers.set(peerId, marker);
+        }
+      }
+    }
+
+
+    // ========================================================
+    // LISTENER VIEWS ENGINE (GPS Tracking, P2P client receiver)
+    // ========================================================
+    const listenerGateway = document.getElementById('listener-gateway');
+    const listenerPanel = document.getElementById('listener-panel');
+    const listenerSongTitle = document.getElementById('listener-song-title');
+    const listenerSongArtist = document.getElementById('listener-song-artist');
+    const listenerArtworkImg = document.getElementById('listener-artwork-img');
+    const listenerCurrentTime = document.getElementById('listener-current-time');
+    const listenerTotalTime = document.getElementById('listener-total-time');
+    const listenerProgressFill = document.getElementById('listener-progress-fill');
+    const listenerVisualizer = document.getElementById('listener-visualizer');
+    const listenerDisc = document.getElementById('listener-disc');
+
+    const roleWaitingState = document.getElementById('role-waiting-state');
+    const roleActiveState = document.getElementById('role-active-state');
+    const playerRoleIcon = document.getElementById('player-role-icon');
+    const playerRoleName = document.getElementById('player-role-name');
+    const playerRoleDesc = document.getElementById('player-role-desc');
+    const toggleRoleVisibilityBtn = document.getElementById('toggle-role-visibility-btn');
+    const roleBlurContainer = document.getElementById('role-blur-container');
+
+    const roleRevealContainer = document.getElementById('role-reveal-container');
+    const revealTableBody = document.getElementById('reveal-table-body');
+    const gpsStatusIndicator = document.getElementById('gps-status-indicator');
+
+    let assignedRoleCached = null;
+    let isRoleRevealedToSelf = false;
+
+    // Join room actions
+    document.getElementById('join-broadcast-btn').addEventListener('click', () => {
+      const username = document.getElementById('listener-username-input').value.trim();
+      const code = document.getElementById('listener-room-input').value.trim();
+      
+      if (!username) return alert('Veuillez entrer un nom d\'utilisateur.');
+      if (!code) return alert('Veuillez entrer un code de salon.');
+      
+      myUsername = username;
+      roomCode = code;
+
+      localStorage.setItem('streamsync_username', myUsername);
+      localStorage.setItem('streamsync_room_code', roomCode);
+
+      // Warm up mobile audio buffer
+      listenerAudio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==';
+      listenerAudio.play().then(() => {
+        listenerAudio.pause();
+        
+        listenerGateway.classList.add('hidden');
+        listenerPanel.classList.remove('hidden');
+        
+        initListenerPeer();
+      }).catch(err => {
+        alert("Permission audio requise: " + err.message);
+      });
+    });
+
+    function initListenerPeer() {
+      updateConnectionUI('connecting');
+      const listenerPeerId = 'streamsync-listener-' + Math.floor(Math.random() * 1000000);
+      
+      if (myPeer) myPeer.destroy();
+
+      myPeer = new Peer(listenerPeerId, { debug: 1 });
+
+      myPeer.on('open', (id) => {
+        console.log('Listener Peer opened:', id);
+        connectToAdminRoom();
+        initListenerMap();
+        startGpsTracking();
+      });
+
+      myPeer.on('error', (err) => {
+        updateConnectionUI('offline');
+        alert('Erreur client: ' + err.message);
+      });
+
+      // Handle the incoming audio WebRTC Call from Admin host
+      myPeer.on('call', (call) => {
+        listenerMediaCall = call;
+        call.answer();
+
+        call.on('stream', (remoteStream) => {
+          listenerAudio.srcObject = remoteStream;
+          listenerAudio.play()
+            .then(() => {
+              console.log('Audio stream active.');
+              updateListenerUIElements();
+            })
+            .catch(err => {
+              listenerSongTitle.textContent = "Cliquez ici pour démarrer le son";
+            });
+        });
+      });
+    }
+
+    function connectToAdminRoom() {
+      const adminPeerId = 'streamsync-admin-' + roomCode;
+      listenerConnection = myPeer.connect(adminPeerId);
+
+      listenerConnection.on('open', () => {
+        console.log('Data channel active with host.');
+        updateConnectionUI('live', 'Connecté');
+        
+        // Register pseudo to admin player map list
+        listenerConnection.send({
+          type: 'join',
+          username: myUsername
+        });
+      });
+
+      listenerConnection.on('data', (data) => {
+        if (data.type === 'meta') {
+          listenerActiveMetadata = data;
+          updateListenerUIElements();
+        } else if (data.type === 'map_points') {
+          console.log("Received new map points:", data.points);
+          updateListenerMapMarkers(data.points);
+        } else if (data.type === 'role_assignment') {
+          console.log("Assigned role packet received:", data.role);
+          assignedRoleCached = data.role;
+          roleRevealContainer.classList.add('hidden'); // Reset final table
+          updateRoleTabDisplay();
+        } else if (data.type === 'game_state') {
+          console.log("Game state transition received:", data.state);
+          gameStatus = data.state;
+          gameEndTimestamp = data.endTimestamp;
+          
+          if (gameStatus === 'playing') {
+            startGameTimer();
+          } else if (gameStatus === 'waiting') {
+            stopGameTimer();
+            globalTimerBanner.classList.add('hidden');
+            assignedRoleCached = null;
+            updateRoleTabDisplay();
+          } else if (gameStatus === 'ended') {
+            stopGameTimer();
+            globalTimerBanner.classList.add('hidden');
+          }
+        } else if (data.type === 'timer_update') {
+          gameEndTimestamp = data.endTimestamp;
+          updateGlobalTimerDisplay();
+        } else if (data.type === 'reveal_roles') {
+          console.log("Roles revealed packet:", data.assignments);
+          displayRolesRevealTable(data.assignments);
+        }
+      });
+
+      listenerConnection.on('close', () => {
+        updateConnectionUI('offline');
+        stopListenerAudio();
+        stopGpsTracking();
+        listenerSongTitle.textContent = "Admin Déconnecté";
+        listenerSongArtist.textContent = "Salon fermé";
+      });
+    }
+
+    function updateListenerUIElements() {
+      if (!listenerActiveMetadata) return;
+
+      const meta = listenerActiveMetadata;
+      listenerSongTitle.textContent = meta.title;
+      listenerSongArtist.textContent = meta.artist;
+      listenerTotalTime.textContent = formatTime(meta.duration);
+
+      if (meta.artwork) {
+        listenerArtworkImg.style.backgroundImage = `url('${meta.artwork}')`;
+        listenerArtworkImg.classList.remove('default-art');
+      } else {
+        listenerArtworkImg.style.backgroundImage = 'none';
+        listenerArtworkImg.classList.add('default-art');
+      }
+
+      listenerCurrentTime.textContent = formatTime(meta.currentTime);
+      if (meta.duration > 0) {
+        const percent = (meta.currentTime / meta.duration) * 100;
+        listenerProgressFill.style.width = percent + '%';
+      } else {
+        listenerProgressFill.style.width = '0%';
+      }
+
+      if (meta.isPlaying) {
+        listenerVisualizer.classList.add('playing');
+        listenerDisc.classList.add('spin');
+        updateMediaSessionState('playing');
+      } else {
+        listenerVisualizer.classList.remove('playing');
+        listenerDisc.classList.remove('spin');
+        updateMediaSessionState('paused');
+      }
+
+      updateListenerMediaSession(meta);
+    }
+
+    function stopListenerAudio() {
+      listenerAudio.pause();
+      listenerAudio.srcObject = null;
+      listenerActiveMetadata = null;
+      listenerVisualizer.classList.remove('playing');
+      listenerDisc.classList.remove('spin');
+      listenerProgressFill.style.width = '0%';
+      
+      if (listenerMediaCall) { listenerMediaCall.close(); listenerMediaCall = null; }
+      if (listenerConnection) { listenerConnection.close(); listenerConnection = null; }
+      if (navigator.mediaSession) navigator.mediaSession.metadata = null;
+    }
+
+    // Role display toggling
+    function updateRoleTabDisplay() {
+      if (assignedRoleCached) {
+        roleWaitingState.classList.add('hidden');
+        roleActiveState.classList.remove('hidden');
+
+        playerRoleIcon.textContent = assignedRoleCached.icon;
+        playerRoleName.textContent = assignedRoleCached.name;
+        playerRoleDesc.textContent = assignedRoleCached.desc;
+
+        isRoleRevealedToSelf = false;
+        roleBlurContainer.className = 'role-blur';
+        toggleRoleVisibilityBtn.textContent = "Afficher le rôle";
+      } else {
+        roleWaitingState.classList.remove('hidden');
+        roleActiveState.classList.add('hidden');
+      }
+    }
+
+    toggleRoleVisibilityBtn.addEventListener('click', () => {
+      if (isRoleRevealedToSelf) {
+        isRoleRevealedToSelf = false;
+        roleBlurContainer.className = 'role-blur';
+        toggleRoleVisibilityBtn.textContent = "Afficher le rôle";
+      } else {
+        isRoleRevealedToSelf = true;
+        roleBlurContainer.className = '';
+        toggleRoleVisibilityBtn.textContent = "Masquer le rôle";
+      }
+    });
+
+    // Reveal final table rendering
+    function displayRolesRevealTable(assignments) {
+      revealTableBody.innerHTML = '';
+      
+      assignments.forEach(assign => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td><b>${assign.username}</b></td>
+          <td>${assign.roleIcon} ${assign.roleName}</td>
+        `;
+        revealTableBody.appendChild(row);
+      });
+
+      // Show container
+      roleRevealContainer.classList.remove('hidden');
+      
+      // Auto switch tabs to mon rôle to see results
+      document.querySelector('#listener-panel [data-tab="listener-tab-role"]').click();
+    }
+
+    // Listener Leaflet Satellite Setup
+    function initListenerMap() {
+      if (listenerMap) return;
+
+      const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 19,
+        attribution: 'Tiles &copy; Esri'
+      });
+
+      listenerMap = L.map('listener-map', {
+        center: [48.8566, 2.3522],
+        zoom: 15,
+        layers: [satelliteLayer]
+      });
+
+      // Bind recenter button
+      document.getElementById('recenter-gps-btn').addEventListener('click', recenterListenerMapOnUser);
+    }
+
+    // Browser Geolocation watching
+    function startGpsTracking() {
+      if (!navigator.geolocation) {
+        gpsStatusIndicator.textContent = "❌ GPS non supporté par ce navigateur.";
+        return;
+      }
+
+      gpsStatusIndicator.textContent = "📡 Recherche de votre position GPS...";
+
+      watchGpsId = navigator.geolocation.watchPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          
+          gpsStatusIndicator.textContent = "🟢 GPS Connecté (Précision: " + pos.coords.accuracy.toFixed(0) + "m)";
+          
+          // Plot User marker
+          plotUserPositionMarker(lat, lng);
+
+          // Transmit location to admin peer
+          if (listenerConnection && listenerConnection.open) {
+            listenerConnection.send({
+              type: 'location_update',
+              lat: lat,
+              lng: lng
+            });
+          }
+        },
+        (err) => {
+          console.warn("GPS tracking error:", err);
+          gpsStatusIndicator.textContent = "⚠️ Erreur GPS: " + err.message;
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        }
+      );
+    }
+
+    function stopGpsTracking() {
+      if (watchGpsId !== null) {
+        navigator.geolocation.clearWatch(watchGpsId);
+        watchGpsId = null;
+      }
+      if (listenerUserMarker && listenerMap) {
+        listenerMap.removeLayer(listenerUserMarker);
+        listenerUserMarker = null;
+      }
+      gpsStatusIndicator.textContent = "📡 GPS Inactif";
+    }
+
+    function plotUserPositionMarker(lat, lng) {
+      if (!listenerMap) return;
+
+      // Custom pulsing blue dot for player location
+      const blueDotIcon = L.divIcon({
+        html: '<div style="background-color:#3b82f6; width:16px; height:16px; border-radius:50%; border:3px solid white; box-shadow:0 0 10px #3b82f6; animation:pulse-live 1.5s infinite"></div>',
+        className: 'custom-div-icon',
+        iconSize: [16, 16],
+        iconAnchor: [8, 8]
+      });
+
+      if (listenerUserMarker) {
+        listenerUserMarker.setLatLng([lat, lng]);
+      } else {
+        listenerUserMarker = L.marker([lat, lng], { icon: blueDotIcon }).addTo(listenerMap);
+        // Center map on first lock
+        listenerMap.setView([lat, lng], 16);
+      }
+    }
+
+    function recenterListenerMapOnUser() {
+      if (listenerUserMarker && listenerMap) {
+        const latlng = listenerUserMarker.getLatLng();
+        listenerMap.setView(latlng, 17);
+      }
+    }
+
+    // Refresh markers representing points broadcasted by admin
+    function updateListenerMapMarkers(pointsArray) {
+      if (!listenerMap) return;
+
+      // Clear old markers
+      listenerMapMarkers.forEach(m => listenerMap.removeLayer(m));
+      listenerMapMarkers = [];
+
+      const redDotIcon = L.divIcon({
+        html: '<div style="background-color:#ef4444; width:14px; height:14px; border-radius:50%; border:2px solid white; box-shadow:0 0 8px rgba(0,0,0,0.5)"></div>',
+        className: 'custom-div-icon',
+        iconSize: [14, 14],
+        iconAnchor: [7, 7]
+      });
+
+      pointsArray.forEach(pt => {
+        const marker = L.marker([pt.lat, pt.lng], { icon: redDotIcon })
+          .bindPopup(`<b>${pt.name}</b><br>Point d'intérêt`)
+          .addTo(listenerMap);
+        listenerMapMarkers.push(marker);
+      });
+    }
+
+    // Click retry trigger if autoplay blocks stream playing
+    document.getElementById('listener-player').addEventListener('click', () => {
+      if (listenerAudio.paused && listenerAudio.srcObject) {
+        listenerAudio.play().then(updateListenerUIElements).catch(e => console.log(e));
+      }
+    });
+
+    // Media Session Hook registrations
+    function updateListenerMediaSession(meta) {
+      if (!navigator.mediaSession) return;
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: meta.title,
+        artist: meta.artist,
+        album: 'StreamSync Live Session',
+        artwork: meta.artwork ? [{ src: meta.artwork, sizes: '256x256', type: 'image/png' }] : []
+      });
+      navigator.mediaSession.setActionHandler('play', () => { listenerAudio.play().then(updateListenerUIElements); });
+      navigator.mediaSession.setActionHandler('pause', () => { listenerAudio.pause(); updateListenerUIElements(); });
+    }
+
+
+    // BOOTSTRAP INITIALIZATION ON PAGE LOAD
+    window.addEventListener('DOMContentLoaded', () => {
+      openDB().then(() => {
+        loadLocalLibrary();
+        loadRolesPool();
+        loadMapPointsPool();
+        loadPlayerAssignments();
+        loadGameState();
+        
+        // Restore username and room code input values if saved
+        const savedUsername = localStorage.getItem('streamsync_username');
+        if (savedUsername) {
+          document.getElementById('listener-username-input').value = savedUsername;
+        }
+        const savedRoomCode = localStorage.getItem('streamsync_room_code');
+        if (savedRoomCode) {
+          document.getElementById('listener-room-input').value = savedRoomCode;
+          document.getElementById('admin-room-input').value = savedRoomCode;
+        }
+      }).catch(e => console.error("Error opening DB:", e));
+    });
+  </script>
 </body>
 </html>
