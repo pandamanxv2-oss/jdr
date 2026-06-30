@@ -1,4 +1,3 @@
-cat > /home/claude/jdr-app/server.js << 'EOF'
 var express = require('express');
 var http = require('http');
 var WebSocket = require('ws');
@@ -441,5 +440,3 @@ server.listen(PORT, function() {
   console.log('Serveur JDR sur port ' + PORT);
   console.log('Mot de passe admin: ' + ADMIN_PASSWORD);
 });
-EOF
-node -c /home/claude/jdr-app/server.js && echo "server OK"
