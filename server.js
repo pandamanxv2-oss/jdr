@@ -42,6 +42,7 @@ var gameState = {
   timerEnded: false,
   announcements: [],
   pois: [],
+  roleDescriptions: {},
   music: {
     status: 'stopped', trackUrl: '', trackName: '',
     currentTime: 0, volume: 0.8, startedAt: null, loop: false,
@@ -58,7 +59,7 @@ function getPlayersList() {
   var list = [];
   players.forEach(function(p) {
     if (!p.pseudo) return;
-    list.push({ id: p.id, pseudo: p.pseudo, role: p.role, alive: p.alive, location: p.location, lastSeen: p.lastSeen });
+    list.push({ id: p.id, pseudo: p.pseudo, role: p.role, roleDescription: p.roleDescription, alive: p.alive, location: p.location, lastSeen: p.lastSeen });
   });
   return list;
 }
@@ -110,9 +111,10 @@ function sendInitialState(ws, p) {
   send(ws, { type: 'music_sync', music: Object.assign({}, gameState.music, { currentTime: getCurrentMusicTime() }) });
   if (isAdm) {
     send(ws, { type: 'players_update', players: getPlayersList(), admin: true });
+    send(ws, { type: 'role_descriptions_update', roleDescriptions: gameState.roleDescriptions });
   } else {
     send(ws, { type: 'players_update', players: getPublicPlayersList() });
-    if (p && p.role) send(ws, { type: 'your_role', role: p.role, alive: p.alive });
+    if (p && p.role) send(ws, { type: 'your_role', role: p.role, description: p.roleDescription || '', alive: p.alive });
   }
   // POIs: admin voit tout, joueurs voient seulement si partie en cours
   var myRole = p ? p.role : null;
@@ -199,7 +201,7 @@ app.delete('/api/playlists/:name', adminOnly, function(req, res) {
 
 wss.on('connection', function(ws) {
   var id = genId();
-  var info = { id: id, pseudo: '', role: null, alive: true, location: null, lastSeen: null, isAdmin: false };
+  var info = { id: id, pseudo: '', role: null, roleDescription: '', alive: true, location: null, lastSeen: null, isAdmin: false };
   players.set(ws, info);
   send(ws, { type: 'welcome', id: id });
   sendInitialState(ws, info);
@@ -244,7 +246,7 @@ wss.on('connection', function(ws) {
 
     // Commandes admin
     if (msg.password !== ADMIN_PASSWORD) { send(ws, { type: 'error', message: 'Mot de passe incorrect' }); return; }
-    p.isAdmin = true;
+    if (!p.isAdmin) { p.isAdmin = true; send(ws, { type: 'role_descriptions_update', roleDescriptions: gameState.roleDescriptions }); }
 
     function doMusicPlay(url, name, time) {
       gameState.music.trackUrl = url; gameState.music.trackName = name;
@@ -302,9 +304,29 @@ wss.on('connection', function(ws) {
 
       case 'assign_role':
         players.forEach(function(pp, pws) {
-          if (pp.id === msg.playerId) { pp.role = msg.role; send(pws, { type: 'your_role', role: msg.role, alive: pp.alive }); }
+          if (pp.id === msg.playerId) {
+            pp.role = msg.role;
+            pp.roleDescription = gameState.roleDescriptions[msg.role] || '';
+            send(pws, { type: 'your_role', role: pp.role, description: pp.roleDescription, alive: pp.alive });
+          }
         });
         send(ws, { type: 'players_update', players: getPlayersList(), admin: true });
+        break;
+
+      case 'set_role_description':
+        var rdRole = (msg.role || '').toString().trim();
+        if (!rdRole) break;
+        var rdDesc = (msg.description || '').toString().substring(0, 500);
+        gameState.roleDescriptions[rdRole] = rdDesc;
+        players.forEach(function(pp, pws) {
+          if (pp.role === rdRole) {
+            pp.roleDescription = rdDesc;
+            send(pws, { type: 'your_role', role: pp.role, description: pp.roleDescription, alive: pp.alive });
+          }
+        });
+        players.forEach(function(pp, pws) {
+          if (pp.isAdmin) send(pws, { type: 'role_descriptions_update', roleDescriptions: gameState.roleDescriptions });
+        });
         break;
 
       case 'auto_assign_roles':
@@ -314,7 +336,8 @@ wss.on('connection', function(ws) {
         allP.forEach(function(pp, idx) {
           if (idx < rolePool.length) {
             pp.role = rolePool[idx];
-            players.forEach(function(pp2, pws) { if (pp2.id === pp.id) send(pws, { type: 'your_role', role: pp.role, alive: pp.alive }); });
+            pp.roleDescription = gameState.roleDescriptions[pp.role] || '';
+            players.forEach(function(pp2, pws) { if (pp2.id === pp.id) send(pws, { type: 'your_role', role: pp.role, description: pp.roleDescription, alive: pp.alive }); });
           }
         });
         send(ws, { type: 'players_update', players: getPlayersList(), admin: true });
@@ -324,7 +347,7 @@ wss.on('connection', function(ws) {
         players.forEach(function(pp, pws) {
           if (pp.id === msg.playerId) {
             pp.alive = msg.alive !== undefined ? msg.alive : false;
-            send(pws, { type: 'your_role', role: pp.role, alive: pp.alive });
+            send(pws, { type: 'your_role', role: pp.role, description: pp.roleDescription || '', alive: pp.alive });
             broadcastAll({ type: 'player_eliminated', id: pp.id, pseudo: pp.pseudo, alive: pp.alive });
           }
         });
@@ -420,7 +443,7 @@ wss.on('connection', function(ws) {
         gameState.phase = PHASES.WAITING;
         gameState.timerStart = null; gameState.timerElapsed = 0; gameState.timerPaused = false; gameState.timerEnded = false;
         gameState.announcements = []; gameState.pois = [];
-        players.forEach(function(pp) { pp.role = null; pp.alive = true; });
+        players.forEach(function(pp) { pp.role = null; pp.roleDescription = ''; pp.alive = true; });
         broadcastAll({ type: 'game_reset' });
         break;
     }
