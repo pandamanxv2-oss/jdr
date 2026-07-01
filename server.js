@@ -16,9 +16,9 @@ var TRACKS_DIR = path.join(__dirname, 'public', 'tracks');
 if (!fs.existsSync(TRACKS_DIR)) fs.mkdirSync(TRACKS_DIR, { recursive: true });
 
 var DATA_FILE = path.join(__dirname, 'gamedata.json');
-var gameData = { trackNames: {}, playlists: [] };
+var gameData = { trackNames: {}, playlists: [], pois: [], roleDescriptions: {}, announcements: [], playerRoles: {} };
 if (fs.existsSync(DATA_FILE)) {
-  try { gameData = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')); } catch(e) {}
+  try { gameData = Object.assign({ trackNames: {}, playlists: [], pois: [], roleDescriptions: {}, announcements: [], playerRoles: {} }, JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'))); } catch(e) {}
 }
 function saveData() { fs.writeFileSync(DATA_FILE, JSON.stringify(gameData, null, 2)); }
 
@@ -49,6 +49,36 @@ var gameState = {
     playlist: [], playlistIndex: 0
   }
 };
+
+// Restauration apres redemarrage du serveur (ex: reveil Render)
+gameState.pois = gameData.pois || [];
+gameState.roleDescriptions = gameData.roleDescriptions || {};
+gameState.announcements = gameData.announcements || [];
+if (gameData.phase) gameState.phase = gameData.phase;
+if (gameData.timerDuration) gameState.timerDuration = gameData.timerDuration;
+gameState.timerStart = gameData.timerStart || null;
+gameState.timerPaused = !!gameData.timerPaused;
+gameState.timerElapsed = gameData.timerElapsed || 0;
+gameState.timerEnded = !!gameData.timerEnded;
+gameData.playerRoles = gameData.playerRoles || {};
+
+function persistGameState() {
+  gameData.pois = gameState.pois;
+  gameData.roleDescriptions = gameState.roleDescriptions;
+  gameData.announcements = gameState.announcements;
+  gameData.phase = gameState.phase;
+  gameData.timerStart = gameState.timerStart;
+  gameData.timerDuration = gameState.timerDuration;
+  gameData.timerPaused = gameState.timerPaused;
+  gameData.timerElapsed = gameState.timerElapsed;
+  gameData.timerEnded = gameState.timerEnded;
+  saveData();
+}
+function savePlayerRole(p) {
+  if (!p || !p.pseudo) return;
+  gameData.playerRoles[p.pseudo.toLowerCase()] = { role: p.role, roleDescription: p.roleDescription, alive: p.alive };
+  saveData();
+}
 
 var players = new Map();
 var idCounter = 0;
@@ -225,6 +255,19 @@ wss.on('connection', function(ws) {
       var rawPseudo = (msg.pseudo || '').toString().substring(0, 24).trim();
       if (!rawPseudo || rawPseudo === ADMIN_PASSWORD) { send(ws, { type: 'error', message: 'Pseudo invalide' }); return; }
       p.pseudo = rawPseudo;
+      // Restaurer le role si ce pseudo avait deja un role (ex: reconnexion apres redemarrage serveur)
+      var saved = gameData.playerRoles[rawPseudo.toLowerCase()];
+      if (saved && saved.role) {
+        p.role = saved.role;
+        p.roleDescription = gameState.roleDescriptions[saved.role] || saved.roleDescription || '';
+        p.alive = saved.alive !== undefined ? saved.alive : true;
+        send(ws, { type: 'your_role', role: p.role, description: p.roleDescription, alive: p.alive });
+        var canSeePois = gameState.phase === PHASES.PLAYING || gameState.phase === PHASES.ENDED;
+        var visiblePois = !canSeePois ? [] : gameState.pois.filter(function(poi) {
+          return poi.visibleTo[0] === 'all' || poi.visibleTo.indexOf(p.role) !== -1;
+        });
+        send(ws, { type: 'pois_update', pois: visiblePois });
+      }
       broadcastPlayersUpdate();
       broadcastAll({ type: 'system_notice', text: p.pseudo + ' a rejoint la partie' });
       return;
@@ -280,7 +323,7 @@ wss.on('connection', function(ws) {
           gameState.timerEnded = true;
         }
         broadcastAll({ type: 'game_state', phase: gameState.phase, timerStart: gameState.timerStart, timerDuration: gameState.timerDuration, timerPaused: gameState.timerPaused, timerElapsed: gameState.timerElapsed, timerEnded: gameState.timerEnded });
-        // Syncer les POIs selon la nouvelle phase
+        persistGameState();
         players.forEach(function(pp, pws) {
           var canSee = pp.isAdmin || gameState.phase === PHASES.PLAYING || gameState.phase === PHASES.ENDED;
           var vis = !canSee ? [] : (pp.isAdmin ? gameState.pois : gameState.pois.filter(function(poi) {
@@ -293,6 +336,7 @@ wss.on('connection', function(ws) {
       case 'set_timer':
         gameState.timerDuration = msg.duration || 3600;
         broadcastAll({ type: 'game_state', phase: gameState.phase, timerStart: gameState.timerStart, timerDuration: gameState.timerDuration, timerPaused: gameState.timerPaused, timerElapsed: gameState.timerElapsed, timerEnded: gameState.timerEnded });
+        persistGameState();
         break;
 
       case 'pause_timer':
@@ -301,6 +345,7 @@ wss.on('connection', function(ws) {
           gameState.timerStart = null; gameState.timerPaused = true;
         }
         broadcastAll({ type: 'timer_update', paused: true, elapsed: gameState.timerElapsed, duration: gameState.timerDuration, timerEnded: gameState.timerEnded });
+        persistGameState();
         break;
 
       case 'resume_timer':
@@ -308,6 +353,7 @@ wss.on('connection', function(ws) {
           gameState.timerStart = Date.now(); gameState.timerPaused = false;
         }
         broadcastAll({ type: 'timer_update', paused: false, timerStart: gameState.timerStart, elapsed: gameState.timerElapsed, duration: gameState.timerDuration, timerEnded: gameState.timerEnded });
+        persistGameState();
         break;
 
       case 'assign_role':
@@ -316,6 +362,7 @@ wss.on('connection', function(ws) {
             pp.role = msg.role;
             pp.roleDescription = gameState.roleDescriptions[msg.role] || '';
             send(pws, { type: 'your_role', role: pp.role, description: pp.roleDescription, alive: pp.alive });
+            savePlayerRole(pp);
           }
         });
         broadcastPlayersUpdate();
@@ -330,11 +377,13 @@ wss.on('connection', function(ws) {
           if (pp.role === rdRole) {
             pp.roleDescription = rdDesc;
             send(pws, { type: 'your_role', role: pp.role, description: pp.roleDescription, alive: pp.alive });
+            savePlayerRole(pp);
           }
         });
         players.forEach(function(pp, pws) {
           if (pp.isAdmin) send(pws, { type: 'role_descriptions_update', roleDescriptions: gameState.roleDescriptions });
         });
+        persistGameState();
         break;
 
       case 'auto_assign_roles':
@@ -346,6 +395,7 @@ wss.on('connection', function(ws) {
             pp.role = rolePool[idx];
             pp.roleDescription = gameState.roleDescriptions[pp.role] || '';
             players.forEach(function(pp2, pws) { if (pp2.id === pp.id) send(pws, { type: 'your_role', role: pp.role, description: pp.roleDescription, alive: pp.alive }); });
+            savePlayerRole(pp);
           }
         });
         broadcastPlayersUpdate();
@@ -357,6 +407,7 @@ wss.on('connection', function(ws) {
             pp.alive = msg.alive !== undefined ? msg.alive : false;
             send(pws, { type: 'your_role', role: pp.role, description: pp.roleDescription || '', alive: pp.alive });
             broadcastAll({ type: 'player_eliminated', id: pp.id, pseudo: pp.pseudo, alive: pp.alive });
+            savePlayerRole(pp);
           }
         });
         broadcastPlayersUpdate();
@@ -372,6 +423,7 @@ wss.on('connection', function(ws) {
           broadcastToRoles(ann.targetRoles, { type: 'announcement', announcement: ann });
           send(ws, { type: 'announcement', announcement: ann });
         }
+        persistGameState();
         break;
 
       case 'add_poi':
@@ -382,11 +434,13 @@ wss.on('connection', function(ws) {
           if (gameState.phase !== PHASES.PLAYING && gameState.phase !== PHASES.ENDED) return;
           if (poi.visibleTo[0] === 'all' || poi.visibleTo.indexOf(pp.role) !== -1) send(pws, { type: 'poi_added', poi: poi });
         });
+        persistGameState();
         break;
 
       case 'remove_poi':
         gameState.pois = gameState.pois.filter(function(poi) { return poi.id !== msg.poiId; });
         broadcastAll({ type: 'poi_removed', poiId: msg.poiId });
+        persistGameState();
         break;
 
       case 'music_play':
@@ -452,6 +506,8 @@ wss.on('connection', function(ws) {
         gameState.timerStart = null; gameState.timerElapsed = 0; gameState.timerPaused = false; gameState.timerEnded = false;
         gameState.announcements = []; gameState.pois = [];
         players.forEach(function(pp) { pp.role = null; pp.roleDescription = ''; pp.alive = true; });
+        gameData.playerRoles = {};
+        persistGameState();
         broadcastAll({ type: 'game_reset' });
         break;
     }
