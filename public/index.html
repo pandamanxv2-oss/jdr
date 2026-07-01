@@ -359,6 +359,7 @@ audio{display:none}
     <div style="display:flex;align-items:center;gap:.4rem">
       <div id="my-role-badge"></div>
       <div id="conn-badge" class="off">...</div>
+      <button onclick="disconnect()" title="Se deconnecter" style="background:rgba(216,90,48,.15);color:#D85A30;border:1px solid rgba(216,90,48,.25);border-radius:7px;padding:3px 8px;font-size:.7rem;cursor:pointer">✕</button>
     </div>
   </div>
 
@@ -546,6 +547,7 @@ audio{display:none}
 <script>
 // ── STATE ──────────────────────────────────────
 var ws, myId='', myPseudo='', myRole=null, myRoleDescription='', myAlive=true;
+var intentionalDisconnect=false, reconnectTimer=null;
 var roleDescriptions={};
 var adminPwd='', isAdmin=false;
 var currentTab='map';
@@ -682,6 +684,7 @@ function joinGame(){
   var p=(document.getElementById('pseudo-in').value||'').trim();
   if(!p){document.getElementById('pseudo-in').focus();return;}
   myPseudo=p;
+  try{localStorage.setItem('jdr_pseudo',p);}catch(e){}
   var audio=document.getElementById('audio');
   audio.src='data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
   audio.volume=0;
@@ -705,10 +708,27 @@ function browseApp(){
 }
 
 // ── WS ─────────────────────────────────────────
+function disconnect(){
+  intentionalDisconnect=true;
+  clearTimeout(reconnectTimer);
+  if(ws) ws.close();
+  // Revenir au splash
+  document.getElementById('app').classList.remove('show');
+  document.getElementById('screen-waiting').classList.remove('show');
+  document.getElementById('screen-role').classList.remove('show');
+  document.getElementById('screen-dead').classList.remove('show');
+  document.getElementById('splash').classList.remove('hidden');
+  // Préremplir le pseudo
+  try{var saved=localStorage.getItem('jdr_pseudo');if(saved)document.getElementById('pseudo-in').value=saved;}catch(e){}
+  // Reset état local
+  myId='';myRole=null;myRoleDescription='';myAlive=true;isAdmin=false;adminPwd='';
+}
+
 function connect(){
   var proto=location.protocol==='https:'?'wss':'ws';
   ws=new WebSocket(proto+'://'+location.host);
   ws.onopen=function(){
+    intentionalDisconnect=false;
     setBadge(true);
     ws.send(JSON.stringify({type:'set_pseudo',pseudo:myPseudo}));
     document.getElementById('app').classList.add('show');
@@ -716,7 +736,13 @@ function connect(){
     updatePhaseDisplay();
     setTimeout(initMap,150);
   };
-  ws.onclose=function(){setBadge(false);setTimeout(connect,2000);};
+  ws.onclose=function(){
+    setBadge(false);
+    // Ne pas reconnecter si l'utilisateur a quitte volontairement
+    if(!intentionalDisconnect){
+      reconnectTimer=setTimeout(connect,2000);
+    }
+  };
   ws.onmessage=function(e){handle(JSON.parse(e.data));};
 }
 
@@ -1120,6 +1146,9 @@ function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').repl
 function showNotif(txt){var n=document.getElementById('notif');n.textContent=txt;n.classList.add('show');setTimeout(function(){n.classList.remove('show');},2500);}
 function openModal(id){document.getElementById(id).classList.add('show');}
 function closeModal(id){document.getElementById(id).classList.remove('show');}
+// Preremplir pseudo depuis localStorage
+try{var _saved=localStorage.getItem('jdr_pseudo');if(_saved){var _inp=document.getElementById('pseudo-in');if(_inp)_inp.value=_saved;}}catch(e){}
+
 function switchTab(t){
   currentTab=t;
   document.querySelectorAll('.view').forEach(function(v){v.classList.remove('on');});
