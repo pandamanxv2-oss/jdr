@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -39,7 +38,12 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .wait-title{font-size:1.2rem;font-weight:700;color:var(--purple)}
 .wait-players{font-size:.82rem;color:var(--muted);max-height:200px;overflow-y:auto;width:100%;max-width:280px}
 .wait-player-item{padding:.35rem .6rem;background:var(--surf2);border-radius:6px;margin-bottom:.3rem;font-size:.82rem}
-.admin-bypass{position:absolute;bottom:1.5rem;right:1.5rem;background:rgba(127,119,221,.12);color:rgba(127,119,221,.5);border:1px solid rgba(127,119,221,.15);border-radius:8px;padding:.4rem .8rem;font-size:.7rem;cursor:pointer}
+/* FLOATING ADMIN BUTTON */
+#floating-admin-btn{position:fixed;bottom:1.2rem;right:1.2rem;z-index:950;background:rgba(127,119,221,.16);color:var(--purple);border:1px solid rgba(127,119,221,.35);border-radius:24px;padding:.5rem 1rem;font-size:.75rem;font-weight:600;cursor:pointer;display:none;align-items:center;gap:.35rem;box-shadow:0 2px 10px rgba(0,0,0,.3)}
+#floating-admin-btn.show{display:flex}
+
+/* WAITING BROWSE BUTTON */
+.waiting-browse-btn{background:rgba(255,255,255,.06);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:.6rem 1.1rem;font-size:.82rem;cursor:pointer;margin-top:.2rem}
 
 /* ROLE SCREEN */
 #screen-role{position:fixed;inset:0;background:var(--bg);z-index:900;display:none;flex-direction:column;align-items:center;justify-content:center;gap:1rem;padding:2rem;text-align:center}
@@ -80,8 +84,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 #conn-badge{font-size:.65rem;padding:2px 7px;border-radius:20px;background:var(--tbg);color:var(--teal);border:1px solid rgba(29,158,117,.3)}
 #conn-badge.off{background:var(--cbg);color:var(--coral);border-color:rgba(216,90,48,.3)}
 #my-role-badge{font-size:.65rem;padding:2px 8px;border-radius:20px;font-weight:700;display:none;background:var(--pbg);color:var(--purple)}
-#admin-return-btn{display:none;font-size:.65rem;padding:3px 9px;border-radius:20px;background:var(--pbg);color:var(--purple);border:1px solid rgba(127,119,221,.3);cursor:pointer}
-#admin-return-btn.show{display:inline-flex;align-items:center}
+/* (admin-return-btn retire, remplace par floating-admin-btn) */
 
 /* NAV */
 .nav{display:flex;background:var(--surf);border-bottom:1px solid var(--border);flex-shrink:0}
@@ -226,8 +229,11 @@ audio{display:none}
   <div class="wait-title">En attente du lancement...</div>
   <div style="font-size:.82rem;color:var(--muted);margin-bottom:.3rem">Joueurs connectés :</div>
   <div class="wait-players" id="wait-players-list"></div>
-  <button class="admin-bypass" onclick="bypassToAdmin()">Mode admin</button>
+  <button class="waiting-browse-btn" onclick="browseApp()">🗺 Voir la carte & les joueurs</button>
 </div>
+
+<!-- ADMIN FLOTTANT (toujours visible) -->
+<button id="floating-admin-btn" onclick="goAdmin()">🎛 Admin</button>
 
 <!-- ROLE REVEAL -->
 <div id="screen-role">
@@ -369,7 +375,6 @@ audio{display:none}
     </div>
     <div style="display:flex;align-items:center;gap:.4rem">
       <div id="my-role-badge"></div>
-      <button id="admin-return-btn" onclick="switchTab('admin')">🎛 Admin</button>
       <div id="conn-badge" class="off">...</div>
     </div>
   </div>
@@ -555,6 +560,7 @@ var ws, myId='', myPseudo='', myRole=null, myRoleDescription='', myAlive=true;
 var roleDescriptions={};
 var adminPwd='', isAdmin=false;
 var currentTab='map';
+var waitingBypassed=false;
 var allPlayers=[], allPois=[], allTracks=[], currentPlaylist=[], currentPlIdx=0;
 var currentTrackUrl='';
 var progTimer;
@@ -657,11 +663,19 @@ function joinGame(){
   var pr=audio.play();if(pr) pr.then(done).catch(done); else done();
 }
 
-function bypassToAdmin(){
+function goAdmin(){
   isAdmin=true;
   document.getElementById('screen-waiting').classList.remove('show');
-  document.getElementById('admin-return-btn').classList.add('show');
+  document.getElementById('screen-role').classList.remove('show');
+  document.getElementById('screen-dead').classList.remove('show');
+  document.getElementById('app').classList.add('show');
   switchTab('admin');
+}
+
+function browseApp(){
+  waitingBypassed=true;
+  document.getElementById('screen-waiting').classList.remove('show');
+  switchTab('map');
 }
 
 // ── WS ─────────────────────────────────────────
@@ -672,6 +686,7 @@ function connect(){
     setBadge(true);
     ws.send(JSON.stringify({type:'set_pseudo',pseudo:myPseudo}));
     document.getElementById('app').classList.add('show');
+    document.getElementById('floating-admin-btn').classList.add('show');
     updatePhaseDisplay();
     setTimeout(initMap,150);
   };
@@ -689,8 +704,9 @@ function handle(msg){
     case 'welcome': myId=msg.id; break;
     case 'game_state': applyGameState(msg); break;
     case 'game_reset':
-      myRole=null;myAlive=true;gamePhase='waiting';timerEnded=false;
+      myRole=null;myRoleDescription='';myAlive=true;gamePhase='waiting';timerEnded=false;waitingBypassed=false;
       document.getElementById('my-role-badge').style.display='none';
+      var mc2=document.getElementById('myrole-card');if(mc2)mc2.style.display='none';
       document.getElementById('timer-display').classList.remove('ended');
       Object.keys(playerMarkers).forEach(removePlayerMarker);
       Object.keys(poiMarkers).forEach(removePoiMarker);
@@ -772,7 +788,7 @@ function updatePhaseDisplay(){
   document.getElementById('phase-badge').textContent=labels[gamePhase]||gamePhase;
   var block=!isAdmin;
   // Ecran attente
-  document.getElementById('screen-waiting').classList.toggle('show',block&&gamePhase==='waiting');
+  document.getElementById('screen-waiting').classList.toggle('show',block&&gamePhase==='waiting'&&!waitingBypassed);
   // Ecran role
   document.getElementById('screen-role').classList.toggle('show',block&&gamePhase==='roles'&&!!myRole);
   // Ecran mort
@@ -1068,7 +1084,6 @@ function unlockAdmin(){
     if(document.getElementById('admin-err').textContent)return;
     document.getElementById('admin-gate').style.display='none';
     document.getElementById('admin-panel').style.display='flex';
-    document.getElementById('admin-return-btn').classList.add('show');
     updatePhaseDisplay();loadTracks();loadSavedPlaylists();
     // Demander la liste admin
     wsSend({type:'auto_assign_roles',roles:[]});// trick pour rafraichir la liste
