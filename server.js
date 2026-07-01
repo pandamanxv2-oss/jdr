@@ -54,16 +54,20 @@ var idCounter = 0;
 function genId() { return 'p' + (++idCounter); }
 
 function getPlayersList() {
+  // Liste complete (admin) : uniquement les joueurs ayant choisi un pseudo, avec leur position
   var list = [];
   players.forEach(function(p) {
+    if (!p.pseudo) return;
     list.push({ id: p.id, pseudo: p.pseudo, role: p.role, alive: p.alive, location: p.location, lastSeen: p.lastSeen });
   });
   return list;
 }
 function getPublicPlayersList() {
+  // Liste publique (joueurs) : pas de position des autres joueurs, pour la confidentialite
   var list = [];
   players.forEach(function(p) {
-    list.push({ id: p.id, pseudo: p.pseudo, alive: p.alive, location: p.location, lastSeen: p.lastSeen });
+    if (!p.pseudo) return;
+    list.push({ id: p.id, pseudo: p.pseudo, alive: p.alive, lastSeen: p.lastSeen });
   });
   return list;
 }
@@ -212,21 +216,18 @@ wss.on('connection', function(ws) {
       if (!rawPseudo || rawPseudo === ADMIN_PASSWORD) { send(ws, { type: 'error', message: 'Pseudo invalide' }); return; }
       p.pseudo = rawPseudo;
       broadcastAll({ type: 'players_update', players: getPublicPlayersList() });
-      broadcastAll({ type: 'chat', from: 'Systeme', text: p.pseudo + ' a rejoint la partie', system: true });
+      broadcastAll({ type: 'system_notice', text: p.pseudo + ' a rejoint la partie' });
       return;
     }
     if (msg.type === 'location_update') {
       if (msg.lat && msg.lng) {
         p.location = { lat: msg.lat, lng: msg.lng, acc: msg.acc || 0 };
         p.lastSeen = Date.now();
-        broadcastAll({ type: 'player_location', id: p.id, pseudo: p.pseudo, lat: msg.lat, lng: msg.lng, alive: p.alive });
+        // Confidentialite : seul l'admin voit la position des autres joueurs
+        players.forEach(function(pp, pws) {
+          if (pp.isAdmin) send(pws, { type: 'player_location', id: p.id, pseudo: p.pseudo, lat: msg.lat, lng: msg.lng, alive: p.alive });
+        });
       }
-      return;
-    }
-    if (msg.type === 'chat') {
-      var txt = (msg.text || '').toString().substring(0, 300).trim();
-      if (!txt) return;
-      broadcastAll({ type: 'chat', from: p.pseudo, id: p.id, text: txt });
       return;
     }
     if (msg.type === 'private_msg') {
@@ -428,7 +429,7 @@ wss.on('connection', function(ws) {
   ws.on('close', function() {
     var p = players.get(ws);
     if (p && p.pseudo) {
-      broadcastAll({ type: 'chat', from: 'Systeme', text: p.pseudo + ' a quitte la partie', system: true });
+      broadcastAll({ type: 'system_notice', text: p.pseudo + ' a quitte la partie' });
       broadcastAll({ type: 'player_left', id: p.id });
       broadcastAll({ type: 'players_update', players: getPublicPlayersList() });
     }
