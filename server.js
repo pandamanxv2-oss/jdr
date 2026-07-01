@@ -283,17 +283,6 @@ wss.on('connection', function(ws) {
       }
       return;
     }
-    if (msg.type === 'private_msg') {
-      var txt2 = (msg.text || '').toString().substring(0, 300).trim();
-      if (!txt2) return;
-      var targetWs = null;
-      players.forEach(function(pp, pws) { if (pp.id === msg.to) targetWs = pws; });
-      if (targetWs) {
-        send(targetWs, { type: 'private_msg', from: p.pseudo, fromId: p.id, text: txt2 });
-        send(ws, { type: 'private_msg_sent', toPseudo: players.get(targetWs).pseudo, text: txt2 });
-      }
-      return;
-    }
 
     // Commandes admin
     if (msg.password !== ADMIN_PASSWORD) { send(ws, { type: 'error', message: 'Mot de passe incorrect' }); return; }
