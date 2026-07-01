@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -168,6 +169,11 @@ input:checked+.slider:before{transform:translateX(16px)}
 .spl-name{flex:1;font-weight:500}
 .spl-count{font-size:.67rem;color:var(--muted)}
 
+/* ROLE DESCRIPTIONS */
+.rd-item{padding:.4rem .6rem;background:var(--surf2);border-radius:7px;margin-bottom:.28rem;font-size:.78rem}
+.rd-item .rd-role{font-weight:700;color:var(--purple);margin-bottom:.15rem}
+.rd-item .rd-text{color:var(--muted);font-size:.74rem;line-height:1.4;margin-bottom:.3rem}
+
 /* UPLOAD */
 #dropzone{border:2px dashed rgba(127,119,221,.3);border-radius:var(--r);padding:1rem;text-align:center;cursor:pointer;transition:all .2s;background:rgba(127,119,221,.03);margin-bottom:.6rem}
 #dropzone:hover,#dropzone.drag{border-color:var(--purple);background:var(--pbg)}
@@ -260,6 +266,17 @@ audio{display:none}
 </div>
 
 <!-- MODALS -->
+<div class="modal-bg" id="modal-myrole">
+  <div class="modal">
+    <h3>🎭 Mon rôle</h3>
+    <div style="font-size:1.05rem;font-weight:800;color:var(--purple);margin-bottom:.5rem" id="myrole-name"></div>
+    <div style="font-size:.85rem;color:var(--muted);line-height:1.5" id="myrole-desc"></div>
+    <div class="modal-brow">
+      <button class="btn b-p" onclick="closeModal('modal-myrole')">Fermer</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-bg" id="modal-pm">
   <div class="modal">
     <h3>Message privé à <span id="pm-to"></span></h3>
@@ -368,6 +385,10 @@ audio{display:none}
 
     <!-- PLAYERS -->
     <div id="view-players" class="view">
+      <div class="card" id="myrole-card" style="display:none">
+        <div class="card-title">🎭 Mon rôle</div>
+        <button class="btn b-p" onclick="showMyRoleModal()">Revoir mon rôle</button>
+      </div>
       <div class="card">
         <div class="card-title">Joueurs connectés</div>
         <div id="players-list"></div>
@@ -421,6 +442,22 @@ audio{display:none}
               <button class="btn b-p" onclick="autoAssignRoles()">Assigner</button>
             </div>
           </div>
+        </div>
+
+        <!-- DESCRIPTIONS DE ROLES -->
+        <div class="card">
+          <div class="card-title">📝 Descriptions des rôles</div>
+          <p style="font-size:.74rem;color:var(--muted);margin-bottom:.55rem">Définis une description pour chaque rôle : les joueurs la verront et pourront la revoir à tout moment.</p>
+          <div class="fgroup">
+            <label class="flabel">Nom du rôle</label>
+            <input class="fin" id="rd-role" placeholder="ex: tueur"/>
+          </div>
+          <div class="fgroup">
+            <label class="flabel">Description</label>
+            <textarea class="fin" id="rd-desc" rows="3" style="resize:none" placeholder="Ex: Eliminez vos cibles discretement sans vous faire repérer."></textarea>
+          </div>
+          <button class="btn b-p" onclick="saveRoleDescription()">Enregistrer</button>
+          <div id="role-desc-list" style="margin-top:.65rem"></div>
         </div>
 
         <!-- ANNONCES -->
@@ -514,7 +551,8 @@ audio{display:none}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
 // ── STATE ──────────────────────────────────────
-var ws, myId='', myPseudo='', myRole=null, myAlive=true;
+var ws, myId='', myPseudo='', myRole=null, myRoleDescription='', myAlive=true;
+var roleDescriptions={};
 var adminPwd='', isAdmin=false;
 var currentTab='map';
 var allPlayers=[], allPois=[], allTracks=[], currentPlaylist=[], currentPlIdx=0;
@@ -666,8 +704,8 @@ function handle(msg){
       if(timerEnded){clearInterval(timerInterval);document.getElementById('timer-display').textContent='00:00';document.getElementById('timer-display').classList.add('ended');}
       break;
     case 'your_role':
-      myRole=msg.role;myAlive=msg.alive;
-      showRoleCard(msg.role);updateRoleBadge();break;
+      myRole=msg.role;myRoleDescription=msg.description||'';myAlive=msg.alive;
+      showRoleCard(myRole);updateRoleBadge();break;
     case 'players_update':
       allPlayers=msg.players||[];
       renderPlayers(msg.admin);
@@ -690,6 +728,7 @@ function handle(msg){
     case 'poi_added': allPois.push(msg.poi);addPoiMarker(msg.poi);renderPoiList();break;
     case 'poi_removed': allPois=allPois.filter(function(p){return p.id!==msg.poiId;});removePoiMarker(msg.poiId);renderPoiList();break;
     case 'system_notice': showNotif(msg.text);break;
+    case 'role_descriptions_update': roleDescriptions=msg.roleDescriptions||{};renderRoleDescriptions();break;
     case 'private_msg': openPmReceived(msg.from,msg.text);showNotif('MP de '+msg.from);break;
     case 'private_msg_sent': showNotif('MP envoyé à '+msg.toPseudo);break;
     case 'announcement': showAnn(msg.announcement);break;
@@ -772,13 +811,20 @@ function startTimerTick(){
 function showRoleCard(role){
   document.getElementById('role-icon').textContent='🎭';
   document.getElementById('role-name').textContent=role;
-  document.getElementById('role-desc').textContent='Votre rôle dans cette partie a été défini par l\'admin.';
+  document.getElementById('role-desc').textContent=myRoleDescription||'Aucune description fournie par l\'admin.';
   if(gamePhase==='roles'&&!isAdmin) document.getElementById('screen-role').classList.add('show');
 }
 function updateRoleBadge(){
   if(!myRole) return;
   var b=document.getElementById('my-role-badge');
-  b.textContent='🎭 '+myRole;b.style.display='inline-flex';
+  b.textContent='🎭 '+myRole;b.style.display='inline-flex';b.style.cursor='pointer';b.onclick=showMyRoleModal;
+  var mc=document.getElementById('myrole-card');if(mc)mc.style.display='block';
+}
+function showMyRoleModal(){
+  if(!myRole) return;
+  document.getElementById('myrole-name').textContent=myRole;
+  document.getElementById('myrole-desc').textContent=myRoleDescription||'Aucune description fournie par l\'admin.';
+  openModal('modal-myrole');
 }
 
 function updateWaitingScreen(){
@@ -829,6 +875,33 @@ function autoAssignRoles(){
   var raw=document.getElementById('auto-roles').value.trim();if(!raw)return;
   var roles=raw.split(',').map(function(r){return r.trim().toLowerCase();});
   wsSend({type:'auto_assign_roles',roles:roles});showNotif('Roles assignes !');
+}
+
+// ── DESCRIPTIONS DE ROLES ──────────────────────
+function saveRoleDescription(){
+  var role=document.getElementById('rd-role').value.trim();
+  var desc=document.getElementById('rd-desc').value.trim();
+  if(!role)return;
+  wsSend({type:'set_role_description',role:role,description:desc});
+  showNotif('Description enregistree pour "'+role+'"');
+}
+function editRoleDescription(role,desc){
+  document.getElementById('rd-role').value=role;
+  document.getElementById('rd-desc').value=desc;
+}
+function renderRoleDescriptions(){
+  var el=document.getElementById('role-desc-list');if(!el)return;
+  var roles=Object.keys(roleDescriptions);
+  if(!roles.length){el.innerHTML='<p style="font-size:.76rem;color:var(--muted)">Aucun rôle défini pour l\'instant</p>';return;}
+  el.innerHTML='';
+  roles.forEach(function(role){
+    var div=document.createElement('div');div.className='rd-item';
+    var rname=document.createElement('div');rname.className='rd-role';rname.textContent=role;
+    var rtext=document.createElement('div');rtext.className='rd-text';rtext.textContent=roleDescriptions[role]||'(vide)';
+    var bedit=document.createElement('button');bedit.className='btn b-g';bedit.style.cssText='font-size:.68rem;padding:.18rem .5rem';bedit.textContent='Modifier';
+    bedit.onclick=(function(r,d){return function(){editRoleDescription(r,d);};})(role,roleDescriptions[role]||'');
+    div.appendChild(rname);div.appendChild(rtext);div.appendChild(bedit);el.appendChild(div);
+  });
 }
 
 // ── MESSAGES PRIVÉS ────────────────────────────
