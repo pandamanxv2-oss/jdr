@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -44,14 +43,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 /* ROLE SCREEN */
 #screen-role{position:fixed;inset:0;background:var(--bg);z-index:900;display:none;flex-direction:column;align-items:center;justify-content:center;gap:1rem;padding:2rem;text-align:center}
 #screen-role.show{display:flex}
-.role-card{width:100%;max-width:300px;border-radius:16px;padding:2rem 1.5rem;border:2px solid;text-align:center;animation:cardReveal .6s cubic-bezier(.175,.885,.32,1.275)}
+.role-card{width:100%;max-width:300px;border-radius:16px;padding:2rem 1.5rem;border:2px solid var(--purple);background:var(--pbg);text-align:center;animation:cardReveal .6s cubic-bezier(.175,.885,.32,1.275)}
 @keyframes cardReveal{0%{transform:scale(.5) rotateY(90deg);opacity:0}100%{transform:scale(1) rotateY(0);opacity:1}}
-.role-card.civil{border-color:var(--teal);background:rgba(29,158,117,.1)}
-.role-card.tueur{border-color:var(--coral);background:rgba(216,90,48,.1)}
-.role-card.mossad{border-color:var(--gold);background:rgba(201,168,76,.1)}
 .role-icon{font-size:3.5rem;margin-bottom:.75rem}
-.role-name{font-size:1.4rem;font-weight:900;margin-bottom:.5rem}
-.role-name.civil{color:var(--teal)}.role-name.tueur{color:var(--coral)}.role-name.mossad{color:var(--gold)}
+.role-name{font-size:1.4rem;font-weight:900;margin-bottom:.5rem;color:var(--purple)}
 .role-desc{font-size:.82rem;color:var(--muted);line-height:1.5}
 .role-wait{font-size:.78rem;color:var(--muted);margin-top:.5rem;animation:pulse 1.5s ease-in-out infinite}
 
@@ -62,6 +57,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 /* ANNOUNCEMENT */
 #ann-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:800;display:none;align-items:center;justify-content:center;padding:1.5rem}
 #ann-overlay.show{display:flex}
+#pm-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:800;display:none;align-items:center;justify-content:center;padding:1.5rem}
+#pm-overlay.show{display:flex}
 .ann-box{background:var(--surf);border:2px solid var(--gold);border-radius:16px;padding:1.5rem;max-width:360px;width:100%;text-align:center;animation:slideUp .4s ease}
 @keyframes slideUp{0%{transform:translateY(40px);opacity:0}100%{transform:translateY(0);opacity:1}}
 .ann-from{font-size:.72rem;color:var(--gold);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.5rem}
@@ -81,7 +78,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 #phase-badge{font-size:.65rem;padding:2px 8px;border-radius:20px;background:var(--pbg);color:var(--purple);border:1px solid rgba(127,119,221,.3)}
 #conn-badge{font-size:.65rem;padding:2px 7px;border-radius:20px;background:var(--tbg);color:var(--teal);border:1px solid rgba(29,158,117,.3)}
 #conn-badge.off{background:var(--cbg);color:var(--coral);border-color:rgba(216,90,48,.3)}
-#my-role-badge{font-size:.65rem;padding:2px 8px;border-radius:20px;font-weight:700;display:none}
+#my-role-badge{font-size:.65rem;padding:2px 8px;border-radius:20px;font-weight:700;display:none;background:var(--pbg);color:var(--purple)}
+#admin-return-btn{display:none;font-size:.65rem;padding:3px 9px;border-radius:20px;background:var(--pbg);color:var(--purple);border:1px solid rgba(127,119,221,.3);cursor:pointer}
+#admin-return-btn.show{display:inline-flex;align-items:center}
 
 /* NAV */
 .nav{display:flex;background:var(--surf);border-bottom:1px solid var(--border);flex-shrink:0}
@@ -134,23 +133,13 @@ input:checked+.slider:before{transform:translateX(16px)}
 .srow{display:flex;align-items:center;gap:.5rem}
 .srow input[type=range]{flex:1;accent-color:var(--purple)}
 
-/* CHAT */
-#chat-msgs{overflow-y:auto;display:flex;flex-direction:column;gap:.35rem;max-height:calc(100vh - 260px);min-height:150px;padding:.4rem 0}
-.cmsg{padding:.4rem .6rem;border-radius:8px;font-size:.78rem;line-height:1.4;max-width:88%;word-break:break-word}
-.cmsg.them{background:var(--surf2);align-self:flex-start}
-.cmsg.me{background:var(--pbg);align-self:flex-end;border:1px solid rgba(127,119,221,.2)}
-.cmsg.sys{background:none;align-self:center;color:var(--muted);font-size:.68rem;font-style:italic}
-.cmsg.ann{background:var(--gbg);border:1px solid rgba(201,168,76,.3);align-self:center;max-width:95%;text-align:center}
-.cmsg.priv{background:var(--cbg);border:1px solid rgba(216,90,48,.2)}
-.cmsg .from{font-size:.67rem;font-weight:600;opacity:.65;margin-bottom:.1rem}
-.chat-row{display:flex;gap:.4rem;margin-top:.5rem}
+/* (chat retiré) */
 
 /* PLAYERS */
 .player-row{display:flex;align-items:center;justify-content:space-between;padding:.42rem .6rem;background:var(--surf2);border-radius:7px;font-size:.78rem;margin-bottom:.3rem}
 .player-row .pr-left{display:flex;align-items:center;flex:1;gap:.35rem}
 .player-row .pr-name{font-weight:500}
-.pr-role{font-size:.68rem;padding:2px 7px;border-radius:10px}
-.pr-role.civil{background:var(--tbg);color:var(--teal)}.pr-role.tueur{background:var(--cbg);color:var(--coral)}.pr-role.mossad{background:var(--gbg);color:var(--gold)}
+.pr-role{font-size:.68rem;padding:2px 7px;border-radius:10px;background:var(--pbg);color:var(--purple)}
 .pr-dead{font-size:.68rem;color:var(--red)}
 
 /* TRACKS */
@@ -261,6 +250,15 @@ audio{display:none}
   </div>
 </div>
 
+<!-- MESSAGE PRIVE RECU -->
+<div id="pm-overlay">
+  <div class="ann-box" style="border-color:var(--coral)">
+    <div class="ann-from" style="color:var(--coral)" id="pm-from">🔒 Message privé</div>
+    <div class="ann-text" id="pm-receive-text"></div>
+    <button class="ann-close" style="background:var(--coral)" onclick="closePm()">Fermer</button>
+  </div>
+</div>
+
 <!-- MODALS -->
 <div class="modal-bg" id="modal-pm">
   <div class="modal">
@@ -277,15 +275,8 @@ audio{display:none}
   <div class="modal">
     <h3>Ajouter un point d'intérêt</h3>
     <div class="fgroup"><label class="flabel">Nom</label><input class="fin" id="poi-label" placeholder="Ex: Cache d'armes" maxlength="40"/></div>
-    <div class="fgroup"><label class="flabel">Visible par</label>
-      <select class="fin" id="poi-visible">
-        <option value="all">Tout le monde</option>
-        <option value="civil">Civils uniquement</option>
-        <option value="tueur">Tueurs uniquement</option>
-        <option value="mossad">Mossad uniquement</option>
-        <option value="tueur,mossad">Tueurs + Mossad</option>
-        <option value="civil,mossad">Civils + Mossad</option>
-      </select>
+    <div class="fgroup"><label class="flabel">Visible par (laisser vide ou "all" = tout le monde, sinon noms de rôles séparés par des virgules)</label>
+      <input class="fin" id="poi-visible" placeholder="all"/>
     </div>
     <div class="fgroup"><label class="flabel">Couleur</label>
       <div class="brow" id="poi-color-btns">
@@ -306,13 +297,8 @@ audio{display:none}
   <div class="modal">
     <h3>Envoyer une annonce</h3>
     <div class="fgroup"><label class="flabel">Message</label><textarea class="fin" id="ann-msg" rows="3" style="resize:none" placeholder="Votre annonce..."></textarea></div>
-    <div class="fgroup"><label class="flabel">Destinataires</label>
-      <select class="fin" id="ann-target">
-        <option value="all">Tout le monde</option>
-        <option value="civil">Civils</option>
-        <option value="tueur">Tueurs</option>
-        <option value="mossad">Mossad</option>
-      </select>
+    <div class="fgroup"><label class="flabel">Destinataires (laisser vide ou "all" = tout le monde, sinon nom du rôle)</label>
+      <input class="fin" id="ann-target" placeholder="all"/>
     </div>
     <div class="modal-brow">
       <button class="btn b-g" onclick="closeModal('modal-announce')">Annuler</button>
@@ -366,32 +352,19 @@ audio{display:none}
     </div>
     <div style="display:flex;align-items:center;gap:.4rem">
       <div id="my-role-badge"></div>
+      <button id="admin-return-btn" onclick="switchTab('admin')">🎛 Admin</button>
       <div id="conn-badge" class="off">...</div>
     </div>
   </div>
 
   <div class="nav">
     <button class="on" onclick="switchTab('map')">🗺 Carte</button>
-    <button onclick="switchTab('chat')">💬 Chat<span class="nav-badge" id="chat-badge"></span></button>
     <button onclick="switchTab('players')">👥 Joueurs</button>
-    <button onclick="switchTab('admin')">🎛 Admin</button>
   </div>
 
   <div class="views">
     <!-- MAP -->
     <div id="view-map" class="view on"><div id="map"></div></div>
-
-    <!-- CHAT -->
-    <div id="view-chat" class="view">
-      <div class="card" style="flex:1;display:flex;flex-direction:column">
-        <div class="card-title">Chat global</div>
-        <div id="chat-msgs"></div>
-        <div class="chat-row">
-          <input class="fin" type="text" id="chat-in" placeholder="Votre message..." maxlength="300" onkeydown="if(event.key==='Enter')sendChat()"/>
-          <button class="btn b-p" onclick="sendChat()">▶</button>
-        </div>
-      </div>
-    </div>
 
     <!-- PLAYERS -->
     <div id="view-players" class="view">
@@ -439,11 +412,12 @@ audio{display:none}
         <!-- ROLES -->
         <div class="card">
           <div class="card-title">🎭 Attribution des rôles</div>
+          <p style="font-size:.74rem;color:var(--muted);margin-bottom:.5rem">Tape n'importe quel nom de rôle pour chaque joueur (ex: civil, tueur, espion...)</p>
           <div id="admin-players-list" style="margin-bottom:.65rem"></div>
           <div class="fgroup">
-            <label class="flabel">Attribution auto (ex: tueur,civil,civil,mossad)</label>
+            <label class="flabel">Attribution auto (ex: tueur,civil,civil,espion)</label>
             <div class="brow">
-              <input class="fin" id="auto-roles" placeholder="tueur,civil,mossad" style="flex:1"/>
+              <input class="fin" id="auto-roles" placeholder="tueur,civil,espion" style="flex:1"/>
               <button class="btn b-p" onclick="autoAssignRoles()">Assigner</button>
             </div>
           </div>
@@ -542,7 +516,7 @@ audio{display:none}
 // ── STATE ──────────────────────────────────────
 var ws, myId='', myPseudo='', myRole=null, myAlive=true;
 var adminPwd='', isAdmin=false;
-var currentTab='map', chatUnread=0;
+var currentTab='map';
 var allPlayers=[], allPois=[], allTracks=[], currentPlaylist=[], currentPlIdx=0;
 var currentTrackUrl='';
 var progTimer;
@@ -569,6 +543,7 @@ function initMap(){
     pendingPoi={lat:e.latlng.lat,lng:e.latlng.lng};
     openModal('modal-poi');
   });
+  setTimeout(function(){map.invalidateSize();},200);
   startGPS();
 }
 
@@ -647,6 +622,7 @@ function joinGame(){
 function bypassToAdmin(){
   isAdmin=true;
   document.getElementById('screen-waiting').classList.remove('show');
+  document.getElementById('admin-return-btn').classList.add('show');
   switchTab('admin');
 }
 
@@ -713,9 +689,9 @@ function handle(msg){
       allPois=msg.pois||[];allPois.forEach(addPoiMarker);renderPoiList();break;
     case 'poi_added': allPois.push(msg.poi);addPoiMarker(msg.poi);renderPoiList();break;
     case 'poi_removed': allPois=allPois.filter(function(p){return p.id!==msg.poiId;});removePoiMarker(msg.poiId);renderPoiList();break;
-    case 'chat': addChat(msg);break;
-    case 'private_msg': addPrivateMsg(msg.from,msg.text);showNotif('MP de '+msg.from);break;
-    case 'private_msg_sent': addPrivateMsgSent(msg.toPseudo,msg.text);break;
+    case 'system_notice': showNotif(msg.text);break;
+    case 'private_msg': openPmReceived(msg.from,msg.text);showNotif('MP de '+msg.from);break;
+    case 'private_msg_sent': showNotif('MP envoyé à '+msg.toPseudo);break;
     case 'announcement': showAnn(msg.announcement);break;
     case 'music_sync': applyMusicState(msg.music);break;
     case 'music_track_changed':
@@ -750,7 +726,6 @@ function applyGameState(s){
   updatePhaseDisplay();
   if(s.phase==='playing'&&!timerPaused&&!timerEnded) startTimerTick();
   if(timerEnded){clearInterval(timerInterval);document.getElementById('timer-display').textContent='00:00';document.getElementById('timer-display').classList.add('ended');}
-  if(s.announcements) s.announcements.forEach(function(a){addChat({isAnn:true,text:a.text});});
 }
 
 function updatePhaseDisplay(){
@@ -794,33 +769,22 @@ function startTimerTick(){
 }
 
 // ── ROLE ───────────────────────────────────────
-var ROLE_DATA={
-  civil:{icon:'👤',desc:'Vous etes un civil. Survivez et identifiez le tueur.'},
-  tueur:{icon:'🔪',desc:'Vous etes le tueur. Eliminez vos cibles discretement.'},
-  mossad:{icon:'🕵️',desc:'Vous etes un agent du Mossad. Neutralisez les menaces.'}
-};
 function showRoleCard(role){
-  var d=ROLE_DATA[role]||{icon:'?',desc:'Role inconnu'};
-  document.getElementById('role-icon').textContent=d.icon;
-  document.getElementById('role-name').textContent=role.charAt(0).toUpperCase()+role.slice(1);
-  document.getElementById('role-name').className='role-name '+role;
-  document.getElementById('role-desc').textContent=d.desc;
-  document.getElementById('role-card').className='role-card '+role;
+  document.getElementById('role-icon').textContent='🎭';
+  document.getElementById('role-name').textContent=role;
+  document.getElementById('role-desc').textContent='Votre rôle dans cette partie a été défini par l\'admin.';
   if(gamePhase==='roles'&&!isAdmin) document.getElementById('screen-role').classList.add('show');
 }
 function updateRoleBadge(){
   if(!myRole) return;
-  var d=ROLE_DATA[myRole]||{icon:'?'};
   var b=document.getElementById('my-role-badge');
-  b.textContent=d.icon+' '+myRole;b.style.display='inline-flex';b.style.fontSize='.65rem';b.style.padding='2px 8px';b.style.borderRadius='20px';b.style.fontWeight='700';
-  var colors={civil:'background:var(--tbg);color:var(--teal)',tueur:'background:var(--cbg);color:var(--coral)',mossad:'background:var(--gbg);color:var(--gold)'};
-  if(colors[myRole])b.style.cssText+='display:inline-flex;font-size:.65rem;padding:2px 8px;border-radius:20px;font-weight:700;'+colors[myRole];
+  b.textContent='🎭 '+myRole;b.style.display='inline-flex';
 }
 
 function updateWaitingScreen(){
   var list=document.getElementById('wait-players-list');if(!list)return;
   list.innerHTML='';
-  allPlayers.forEach(function(p){
+  allPlayers.filter(function(p){return p.pseudo;}).forEach(function(p){
     var div=document.createElement('div');div.className='wait-player-item';div.textContent=p.pseudo+(p.id===myId?' (vous)':'');list.appendChild(div);
   });
 }
@@ -831,10 +795,11 @@ function renderPlayers(adminView){
   var alist=document.getElementById('admin-players-list');
   if(list){
     list.innerHTML='';
-    allPlayers.forEach(function(p){
+    allPlayers.filter(function(p){return p.pseudo;}).forEach(function(p){
       var div=document.createElement('div');div.className='player-row';
       var left=document.createElement('div');left.className='pr-left';
       var name=document.createElement('span');name.className='pr-name';name.textContent=p.pseudo+(p.id===myId?' (vous)':'');left.appendChild(name);
+      if(p.role){var rb=document.createElement('span');rb.className='pr-role';rb.textContent=p.role;left.appendChild(rb);}
       if(!p.alive){var d=document.createElement('span');d.className='pr-dead';d.textContent='💀';left.appendChild(d);}
       div.appendChild(left);
       if(p.id!==myId&&p.alive){var btn=document.createElement('button');btn.className='btn b-c';btn.style.fontSize='.7rem';btn.style.padding='.2rem .5rem';btn.textContent='MP';btn.onclick=(function(pid,pname){return function(){openPM(pid,pname);};})(p.id,p.pseudo);div.appendChild(btn);}
@@ -843,21 +808,20 @@ function renderPlayers(adminView){
   }
   if(alist&&adminView){
     alist.innerHTML='';
-    allPlayers.forEach(function(p){
+    allPlayers.filter(function(p){return p.pseudo;}).forEach(function(p){
       var div=document.createElement('div');div.className='player-row';
       var left=document.createElement('div');left.className='pr-left';
       var name=document.createElement('span');name.className='pr-name';name.textContent=p.pseudo;left.appendChild(name);
-      if(p.role){var rb=document.createElement('span');rb.className='pr-role '+p.role;rb.textContent=p.role;left.appendChild(rb);}
+      if(p.role){var rb=document.createElement('span');rb.className='pr-role';rb.textContent=p.role;left.appendChild(rb);}
       if(!p.alive){var dd=document.createElement('span');dd.className='pr-dead';dd.textContent='💀';left.appendChild(dd);}
       div.appendChild(left);
       var brow=document.createElement('div');brow.style.cssText='display:flex;gap:.25rem;align-items:center';
-      var sel=document.createElement('select');sel.className='fin';sel.style.cssText='width:80px;font-size:.7rem;padding:.18rem .3rem';
-      ['civil','tueur','mossad'].forEach(function(r){var o=document.createElement('option');o.value=r;o.textContent=r;if(p.role===r)o.selected=true;sel.appendChild(o);});
+      var inp=document.createElement('input');inp.className='fin';inp.style.cssText='width:80px;font-size:.7rem;padding:.18rem .3rem';inp.placeholder='rôle';if(p.role)inp.value=p.role;
       var bassign=document.createElement('button');bassign.className='btn b-p';bassign.style.cssText='font-size:.68rem;padding:.18rem .45rem';bassign.textContent='OK';
-      bassign.onclick=(function(pid,s){return function(){wsSend({type:'assign_role',playerId:pid,role:s.value});};})(p.id,sel);
+      bassign.onclick=(function(pid,ip){return function(){var r=ip.value.trim();if(!r)return;wsSend({type:'assign_role',playerId:pid,role:r});};})(p.id,inp);
       var belim=document.createElement('button');belim.className=p.alive?'btn b-red':'btn b-t';belim.style.cssText='font-size:.68rem;padding:.18rem .45rem';belim.textContent=p.alive?'💀':'♻️';
       belim.onclick=(function(pid,alive){return function(){wsSend({type:'eliminate',playerId:pid,alive:!alive});};})(p.id,p.alive);
-      brow.appendChild(sel);brow.appendChild(bassign);brow.appendChild(belim);div.appendChild(brow);alist.appendChild(div);
+      brow.appendChild(inp);brow.appendChild(bassign);brow.appendChild(belim);div.appendChild(brow);alist.appendChild(div);
     });
   }
 }
@@ -867,44 +831,29 @@ function autoAssignRoles(){
   wsSend({type:'auto_assign_roles',roles:roles});showNotif('Roles assignes !');
 }
 
-// ── CHAT ───────────────────────────────────────
-function addChat(msg){
-  var box=document.getElementById('chat-msgs');var div=document.createElement('div');
-  if(msg.system||msg.sys){div.className='cmsg sys';div.textContent=msg.text;}
-  else if(msg.isAnn){div.className='cmsg ann';var f=document.createElement('div');f.className='from';f.textContent='📢 Annonce';div.appendChild(f);var t=document.createElement('div');t.textContent=msg.text;div.appendChild(t);}
-  else{var isMe=msg.id===myId;div.className='cmsg '+(isMe?'me':'them');if(!isMe){var f=document.createElement('div');f.className='from';f.textContent=msg.from;div.appendChild(f);}var t=document.createElement('div');t.textContent=msg.text;div.appendChild(t);}
-  box.appendChild(div);box.scrollTop=box.scrollHeight;
-  if(currentTab!=='chat'&&!msg.system&&!msg.sys){chatUnread++;updateChatBadge();}
+// ── MESSAGES PRIVÉS ────────────────────────────
+function openPmReceived(from,text){
+  document.getElementById('pm-from').textContent='🔒 Message privé de '+from;
+  document.getElementById('pm-receive-text').textContent=text;
+  document.getElementById('pm-overlay').classList.add('show');
 }
-function addPrivateMsg(from,text){
-  var box=document.getElementById('chat-msgs');var div=document.createElement('div');div.className='cmsg priv';
-  var f=document.createElement('div');f.className='from';f.textContent='🔒 '+from;div.appendChild(f);
-  var t=document.createElement('div');t.textContent=text;div.appendChild(t);
-  box.appendChild(div);box.scrollTop=box.scrollHeight;if(currentTab!=='chat'){chatUnread++;updateChatBadge();}
-}
-function addPrivateMsgSent(toName,text){
-  var box=document.getElementById('chat-msgs');var div=document.createElement('div');div.className='cmsg priv me';
-  var f=document.createElement('div');f.className='from';f.textContent='🔒 -> '+toName;div.appendChild(f);
-  var t=document.createElement('div');t.textContent=text;div.appendChild(t);
-  box.appendChild(div);box.scrollTop=box.scrollHeight;
-}
-function sendChat(){var inp=document.getElementById('chat-in');var txt=inp.value.trim();if(!txt||!ws||ws.readyState!==1)return;ws.send(JSON.stringify({type:'chat',text:txt}));inp.value='';}
-function updateChatBadge(){var b=document.getElementById('chat-badge');if(chatUnread>0){b.textContent=chatUnread>9?'9+':chatUnread;b.classList.add('show');}else b.classList.remove('show');}
+function closePm(){document.getElementById('pm-overlay').classList.remove('show');}
 
 // ── ANNONCES ───────────────────────────────────
-function showAnn(ann){addChat({isAnn:true,text:ann.text});document.getElementById('ann-text').textContent=ann.text;document.getElementById('ann-overlay').classList.add('show');}
+function showAnn(ann){document.getElementById('ann-text').textContent=ann.text;document.getElementById('ann-overlay').classList.add('show');}
 function closeAnn(){document.getElementById('ann-overlay').classList.remove('show');}
-function sendAnnounce(){var txt=document.getElementById('ann-msg').value.trim();if(!txt)return;wsSend({type:'announce',text:txt,targetRoles:[document.getElementById('ann-target').value]});document.getElementById('ann-msg').value='';closeModal('modal-announce');showNotif('Annonce envoyee !');}
+function sendAnnounce(){var txt=document.getElementById('ann-msg').value.trim();if(!txt)return;var target=document.getElementById('ann-target').value.trim()||'all';wsSend({type:'announce',text:txt,targetRoles:[target]});document.getElementById('ann-msg').value='';document.getElementById('ann-target').value='';closeModal('modal-announce');showNotif('Annonce envoyee !');}
 
 // ── POI ────────────────────────────────────────
 function highlightColor(btn){document.querySelectorAll('#poi-color-btns .btn').forEach(function(b){b.style.outline='none';});btn.style.outline='2px solid #fff';}
 function confirmAddPoi(){
   if(!pendingPoi)return;
   var label=document.getElementById('poi-label').value.trim()||'Point';
-  var vis=document.getElementById('poi-visible').value;
-  var visibleTo=vis==='all'?['all']:vis.split(',');
+  var vis=document.getElementById('poi-visible').value.trim()||'all';
+  var visibleTo=vis==='all'?['all']:vis.split(',').map(function(r){return r.trim();}).filter(Boolean);
+  if(!visibleTo.length)visibleTo=['all'];
   wsSend({type:'add_poi',lat:pendingPoi.lat,lng:pendingPoi.lng,label:label,color:poiColor,visibleTo:visibleTo});
-  document.getElementById('poi-label').value='';closeModal('modal-poi');pendingPoi=null;showNotif('Point ajoute !');
+  document.getElementById('poi-label').value='';document.getElementById('poi-visible').value='';closeModal('modal-poi');pendingPoi=null;showNotif('Point ajoute !');
 }
 function renderPoiList(){
   var el=document.getElementById('poi-list');if(!el)return;
@@ -1046,6 +995,7 @@ function unlockAdmin(){
     if(document.getElementById('admin-err').textContent)return;
     document.getElementById('admin-gate').style.display='none';
     document.getElementById('admin-panel').style.display='flex';
+    document.getElementById('admin-return-btn').classList.add('show');
     updatePhaseDisplay();loadTracks();loadSavedPlaylists();
     // Demander la liste admin
     wsSend({type:'auto_assign_roles',roles:[]});// trick pour rafraichir la liste
@@ -1067,9 +1017,8 @@ function switchTab(t){
   document.querySelectorAll('.view').forEach(function(v){v.classList.remove('on');});
   document.querySelectorAll('.nav button').forEach(function(b){b.classList.remove('on');});
   document.getElementById('view-'+t).classList.add('on');
-  var tabs=['map','chat','players','admin'];
+  var tabs=['map','players'];
   var idx=tabs.indexOf(t);if(idx>=0)document.querySelectorAll('.nav button')[idx].classList.add('on');
-  if(t==='chat'){chatUnread=0;updateChatBadge();}
   if(t==='map'&&map){setTimeout(function(){map.invalidateSize();},100);}
 }
 </script>
