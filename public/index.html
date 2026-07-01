@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -486,7 +487,7 @@ audio{display:none}
             <button class="btn b-g" onclick="wsSend({type:'music_prev'})">⏮</button>
             <button class="btn b-t" onclick="musicPlay()">▶ Play</button>
             <button class="btn b-g" onclick="wsSend({type:'music_pause'})">⏸</button>
-            <button class="btn b-c" onclick="wsSend({type:'music_stop'})">⏹</button>
+            <button class="btn b-c" onclick="stopMusic()">⏹ Arrêter</button>
             <button class="btn b-g" onclick="wsSend({type:'music_next'})">⏭</button>
           </div>
           <div class="toggle-row" style="margin-bottom:.5rem">
@@ -510,6 +511,7 @@ audio{display:none}
           <div class="brow">
             <button class="btn b-g" onclick="clearPlaylist()">Vider</button>
             <button class="btn b-t" onclick="playPlaylist()">▶ Lancer</button>
+            <button class="btn b-c" onclick="stopMusic()">⏹ Arrêter</button>
             <button class="btn b-gold" onclick="openModal('modal-save-pl')">Sauvegarder</button>
           </div>
         </div>
@@ -973,6 +975,7 @@ function applyMusicState(m){
   else if(m.status==='paused'){aud.currentTime=m.currentTime||0;}
 }
 function musicPlay(){wsSend({type:'music_play',currentTime:aud.currentTime});}
+function stopMusic(){wsSend({type:'music_stop'});}
 function startProgTimer(){stopProgTimer();progTimer=setInterval(function(){if(!isNaN(aud.duration))setMusicProg(aud.currentTime,aud.duration);},500);}
 function stopProgTimer(){clearInterval(progTimer);}
 function setMusicProg(c,t){var p=t?(c/t)*100:0;document.getElementById('music-prog').style.width=p+'%';document.getElementById('mm-tc').textContent=fmt(c);document.getElementById('mm-tt').textContent=fmt(t);}
@@ -995,6 +998,7 @@ function renderTrackList(){
     bp.onclick=(function(u,n){return function(){wsSend({type:'music_set_track',trackUrl:u,trackName:n});currentTrackUrl=u;document.getElementById('music-now').textContent='En cours: '+n;renderTrackList();};})(t.url,t.name);
     var bpl=document.createElement('button');bpl.className='t-pl';bpl.textContent='+PL';
     bpl.onclick=(function(tr){return function(){addToPlaylist(tr);};})(t);
+    if(currentTrackUrl===t.url){var bstop=document.createElement('button');bstop.className='t-play';bstop.style.background='var(--cbg)';bstop.style.color='var(--coral)';bstop.textContent='⏹';bstop.onclick=stopMusic;tb.appendChild(bstop);}
     var bren=document.createElement('button');bren.className='t-ren';bren.textContent='Ren.';
     bren.onclick=(function(fn,n){return function(){openRenameTrack(fn,n);};})(t.filename,t.name);
     var bdel=document.createElement('button');bdel.className='t-del';bdel.textContent='X';
