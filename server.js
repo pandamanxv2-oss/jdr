@@ -74,6 +74,14 @@ function getPublicPlayersList() {
 }
 
 function send(ws, msg) { if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg)); }
+function broadcastPlayersUpdate() {
+  var full = getPlayersList();
+  var pub = getPublicPlayersList();
+  players.forEach(function(pp, pws) {
+    if (pp.isAdmin) send(pws, { type: 'players_update', players: full, admin: true });
+    else send(pws, { type: 'players_update', players: pub });
+  });
+}
 function broadcastAll(msg) {
   var data = JSON.stringify(msg);
   wss.clients.forEach(function(c) { if (c.readyState === WebSocket.OPEN) c.send(data); });
@@ -217,7 +225,7 @@ wss.on('connection', function(ws) {
       var rawPseudo = (msg.pseudo || '').toString().substring(0, 24).trim();
       if (!rawPseudo || rawPseudo === ADMIN_PASSWORD) { send(ws, { type: 'error', message: 'Pseudo invalide' }); return; }
       p.pseudo = rawPseudo;
-      broadcastAll({ type: 'players_update', players: getPublicPlayersList() });
+      broadcastPlayersUpdate();
       broadcastAll({ type: 'system_notice', text: p.pseudo + ' a rejoint la partie' });
       return;
     }
@@ -310,7 +318,7 @@ wss.on('connection', function(ws) {
             send(pws, { type: 'your_role', role: pp.role, description: pp.roleDescription, alive: pp.alive });
           }
         });
-        send(ws, { type: 'players_update', players: getPlayersList(), admin: true });
+        broadcastPlayersUpdate();
         break;
 
       case 'set_role_description':
@@ -340,7 +348,7 @@ wss.on('connection', function(ws) {
             players.forEach(function(pp2, pws) { if (pp2.id === pp.id) send(pws, { type: 'your_role', role: pp.role, description: pp.roleDescription, alive: pp.alive }); });
           }
         });
-        send(ws, { type: 'players_update', players: getPlayersList(), admin: true });
+        broadcastPlayersUpdate();
         break;
 
       case 'eliminate':
@@ -351,7 +359,7 @@ wss.on('connection', function(ws) {
             broadcastAll({ type: 'player_eliminated', id: pp.id, pseudo: pp.pseudo, alive: pp.alive });
           }
         });
-        send(ws, { type: 'players_update', players: getPlayersList(), admin: true });
+        broadcastPlayersUpdate();
         break;
 
       case 'announce':
@@ -454,7 +462,7 @@ wss.on('connection', function(ws) {
     if (p && p.pseudo) {
       broadcastAll({ type: 'system_notice', text: p.pseudo + ' a quitte la partie' });
       broadcastAll({ type: 'player_left', id: p.id });
-      broadcastAll({ type: 'players_update', players: getPublicPlayersList() });
+      broadcastPlayersUpdate();
     }
     players.delete(ws);
   });
