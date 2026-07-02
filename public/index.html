@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -358,10 +359,23 @@ audio{display:none}
 
 <div id="notif"></div>
 
+<!-- MODAL ADMIN SECRET -->
+<div class="modal-bg" id="modal-admin-login">
+  <div class="modal">
+    <h3 style="color:var(--purple)">🎛 Accès admin</h3>
+    <input class="fin" type="password" id="admin-login-pass" placeholder="Mot de passe..." onkeydown="if(event.key==='Enter')tryAdminLogin()"/>
+    <div class="err" id="admin-login-err"></div>
+    <div class="modal-brow">
+      <button class="btn b-g" onclick="closeModal('modal-admin-login')">Annuler</button>
+      <button class="btn b-p" onclick="tryAdminLogin()">Entrer</button>
+    </div>
+  </div>
+</div>
+
 <!-- APP -->
 <div id="app">
   <div class="hdr">
-    <div class="hdr-logo">🕵️ JDR</div>
+    <div class="hdr-logo" id="hdr-logo" style="cursor:pointer;user-select:none" title="">🕵️ JDR</div>
     <div class="hdr-center">
       <div id="timer-display">--:--</div>
       <div id="phase-badge">Attente</div>
@@ -1211,6 +1225,52 @@ function wsSend(obj){if(ws&&ws.readyState===1)ws.send(JSON.stringify(Object.assi
 
 // ── UTILS ──────────────────────────────────────
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+// ── ACCÈS ADMIN SECRET (appui long sur logo) ──
+var logoHoldTimer=null;
+document.addEventListener('DOMContentLoaded',function(){
+  var logo=document.getElementById('hdr-logo');
+  if(!logo) return;
+  function startHold(){ logoHoldTimer=setTimeout(function(){ openModal('modal-admin-login'); document.getElementById('admin-login-pass').value=''; document.getElementById('admin-login-err').textContent=''; setTimeout(function(){document.getElementById('admin-login-pass').focus();},100); },800); }
+  function cancelHold(){ clearTimeout(logoHoldTimer); }
+  logo.addEventListener('mousedown',startHold);
+  logo.addEventListener('touchstart',startHold,{passive:true});
+  logo.addEventListener('mouseup',cancelHold);
+  logo.addEventListener('mouseleave',cancelHold);
+  logo.addEventListener('touchend',cancelHold);
+});
+
+function tryAdminLogin(){
+  var p=document.getElementById('admin-login-pass').value;
+  if(!p) return;
+  // Tester le mdp via WebSocket
+  adminPwd=p;
+  wsSend({type:'music_volume',volume:0.8});
+  document.getElementById('admin-login-err').textContent='';
+  setTimeout(function(){
+    if(document.getElementById('admin-login-err').textContent){
+      adminPwd='';return;
+    }
+    isAdmin=true;
+    closeModal('modal-admin-login');
+    var navAdmin=document.getElementById('nav-admin');
+    if(navAdmin) navAdmin.style.display='';
+    var fab=document.getElementById('floating-admin-btn');
+    if(fab) fab.classList.add('show');
+    // Retirer les écrans de blocage
+    document.getElementById('screen-waiting').classList.remove('show');
+    document.getElementById('screen-role').classList.remove('show');
+    // Aller sur l'onglet admin
+    currentTab='admin';
+    document.querySelectorAll('.view').forEach(function(v){v.classList.remove('on');});
+    document.querySelectorAll('.nav button').forEach(function(b){b.classList.remove('on');});
+    document.getElementById('view-admin').classList.add('on');
+    if(navAdmin) navAdmin.classList.add('on');
+    loadTracks();loadSavedPlaylists();
+    wsSend({type:'auto_assign_roles',roles:[]});
+    showNotif('Mode admin activé !');
+  },400);
+}
 function showNotif(txt){var n=document.getElementById('notif');n.textContent=txt;n.classList.add('show');setTimeout(function(){n.classList.remove('show');},2500);}
 function openModal(id){document.getElementById(id).classList.add('show');}
 function closeModal(id){document.getElementById(id).classList.remove('show');}
