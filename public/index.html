@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -735,7 +734,7 @@ function connect(){
     setBadge(true);
     ws.send(JSON.stringify({type:'set_pseudo',pseudo:myPseudo}));
     document.getElementById('app').classList.add('show');
-    document.getElementById('floating-admin-btn').classList.add('show');
+    // Le bouton admin flottant ne s'affiche QUE pour l'admin (géré dans updatePhaseDisplay)
     updatePhaseDisplay();
     setTimeout(initMap,150);
   };
@@ -848,16 +847,15 @@ function updatePhaseDisplay(){
   }
   if(gamePhase==='waiting'){clearInterval(timerInterval);document.getElementById('timer-display').textContent='--:--';document.getElementById('timer-display').classList.remove('ended');}
 
-  // Gérer la visibilité de l'onglet Admin et des onglets joueurs
+  // Bouton flottant admin : visible SEULEMENT pour l'admin
+  var fab=document.getElementById('floating-admin-btn');
+  if(fab){
+    if(isAdmin) fab.classList.add('show');
+    else fab.classList.remove('show');
+  }
+  // Onglet admin dans la nav : visible SEULEMENT pour l'admin
   var navAdmin=document.getElementById('nav-admin');
-  var navMap=document.getElementById('nav-map');
-  var navPlayers=document.getElementById('nav-players');
   if(navAdmin) navAdmin.style.display=isAdmin?'':'none';
-
-  // Phase roles : joueurs bloqués sur l'écran de rôle, pas accès à la nav
-  // Phase waiting : joueurs bloqués sur l'écran d'attente
-  // Phase playing/ended : joueurs ont accès à carte + joueurs
-  // L'onglet admin n'est JAMAIS visible pour les joueurs normaux
 }
 
 function setPhase(phase){
