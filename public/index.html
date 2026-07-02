@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -871,7 +872,7 @@ function showRoleCard(role){
 function updateRoleBadge(){
   if(!myRole) return;
   var b=document.getElementById('my-role-badge');
-  b.textContent='🎭 '+myRole;b.style.display='inline-flex';b.style.cursor='pointer';b.onclick=showMyRoleModal;
+  b.textContent='🎭 Revoir mon rôle';b.style.display='inline-flex';b.style.cursor='pointer';b.onclick=showMyRoleModal;
   var mc=document.getElementById('myrole-card');if(mc)mc.style.display='block';
 }
 function showMyRoleModal(){
@@ -1004,9 +1005,13 @@ function renderRoleDescriptions(){
     var div=document.createElement('div');div.className='rd-item';
     var rname=document.createElement('div');rname.className='rd-role';rname.textContent=role;
     var rtext=document.createElement('div');rtext.className='rd-text';rtext.textContent=roleDescriptions[role]||'(vide)';
-    var bedit=document.createElement('button');bedit.className='btn b-g';bedit.style.cssText='font-size:.68rem;padding:.18rem .5rem';bedit.textContent='Modifier';
+    var brow2=document.createElement('div');brow2.style.cssText='display:flex;gap:.3rem;margin-top:.3rem';
+    var bedit=document.createElement('button');bedit.className='btn b-g';bedit.style.cssText='font-size:.68rem;padding:.22rem .55rem';bedit.textContent='Modifier';
     bedit.onclick=(function(r,d){return function(){editRoleDescription(r,d);};})(role,roleDescriptions[role]||'');
-    div.appendChild(rname);div.appendChild(rtext);div.appendChild(bedit);el.appendChild(div);
+    var bdel=document.createElement('button');bdel.className='btn b-red';bdel.style.cssText='font-size:.68rem;padding:.22rem .55rem';bdel.textContent='Supprimer';
+    bdel.onclick=(function(r){return function(){if(confirm('Supprimer le rôle "'+r+'" ?')){delete roleDescriptions[r];wsSend({type:'save_role_descriptions',roleDescriptions:roleDescriptions});showNotif(r+' supprimé');}};})(role);
+    brow2.appendChild(bedit);brow2.appendChild(bdel);
+    div.appendChild(rname);div.appendChild(rtext);div.appendChild(brow2);el.appendChild(div);
   });
 }
 
