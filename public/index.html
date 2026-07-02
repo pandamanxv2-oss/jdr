@@ -373,9 +373,10 @@ audio{display:none}
     </div>
   </div>
 
-  <div class="nav">
-    <button class="on" onclick="switchTab('map')">🗺 Carte</button>
-    <button onclick="switchTab('players')">👥 Joueurs</button>
+  <div class="nav" id="main-nav">
+    <button class="on" onclick="switchTab('map')" id="nav-map">🗺 Carte</button>
+    <button onclick="switchTab('players')" id="nav-players">👥 Joueurs</button>
+    <button onclick="switchTab('admin')" id="nav-admin" style="display:none">🎛 Admin</button>
   </div>
 
   <div class="views">
@@ -710,7 +711,14 @@ function goAdmin(){
   document.getElementById('screen-role').classList.remove('show');
   document.getElementById('screen-dead').classList.remove('show');
   document.getElementById('app').classList.add('show');
-  switchTab('admin');
+  var navAdmin=document.getElementById('nav-admin');
+  if(navAdmin) navAdmin.style.display='';
+  // Forcer le switch sans garde isAdmin
+  currentTab='admin';
+  document.querySelectorAll('.view').forEach(function(v){v.classList.remove('on');});
+  document.querySelectorAll('.nav button').forEach(function(b){b.classList.remove('on');});
+  document.getElementById('view-admin').classList.add('on');
+  if(navAdmin) navAdmin.classList.add('on');
 }
 
 function browseApp(){
@@ -826,9 +834,10 @@ function updatePhaseDisplay(){
   var labels={waiting:'Attente',roles:'Attribution roles',playing:'En cours',ended:'Termine'};
   document.getElementById('phase-badge').textContent=labels[gamePhase]||gamePhase;
   var block=!isAdmin;
+
   // Ecran attente
   document.getElementById('screen-waiting').classList.toggle('show',block&&gamePhase==='waiting'&&!waitingBypassed);
-  // Ecran role
+  // Ecran role : joueurs voient leur carte, mais la nav est bloquée (z-index de screen-role couvre tout)
   document.getElementById('screen-role').classList.toggle('show',block&&gamePhase==='roles'&&!!myRole);
   // Ecran mort
   document.getElementById('screen-dead').classList.toggle('show',block&&!myAlive&&gamePhase==='playing');
@@ -838,6 +847,17 @@ function updatePhaseDisplay(){
     document.getElementById('screen-role').classList.remove('show');
   }
   if(gamePhase==='waiting'){clearInterval(timerInterval);document.getElementById('timer-display').textContent='--:--';document.getElementById('timer-display').classList.remove('ended');}
+
+  // Gérer la visibilité de l'onglet Admin et des onglets joueurs
+  var navAdmin=document.getElementById('nav-admin');
+  var navMap=document.getElementById('nav-map');
+  var navPlayers=document.getElementById('nav-players');
+  if(navAdmin) navAdmin.style.display=isAdmin?'':'none';
+
+  // Phase roles : joueurs bloqués sur l'écran de rôle, pas accès à la nav
+  // Phase waiting : joueurs bloqués sur l'écran d'attente
+  // Phase playing/ended : joueurs ont accès à carte + joueurs
+  // L'onglet admin n'est JAMAIS visible pour les joueurs normaux
 }
 
 function setPhase(phase){
@@ -1177,7 +1197,11 @@ function unlockAdmin(){
     document.getElementById('admin-gate').style.display='none';
     document.getElementById('admin-panel').style.display='flex';
     updateFitBtnVisibility();
+    // Montrer l'onglet admin dans la nav
+    var navAdmin=document.getElementById('nav-admin');
+    if(navAdmin) navAdmin.style.display='';
     updatePhaseDisplay();loadTracks();loadSavedPlaylists();
+    switchTab('admin');
     // Demander la liste admin
     wsSend({type:'auto_assign_roles',roles:[]});// trick pour rafraichir la liste
   },350);
@@ -1193,12 +1217,16 @@ function showNotif(txt){var n=document.getElementById('notif');n.textContent=txt
 function openModal(id){document.getElementById(id).classList.add('show');}
 function closeModal(id){document.getElementById(id).classList.remove('show');}
 function switchTab(t){
+  // Bloquer l'accès à la carte et joueurs si la partie n'est pas commencée (pour les non-admins)
+  if(!isAdmin && (t==='map'||t==='players') && gamePhase!=='playing' && gamePhase!=='ended') return;
+  // Bloquer l'accès à admin pour les non-admins
+  if(!isAdmin && t==='admin') return;
   currentTab=t;
   document.querySelectorAll('.view').forEach(function(v){v.classList.remove('on');});
   document.querySelectorAll('.nav button').forEach(function(b){b.classList.remove('on');});
   document.getElementById('view-'+t).classList.add('on');
-  var tabs=['map','players'];
-  var idx=tabs.indexOf(t);if(idx>=0)document.querySelectorAll('.nav button')[idx].classList.add('on');
+  var navBtn=document.getElementById('nav-'+t);
+  if(navBtn) navBtn.classList.add('on');
   if(t==='map'&&map){setTimeout(function(){map.invalidateSize();},100);}
   updateFitBtnVisibility();
 }
