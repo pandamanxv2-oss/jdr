@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -49,12 +48,27 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 /* ROLE SCREEN */
 #screen-role{position:fixed;inset:0;background:var(--bg);z-index:900;display:none;flex-direction:column;align-items:center;justify-content:center;gap:1rem;padding:2rem;text-align:center}
 #screen-role.show{display:flex}
-.role-card{width:100%;max-width:300px;border-radius:16px;padding:2rem 1.5rem;border:2px solid var(--purple);background:var(--pbg);text-align:center;animation:cardReveal .6s cubic-bezier(.175,.885,.32,1.275)}
-@keyframes cardReveal{0%{transform:scale(.5) rotateY(90deg);opacity:0}100%{transform:scale(1) rotateY(0);opacity:1}}
+/* FLIP CARD */
+.card-flip-container{width:100%;max-width:300px;perspective:1000px;cursor:pointer;user-select:none}
+.card-flip-inner{position:relative;width:100%;transition:transform .6s cubic-bezier(.175,.885,.32,1.275);transform-style:preserve-3d}
+.card-flip-inner.flipped{transform:rotateY(180deg)}
+.card-face{border-radius:16px;padding:2rem 1.5rem;border:2px solid var(--purple);background:var(--pbg);text-align:center;backface-visibility:hidden;-webkit-backface-visibility:hidden}
+.card-back{position:absolute;inset:0;border-radius:16px;border:2px solid var(--purple);background:var(--surf2);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:.6rem;transform:rotateY(180deg);backface-visibility:hidden;-webkit-backface-visibility:hidden}
+.card-back-hint{font-size:.8rem;color:var(--muted)}
+.card-back-icon{font-size:3rem;opacity:.4}
 .role-icon{font-size:3.5rem;margin-bottom:.75rem}
 .role-name{font-size:1.4rem;font-weight:900;margin-bottom:.5rem;color:var(--purple)}
 .role-desc{font-size:.82rem;color:var(--muted);line-height:1.5}
 .role-wait{font-size:.78rem;color:var(--muted);margin-top:.5rem;animation:pulse 1.5s ease-in-out infinite}
+.flip-hint{font-size:.72rem;color:var(--muted);margin-top:.3rem;opacity:.7}
+/* GPS TUTO */
+.gps-tuto{background:var(--surf2);border:1px solid rgba(29,158,117,.3);border-radius:10px;padding:.75rem 1rem;width:100%;max-width:300px;font-size:.78rem;line-height:1.5;color:var(--muted)}
+.gps-tuto strong{color:var(--teal);display:block;margin-bottom:.35rem;font-size:.82rem}
+.gps-status-row{display:flex;align-items:center;gap:.5rem;margin-top:.5rem;font-size:.8rem}
+.gps-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.gps-dot.ok{background:var(--teal)}.gps-dot.warn{background:var(--gold)}.gps-dot.err{background:var(--coral)}
+/* LOC TEST */
+.loc-test-box{background:var(--surf2);border:1px solid var(--border);border-radius:10px;padding:.75rem 1rem;width:100%;max-width:300px;text-align:center}
 
 /* DEAD */
 #screen-dead{position:fixed;inset:0;background:rgba(8,4,4,.95);z-index:850;display:none;flex-direction:column;align-items:center;justify-content:center;gap:1rem;text-align:center;padding:2rem}
@@ -241,6 +255,26 @@ audio{display:none}
 <div id="screen-waiting">
   <div class="wait-pulse">⏳</div>
   <div class="wait-title">En attente du lancement...</div>
+
+  <!-- TUTO GPS -->
+  <div class="gps-tuto">
+    <strong>📍 Activer votre localisation</strong>
+    Sur iPhone : Réglages → Safari → Localisation → Autoriser<br>
+    Sur Android : Réglages → Applis → Navigateur → Autorisations → Position<br>
+    Puis rechargez la page.
+    <div class="gps-status-row">
+      <div class="gps-dot" id="gps-dot-waiting"></div>
+      <span id="gps-status-waiting">Vérification GPS...</span>
+    </div>
+  </div>
+
+  <!-- TEST DE LOC -->
+  <div class="loc-test-box">
+    <div style="font-size:.78rem;color:var(--muted);margin-bottom:.5rem">Test de localisation</div>
+    <button class="btn b-t" onclick="testGps()" style="width:100%">📍 Tester ma position</button>
+    <div id="loc-test-result" style="font-size:.75rem;color:var(--muted);margin-top:.45rem;min-height:1.2em"></div>
+  </div>
+
   <div style="font-size:.82rem;color:var(--muted);margin-bottom:.3rem">Joueurs connectés :</div>
   <div class="wait-players" id="wait-players-list"></div>
   <button class="waiting-browse-btn" onclick="browseApp()">🗺 Voir la carte & les joueurs</button>
@@ -251,12 +285,36 @@ audio{display:none}
 
 <!-- ROLE REVEAL -->
 <div id="screen-role">
-  <div style="font-size:.78rem;color:var(--muted)">Votre mission</div>
-  <div class="role-card" id="role-card">
-    <div class="role-icon" id="role-icon">🃏</div>
-    <div class="role-name" id="role-name">?</div>
-    <div class="role-desc" id="role-desc">En attente...</div>
+  <div style="font-size:.78rem;color:var(--muted);margin-bottom:.5rem">Votre mission</div>
+
+  <!-- CARTE RETOURNABLE -->
+  <div class="card-flip-container" onclick="toggleFlipCard()">
+    <div class="card-flip-inner" id="card-flip-inner">
+      <!-- FACE : le rôle -->
+      <div class="card-face">
+        <div class="role-icon" id="role-icon">🃏</div>
+        <div class="role-name" id="role-name">?</div>
+        <div class="role-desc" id="role-desc">En attente...</div>
+      </div>
+      <!-- DOS : caché -->
+      <div class="card-back">
+        <div class="card-back-icon">🔒</div>
+        <div class="card-back-hint">Appuyez pour révéler</div>
+      </div>
+    </div>
   </div>
+  <div class="flip-hint">Appuyez sur la carte pour la retourner</div>
+
+  <!-- TUTO GPS pendant la distribution -->
+  <div class="gps-tuto" style="margin-top:.6rem">
+    <strong>📍 Localisation requise pour jouer</strong>
+    Autorisez la localisation dans votre navigateur si ce n'est pas fait.
+    <div class="gps-status-row">
+      <div class="gps-dot" id="gps-dot-role"></div>
+      <span id="gps-status-role">Vérification...</span>
+    </div>
+  </div>
+
   <div class="role-wait" id="role-wait">En attente du lancement de la partie...</div>
 </div>
 
@@ -899,8 +957,49 @@ function showRoleCard(role){
   document.getElementById('role-icon').textContent='🎭';
   document.getElementById('role-name').textContent=role;
   document.getElementById('role-desc').textContent=myRoleDescription||'Aucune description fournie par l\'admin.';
+  // Partir du dos, révéler le rôle après 800ms
+  var inner=document.getElementById('card-flip-inner');
+  if(inner){inner.classList.add('flipped');setTimeout(function(){inner.classList.remove('flipped');},800);}
   if(gamePhase==='roles'&&!isAdmin) document.getElementById('screen-role').classList.add('show');
 }
+
+function toggleFlipCard(){
+  var inner=document.getElementById('card-flip-inner');
+  if(inner) inner.classList.toggle('flipped');
+}
+
+// ── GPS TEST & STATUS ──────────────────────────
+function testGps(){
+  var result=document.getElementById('loc-test-result');
+  if(result) result.textContent='Localisation en cours...';
+  if(!navigator.geolocation){setGpsStatus('err','Non supporté par ce navigateur');if(result)result.textContent='Non supporté.';return;}
+  navigator.geolocation.getCurrentPosition(function(pos){
+    var lat=pos.coords.latitude.toFixed(5),lng=pos.coords.longitude.toFixed(5),acc=Math.round(pos.coords.accuracy);
+    setGpsStatus('ok','GPS actif — précision ~'+acc+'m');
+    if(result) result.textContent='Position ok : '+lat+', '+lng+' (±'+acc+'m)';
+  },function(err){
+    var msgs={1:'Accès refusé — activez la localisation',2:'Position indisponible',3:'Délai dépassé'};
+    setGpsStatus('err',msgs[err.code]||'Erreur');
+    if(result) result.textContent='Erreur : '+(msgs[err.code]||'inconnue');
+  },{enableHighAccuracy:true,timeout:10000});
+}
+
+function setGpsStatus(status,text){
+  ['waiting','role'].forEach(function(s){
+    var dot=document.getElementById('gps-dot-'+s);var lbl=document.getElementById('gps-status-'+s);
+    if(dot)dot.className='gps-dot '+status;if(lbl)lbl.textContent=text;
+  });
+}
+
+function checkGpsStatus(){
+  if(!navigator.geolocation){setGpsStatus('err','GPS non supporté');return;}
+  navigator.geolocation.getCurrentPosition(
+    function(p){setGpsStatus('ok','GPS actif — précision ~'+Math.round(p.coords.accuracy)+'m');},
+    function(e){if(e.code===1)setGpsStatus('err','Accès refusé — activez la localisation');else setGpsStatus('warn','En attente du GPS...');},
+    {enableHighAccuracy:false,timeout:5000}
+  );
+}
+setTimeout(checkGpsStatus,1500);
 function updateRoleBadge(){
   if(!myRole) return;
   var b=document.getElementById('my-role-badge');
