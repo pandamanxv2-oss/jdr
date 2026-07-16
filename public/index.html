@@ -354,7 +354,8 @@ async function tryNav(target){
   if(!season.started){ toast("La saison n'a pas encore commencé."); return; }
   const users = await getData('users', {});
   const u = users[S.currentUser];
-  const dungeon = await getData('dungeon', null);
+  let dungeon = await getData('dungeon', null);
+  dungeon = await checkAutoResolve(dungeon);
   if(dungeon && dungeon.status==='active' && dungeon.participants.includes(S.currentUser) && !dungeon.onBreak){
     toast('Tu es en plein donjon !'); return;
   }
@@ -495,7 +496,8 @@ async function guildBankWithdrawItem(name){
 
 // ---------- Dungeons ----------
 async function launchDungeon(key){
-  const dungeon = await getData('dungeon', null);
+  let dungeon = await getData('dungeon', null);
+  dungeon = await checkAutoResolve(dungeon);
   if(dungeon && dungeon.status==='active'){ toast('Un donjon est déjà en cours dans le monde.'); return; }
   const users = await getData('users', {});
   const u = users[S.currentUser];
@@ -509,7 +511,7 @@ async function launchDungeon(key){
   const cfg = DUNGEONS[key];
   const newDungeon = {
     type:key, totalTiers:cfg.tiers, currentTier:1, tiersCompleted:0,
-    tierStart: Date.now(), onBreak:false, breakEnd:0,
+    startTime: Date.now(), onBreak:false, breakEnd:0,
     participants, guildId, status:'active',
     rewardsClaimed:[], repAdded:false
   };
@@ -531,35 +533,9 @@ async function adminEndSeason(){
   render();
 }
 
-async function adminAdvanceTier(){
-  const dungeon = await getData('dungeon', null);
-  if(!dungeon || dungeon.status!=='active') return;
-  const cfg = DUNGEONS[dungeon.type];
-  dungeon.tiersCompleted = Math.min(dungeon.tiersCompleted+1, dungeon.totalTiers);
-  if(dungeon.tiersCompleted >= dungeon.totalTiers){
-    dungeon.currentTier = dungeon.totalTiers;
-  } else {
-    dungeon.currentTier = dungeon.tiersCompleted+1;
-    dungeon.tierStart = Date.now();
-    if(dungeon.tiersCompleted % 2 === 0){
-      dungeon.onBreak = true;
-      dungeon.breakEnd = Date.now()+BREAK_MS;
-    }
-  }
-  await setData('dungeon', dungeon);
-  render();
-}
-async function adminEndBreakNow(){
-  const dungeon = await getData('dungeon', null);
-  if(!dungeon) return;
-  dungeon.onBreak = false;
-  dungeon.tierStart = Date.now();
-  await setData('dungeon', dungeon);
-  render();
-}
-async function adminDeclare(result){
-  const dungeon = await getData('dungeon', null);
-  if(!dungeon || dungeon.status!=='active') return;
+// Termine un donjon (victoire ou défaite) : applique le statut,
+// crédite la réputation de guilde une seule fois, et sauvegarde.
+async function finalizeDungeon(dungeon, result){
   dungeon.status = result;
   dungeon.onBreak = false;
   if(result==='won') dungeon.tiersCompleted = dungeon.totalTiers;
@@ -570,7 +546,55 @@ async function adminDeclare(result){
     dungeon.repAdded = true;
   }
   await setData('dungeon', dungeon);
-  toast(result==='won' ? 'Victoire déclarée !' : 'Défaite déclarée.');
+  return dungeon;
+}
+
+// Vérifie si le temps global du donjon est écoulé sans que tous les
+// tiers aient été validés : dans ce cas, défaite automatique.
+// Appelé à chaque affichage pertinent pour rester synchrone entre joueurs.
+async function checkAutoResolve(dungeon){
+  if(!dungeon || dungeon.status!=='active') return dungeon;
+  const totalDuration = dungeon.totalTiers * TIER_MS;
+  const elapsed = Date.now() - dungeon.startTime;
+  if(dungeon.tiersCompleted >= dungeon.totalTiers){
+    return await finalizeDungeon(dungeon, 'won');
+  }
+  if(elapsed >= totalDuration){
+    return await finalizeDungeon(dungeon, 'lost');
+  }
+  return dungeon;
+}
+
+async function adminAdvanceTier(){
+  let dungeon = await getData('dungeon', null);
+  if(!dungeon || dungeon.status!=='active') return;
+  dungeon.tiersCompleted = Math.min(dungeon.tiersCompleted+1, dungeon.totalTiers);
+  if(dungeon.tiersCompleted >= dungeon.totalTiers){
+    dungeon.currentTier = dungeon.totalTiers;
+    dungeon = await finalizeDungeon(dungeon, 'won');
+    toast('Tous les tiers sont vaincus : victoire !');
+  } else {
+    dungeon.currentTier = dungeon.tiersCompleted+1;
+    if(dungeon.tiersCompleted % 2 === 0){
+      dungeon.onBreak = true;
+      dungeon.breakEnd = Date.now()+BREAK_MS;
+    }
+    await setData('dungeon', dungeon);
+  }
+  render();
+}
+async function adminEndBreakNow(){
+  const dungeon = await getData('dungeon', null);
+  if(!dungeon) return;
+  dungeon.onBreak = false;
+  await setData('dungeon', dungeon);
+  render();
+}
+async function adminDeclare(result){
+  let dungeon = await getData('dungeon', null);
+  if(!dungeon || dungeon.status!=='active') return;
+  dungeon = await finalizeDungeon(dungeon, result);
+  toast('Défaite déclarée.');
   render();
 }
 async function adminResetDungeon(){
@@ -582,15 +606,15 @@ async function adminResetDungeon(){
 // ---------- Reward claiming ----------
 function tapChest(){
   S.chestTaps++;
-  const need = 8;
+  const need = 3;
   const chestEl = document.getElementById('chest-el');
-  if(chestEl){ chestEl.style.transform = `scale(${1+Math.min(S.chestTaps,need)*0.02})`; }
+  if(chestEl){ chestEl.style.transform = `scale(${1+Math.min(S.chestTaps,need)*0.05})`; }
   if(S.chestTaps>=need){ claimReward(); }
   else { renderChestProgress(); }
 }
 function renderChestProgress(){
   const p = document.getElementById('chest-progress');
-  if(p) p.textContent = `${S.chestTaps} / 8 — continue de taper !`;
+  if(p) p.textContent = `${S.chestTaps} / 3 — continue de taper !`;
 }
 
 async function claimReward(){
@@ -722,7 +746,8 @@ async function screenVillage(){
   const season = await getData('season', {started:false});
   const notifs = await getData('notifications', {});
   const myNotifs = notifs[S.currentUser] || [];
-  const dungeon = await getData('dungeon', null);
+  let dungeon = await getData('dungeon', null);
+  dungeon = await checkAutoResolve(dungeon);
   if(dungeon && dungeon.status!=='active' && dungeon.participants && dungeon.participants.includes(S.currentUser) && !dungeon.rewardsClaimed.includes(S.currentUser)){
     S.view='dungeonPlay';
     return screenDungeonPlay();
@@ -883,7 +908,8 @@ async function screenGuildCreate(){
 async function screenDonjons(){
   const users = await getData('users', {});
   const u = users[S.currentUser];
-  const dungeon = await getData('dungeon', null);
+  let dungeon = await getData('dungeon', null);
+  dungeon = await checkAutoResolve(dungeon);
   const busy = dungeon && dungeon.status==='active';
   const cards = Object.values(DUNGEONS).map(d=>`
     <div class="dungeon-card">
@@ -911,7 +937,8 @@ async function screenDonjons(){
 async function screenDungeonPlay(){
   const users = await getData('users', {});
   const u = users[S.currentUser];
-  const dungeon = await getData('dungeon', null);
+  let dungeon = await getData('dungeon', null);
+  dungeon = await checkAutoResolve(dungeon);
   if(!dungeon || !dungeon.participants.includes(S.currentUser)){
     S.view='village'; return screenVillage();
   }
@@ -938,7 +965,7 @@ async function screenDungeonPlay(){
         <p class="muted">${dungeon.tiersCompleted} tier(s) réussi(s) sur ${dungeon.totalTiers}.</p>
         <p class="muted">Tape sur le coffre pour débloquer ta récompense.</p>
         <div id="chest-el" class="chest" onclick="tapChest()">🎁</div>
-        <div id="chest-progress" class="muted" style="margin-top:12px;">0 / 8 — continue de taper !</div>
+        <div id="chest-progress" class="muted" style="margin-top:12px;">0 / 3 — continue de taper !</div>
       </div>`;
   }
 
@@ -961,7 +988,8 @@ async function screenDungeonPlay(){
       </div>`;
   }
 
-  const remain = Math.max(0, TIER_MS - (Date.now()-dungeon.tierStart));
+  const totalDuration = dungeon.totalTiers * TIER_MS;
+  const remain = Math.max(0, totalDuration - (Date.now()-dungeon.startTime));
   const m = Math.floor(remain/60000), s = Math.floor((remain%60000)/1000);
   const isBoss = dungeon.currentTier === dungeon.totalTiers;
   return `
@@ -972,8 +1000,9 @@ async function screenDungeonPlay(){
       <div class="muted" style="margin-top:6px;">sur ${dungeon.totalTiers} tiers</div>
       ${isBoss? `<div class="badge gold" style="margin-top:14px;">⚔️ Combat de boss</div>` : ''}
       <div class="divider"></div>
-      <label>Temps restant</label>
+      <label>Temps restant pour vaincre le donjon</label>
       <h3 style="font-size:32px; margin-top:6px;">${m}m ${s<10?'0':''}${s}s</h3>
+      <p class="muted" style="font-size:13px; margin-top:4px;">Si le temps s'écoule avant la fin du donjon, c'est la défaite.</p>
       <p class="muted" style="margin-top:16px; font-size:14px;">Compagnons : ${dungeon.participants.join(', ')}</p>
     </div>
   `;
@@ -1020,29 +1049,34 @@ async function screenAdmin(){
   const users = await getData('users', {});
   const u = users[S.currentUser];
   const season = await getData('season', {started:false});
-  const dungeon = await getData('dungeon', null);
+  let dungeon = await getData('dungeon', null);
+  dungeon = await checkAutoResolve(dungeon);
   const guilds = await getData('guilds', {});
 
   let dungeonBlock = `<p class="muted">Aucun donjon en cours.</p>`;
   if(dungeon){
     const cfg = DUNGEONS[dungeon.type];
+    const totalDuration = dungeon.totalTiers * TIER_MS;
+    const remain = Math.max(0, totalDuration - (Date.now()-dungeon.startTime));
+    const rm = Math.floor(remain/60000), rs = Math.floor((remain%60000)/1000);
     dungeonBlock = `
       <div class="row" style="margin-bottom:10px;">
         <span class="badge gold">${cfg.name}</span>
         <span class="badge">Statut: ${dungeon.status}</span>
         <span class="badge">Tier ${dungeon.currentTier}/${dungeon.totalTiers}</span>
         <span class="badge">Réussis: ${dungeon.tiersCompleted}</span>
+        ${dungeon.status==='active'? `<span class="badge">Temps restant: ${rm}m ${rs<10?'0':''}${rs}s</span>` : ''}
         ${dungeon.onBreak? '<span class="badge">En pause</span>':''}
       </div>
       <p class="muted">Participants : ${dungeon.participants.join(', ')}</p>
       <p class="muted">Récompenses réclamées : ${(dungeon.rewardsClaimed||[]).join(', ')||'aucune'}</p>
       <div class="row" style="margin-top:12px;">
         ${dungeon.status==='active' ? `
-          ${dungeon.onBreak? `<button class="btn" onclick="adminEndBreakNow()">Terminer la pause</button>` : `<button class="btn btn-primary" onclick="adminAdvanceTier()" ${dungeon.tiersCompleted>=dungeon.totalTiers?'disabled':''}>Tier suivant</button>`}
-          <button class="btn btn-primary" onclick="adminDeclare('won')">Déclarer victoire</button>
+          ${dungeon.onBreak? `<button class="btn" onclick="adminEndBreakNow()">Terminer la pause</button>` : `<button class="btn btn-primary" onclick="adminAdvanceTier()">Tier suivant</button>`}
           <button class="btn btn-danger" onclick="adminDeclare('lost')">Déclarer défaite</button>
         ` : `<button class="btn" onclick="adminResetDungeon()">Réinitialiser (libérer le monde)</button>`}
       </div>
+      <p class="muted" style="font-size:13px; margin-top:10px;">Victoire automatique dès que le dernier tier est validé. Si le temps global s'épuise avant, c'est une défaite automatique.</p>
     `;
   }
 
