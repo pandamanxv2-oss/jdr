@@ -1,1392 +1,1077 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<title>JDR Ops</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Terres de Konne</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=EB+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --bg:#080810;--surf:#12121e;--surf2:#1a1a2e;--surf3:#0e0e18;
-  --purple:#7F77DD;--pbg:rgba(127,119,221,.15);
-  --teal:#1D9E75;--tbg:rgba(29,158,117,.15);
-  --coral:#D85A30;--cbg:rgba(216,90,48,.15);
-  --gold:#C9A84C;--gbg:rgba(201,168,76,.15);
-  --red:#e53e3e;--redbg:rgba(229,62,62,.15);
-  --text:#e8e8f0;--muted:#7878a0;--border:rgba(255,255,255,.07);
-  --r:10px;
-}
-html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif}
-
-/* SPLASH */
-#splash{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.1rem;padding:2rem;text-align:center}
-#splash.hidden{display:none}
-.splash-logo{font-size:3rem}
-.splash-title{font-size:1.5rem;font-weight:900;letter-spacing:-.5px;color:var(--purple)}
-.splash-sub{font-size:.85rem;color:var(--muted);max-width:260px;line-height:1.5}
-.splash-input{width:100%;max-width:280px;background:var(--surf2);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:.7rem .9rem;font-size:1rem;outline:none;text-align:center;transition:border-color .2s}
-.splash-input:focus{border-color:var(--purple)}
-.splash-btn{width:100%;max-width:280px;background:var(--purple);color:#fff;border:none;border-radius:12px;padding:.9rem;font-size:1rem;font-weight:700;cursor:pointer;animation:glow 2s ease-in-out infinite}
-@keyframes glow{0%,100%{box-shadow:0 0 15px rgba(127,119,221,.4)}50%{box-shadow:0 0 30px rgba(127,119,221,.7)}}
-
-/* WAITING */
-#screen-waiting{position:fixed;inset:0;background:var(--bg);z-index:900;display:none;flex-direction:column;align-items:center;justify-content:center;gap:1.2rem;padding:2rem;text-align:center}
-#screen-waiting.show{display:flex}
-.wait-pulse{font-size:3rem;animation:pulse 1.5s ease-in-out infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-.wait-title{font-size:1.2rem;font-weight:700;color:var(--purple)}
-.wait-players{font-size:.82rem;color:var(--muted);max-height:200px;overflow-y:auto;width:100%;max-width:280px}
-.wait-player-item{padding:.35rem .6rem;background:var(--surf2);border-radius:6px;margin-bottom:.3rem;font-size:.82rem}
-/* FLOATING ADMIN BUTTON */
-#floating-admin-btn{position:fixed;bottom:1.2rem;right:1.2rem;z-index:950;background:rgba(127,119,221,.16);color:var(--purple);border:1px solid rgba(127,119,221,.35);border-radius:24px;padding:.5rem 1rem;font-size:.75rem;font-weight:600;cursor:pointer;display:none;align-items:center;gap:.35rem;box-shadow:0 2px 10px rgba(0,0,0,.3)}
-#floating-admin-btn.show{display:flex}
-
-/* WAITING BROWSE BUTTON */
-.waiting-browse-btn{background:rgba(255,255,255,.06);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:.6rem 1.1rem;font-size:.82rem;cursor:pointer;margin-top:.2rem}
-
-/* ROLE SCREEN */
-#screen-role{position:fixed;inset:0;background:var(--bg);z-index:900;display:none;flex-direction:column;align-items:center;justify-content:center;gap:1rem;padding:2rem;text-align:center}
-#screen-role.show{display:flex}
-/* FLIP CARD */
-.card-flip-container{width:100%;max-width:300px;perspective:1000px;cursor:pointer;user-select:none}
-.card-flip-inner{position:relative;width:100%;transition:transform .6s cubic-bezier(.175,.885,.32,1.275);transform-style:preserve-3d}
-.card-flip-inner.flipped{transform:rotateY(180deg)}
-.card-face{border-radius:16px;padding:2rem 1.5rem;border:2px solid var(--purple);background:var(--pbg);text-align:center;backface-visibility:hidden;-webkit-backface-visibility:hidden}
-.card-back{position:absolute;inset:0;border-radius:16px;border:2px solid var(--purple);background:var(--surf2);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:.6rem;transform:rotateY(180deg);backface-visibility:hidden;-webkit-backface-visibility:hidden}
-.card-back-hint{font-size:.8rem;color:var(--muted)}
-.card-back-icon{font-size:3rem;opacity:.4}
-.role-icon{font-size:3.5rem;margin-bottom:.75rem}
-.role-name{font-size:1.4rem;font-weight:900;margin-bottom:.5rem;color:var(--purple)}
-.role-desc{font-size:.82rem;color:var(--muted);line-height:1.5}
-.role-wait{font-size:.78rem;color:var(--muted);margin-top:.5rem;animation:pulse 1.5s ease-in-out infinite}
-.flip-hint{font-size:.72rem;color:var(--muted);margin-top:.3rem;opacity:.7}
-/* GPS TUTO */
-.gps-tuto{background:var(--surf2);border:1px solid rgba(29,158,117,.3);border-radius:10px;padding:.75rem 1rem;width:100%;max-width:300px;font-size:.78rem;line-height:1.5;color:var(--muted)}
-.gps-tuto strong{color:var(--teal);display:block;margin-bottom:.35rem;font-size:.82rem}
-.gps-status-row{display:flex;align-items:center;gap:.5rem;margin-top:.5rem;font-size:.8rem}
-.gps-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
-.gps-dot.ok{background:var(--teal)}.gps-dot.warn{background:var(--gold)}.gps-dot.err{background:var(--coral)}
-/* LOC TEST */
-.loc-test-box{background:var(--surf2);border:1px solid var(--border);border-radius:10px;padding:.75rem 1rem;width:100%;max-width:300px;text-align:center}
-
-/* DEAD */
-#screen-dead{position:fixed;inset:0;background:rgba(8,4,4,.95);z-index:850;display:none;flex-direction:column;align-items:center;justify-content:center;gap:1rem;text-align:center;padding:2rem}
-#screen-dead.show{display:flex}
-
-/* ANNOUNCEMENT */
-#ann-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:800;display:none;align-items:center;justify-content:center;padding:1.5rem}
-#ann-overlay.show{display:flex}
-/* (pm-overlay retire, MP supprime) */
-.ann-box{background:var(--surf);border:2px solid var(--gold);border-radius:16px;padding:1.5rem;max-width:360px;width:100%;text-align:center;animation:slideUp .4s ease}
-@keyframes slideUp{0%{transform:translateY(40px);opacity:0}100%{transform:translateY(0);opacity:1}}
-.ann-from{font-size:.72rem;color:var(--gold);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.5rem}
-.ann-text{font-size:1.05rem;font-weight:600;line-height:1.5;margin-bottom:1rem}
-.ann-close{background:var(--gold);color:#000;border:none;border-radius:8px;padding:.55rem 1.5rem;font-weight:700;cursor:pointer;font-size:.9rem}
-
-/* APP */
-#app{display:none;flex-direction:column;height:100%}
-#app.show{display:flex}
-
-/* HEADER */
-.hdr{background:var(--surf);border-bottom:1px solid var(--border);padding:.55rem .9rem;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:.5rem}
-.hdr-logo{font-size:.9rem;font-weight:800;color:var(--purple)}
-.hdr-center{display:flex;align-items:center;gap:.6rem;flex:1;justify-content:center}
-#timer-display{font-size:1rem;font-weight:700;font-family:monospace;color:var(--gold);letter-spacing:.05em}
-#timer-display.ended{color:var(--red)}
-#phase-badge{font-size:.65rem;padding:2px 8px;border-radius:20px;background:var(--pbg);color:var(--purple);border:1px solid rgba(127,119,221,.3)}
-#conn-badge{font-size:.65rem;padding:2px 7px;border-radius:20px;background:var(--tbg);color:var(--teal);border:1px solid rgba(29,158,117,.3)}
-#conn-badge.off{background:var(--cbg);color:var(--coral);border-color:rgba(216,90,48,.3)}
-#my-role-badge{font-size:.65rem;padding:2px 8px;border-radius:20px;font-weight:700;display:none;background:var(--pbg);color:var(--purple)}
-/* (admin-return-btn retire, remplace par floating-admin-btn) */
-
-/* NAV */
-.nav{display:flex;background:var(--surf);border-bottom:1px solid var(--border);flex-shrink:0}
-.nav button{flex:1;padding:.55rem .2rem;background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);cursor:pointer;font-size:.7rem;transition:all .2s;position:relative}
-.nav button.on{color:var(--purple);border-bottom-color:var(--purple)}
-.nav-badge{display:none;position:absolute;top:4px;right:calc(50% - 14px);background:var(--coral);color:#fff;border-radius:50%;width:13px;height:13px;font-size:.55rem;align-items:center;justify-content:center}
-.nav-badge.show{display:inline-flex}
-
-/* VIEWS */
-.views{flex:1;overflow:hidden;position:relative}
-.view{display:none;position:absolute;inset:0;overflow-y:auto;padding:.8rem;flex-direction:column;gap:.75rem;align-items:center}
-.view.on{display:flex}
-#view-map{padding:0;display:none}
-#view-map.on{display:block}
-#fit-all-btn{position:fixed;bottom:1.2rem;left:1.2rem;z-index:400;background:rgba(20,20,30,.9);color:var(--text);border:1px solid var(--border);border-radius:20px;padding:.5rem 1rem;font-size:.75rem;font-weight:600;cursor:pointer;display:none;box-shadow:0 2px 10px rgba(0,0,0,.3)}
-#gps-banner{position:fixed;top:calc(2.6rem + env(safe-area-inset-top,0px));left:.6rem;right:.6rem;z-index:500;background:rgba(216,90,48,.95);color:#fff;border-radius:10px;padding:.55rem .8rem;font-size:.76rem;display:none;align-items:center;justify-content:space-between;gap:.6rem;box-shadow:0 2px 10px rgba(0,0,0,.35)}
-#gps-banner.show{display:flex}
-#gps-banner button{background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:8px;padding:.3rem .6rem;font-size:.72rem;font-weight:600;cursor:pointer;white-space:nowrap}
-#map{width:100%;height:100%}
-
-/* CARDS */
-.card{background:var(--surf);border:1px solid var(--border);border-radius:var(--r);padding:.85rem;width:100%;max-width:500px}
-.card-title{font-size:.67rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:.7rem}
-
-/* BUTTONS */
-.btn{display:inline-flex;align-items:center;gap:4px;padding:.42rem .85rem;border-radius:7px;border:none;cursor:pointer;font-size:.8rem;font-weight:500;transition:all .15s}
-.btn:active{transform:scale(.96)}.btn:disabled{opacity:.35;cursor:not-allowed}
-.b-p{background:var(--purple);color:#fff}.b-t{background:var(--teal);color:#fff}
-.b-c{background:var(--coral);color:#fff}.b-g{background:rgba(255,255,255,.1);color:var(--text)}
-.b-gold{background:var(--gbg);color:var(--gold);border:1px solid rgba(201,168,76,.3)}
-.b-red{background:var(--redbg);color:var(--red);border:1px solid rgba(229,62,62,.3)}
-.brow{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center}
-
-/* FORMS */
-.fin{background:var(--surf2);border:1px solid var(--border);border-radius:7px;color:var(--text);padding:.48rem .65rem;font-size:.82rem;outline:none;transition:border-color .2s;width:100%}
-.fin:focus{border-color:var(--purple)}
-select.fin option{background:var(--surf2)}
-.flabel{font-size:.72rem;color:var(--muted);margin-bottom:.28rem;display:block}
-.fgroup{margin-bottom:.6rem}
-
-/* TOGGLE */
-.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:.15rem 0}
-.toggle{position:relative;width:38px;height:22px;flex-shrink:0}
-.toggle input{opacity:0;width:0;height:0}
-.slider{position:absolute;inset:0;background:rgba(255,255,255,.12);border-radius:22px;cursor:pointer;transition:.25s}
-.slider:before{content:'';position:absolute;width:16px;height:16px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.25s}
-input:checked+.slider{background:var(--purple)}
-input:checked+.slider:before{transform:translateX(16px)}
-
-/* PROGRESS */
-.prog-wrap{height:3px;background:rgba(255,255,255,.1);border-radius:2px;margin-bottom:.3rem}
-#music-prog{height:100%;border-radius:2px;width:0%;background:var(--purple);transition:width .8s linear}
-.trow{display:flex;justify-content:space-between;font-size:.67rem;color:var(--muted)}
-.srow{display:flex;align-items:center;gap:.5rem}
-.srow input[type=range]{flex:1;accent-color:var(--purple)}
-
-/* (chat retiré) */
-
-/* PLAYERS */
-.player-row{display:flex;align-items:center;justify-content:space-between;padding:.42rem .6rem;background:var(--surf2);border-radius:7px;font-size:.78rem;margin-bottom:.3rem}
-.player-row .pr-left{display:flex;align-items:center;flex:1;gap:.35rem}
-.player-row .pr-name{font-weight:500}
-.pr-role{font-size:.68rem;padding:2px 7px;border-radius:10px;background:var(--pbg);color:var(--purple)}
-.pr-dead{font-size:.68rem;color:var(--red)}
-
-/* TRACKS */
-.track-item{display:flex;align-items:center;gap:.4rem;padding:.42rem .6rem;background:var(--surf2);border-radius:7px;border:1px solid var(--border);margin-bottom:.3rem}
-.track-item.active-track{border-color:var(--purple);background:var(--pbg)}
-.ti-info{flex:1;min-width:0}
-.ti-info strong{display:block;font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ti-info span{font-size:.67rem;color:var(--muted)}
-.ti-btns{display:flex;gap:.25rem;flex-shrink:0}
-.ti-btns button{padding:.22rem .48rem;font-size:.7rem;border-radius:5px;border:none;cursor:pointer;font-weight:500}
-.t-play{background:var(--pbg);color:var(--purple)}
-.t-pl{background:var(--gbg);color:var(--gold)}
-.t-ren{background:var(--tbg);color:var(--teal)}
-.t-del{background:var(--cbg);color:var(--coral)}
-
-/* PLAYLIST */
-.pl-item{display:flex;align-items:center;gap:.4rem;padding:.4rem .6rem;background:var(--surf2);border-radius:7px;border:1px solid var(--border);margin-bottom:.28rem;font-size:.78rem}
-.pl-item.pl-active{border-color:var(--purple);background:var(--pbg)}
-.pl-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pl-idx{font-size:.67rem;color:var(--muted);min-width:18px}
-.pl-rm{background:none;border:none;color:var(--coral);cursor:pointer;font-size:.8rem}
-.pl-goto{background:none;border:none;color:var(--purple);cursor:pointer;font-size:.8rem}
-
-/* SAVED PLAYLISTS */
-.spl-item{display:flex;align-items:center;gap:.4rem;padding:.4rem .6rem;background:var(--surf2);border-radius:7px;margin-bottom:.28rem;font-size:.78rem}
-.spl-name{flex:1;font-weight:500}
-.spl-count{font-size:.67rem;color:var(--muted)}
-
-/* ROLE DESCRIPTIONS */
-.rd-item{padding:.4rem .6rem;background:var(--surf2);border-radius:7px;margin-bottom:.28rem;font-size:.78rem}
-/* Boutons rôles rapides */
-.role-quick-btn{padding:.38rem .75rem;border-radius:20px;border:1px solid rgba(127,119,221,.4);background:var(--pbg);color:var(--purple);font-size:.75rem;font-weight:600;cursor:pointer;touch-action:manipulation;white-space:nowrap}
-.role-quick-btn:active{opacity:.7}
-/* Tags auto-assign */
-.auto-role-tag{display:inline-flex;align-items:center;gap:.3rem;padding:.3rem .65rem;border-radius:20px;background:var(--surf2);border:1px solid var(--border);font-size:.75rem;font-weight:500}
-.auto-role-tag button{background:none;border:none;color:var(--coral);cursor:pointer;font-size:.8rem;padding:0;line-height:1}
-/* Boutons assign par rôle dans player-row */
-.role-assign-btns{display:flex;flex-wrap:wrap;gap:.25rem;margin-top:.35rem}
-.role-assign-btn{padding:.28rem .6rem;border-radius:12px;border:1px solid rgba(127,119,221,.3);background:var(--pbg);color:var(--purple);font-size:.7rem;cursor:pointer;touch-action:manipulation}
-.role-assign-btn.assigned{background:var(--purple);color:#fff;border-color:var(--purple)}
-.rd-item .rd-role{font-weight:700;color:var(--purple);margin-bottom:.15rem}
-.rd-item .rd-text{color:var(--muted);font-size:.74rem;line-height:1.4;margin-bottom:.3rem}
-
-/* UPLOAD */
-#dropzone{border:2px dashed rgba(127,119,221,.3);border-radius:var(--r);padding:1rem;text-align:center;cursor:pointer;transition:all .2s;background:rgba(127,119,221,.03);margin-bottom:.6rem}
-#dropzone:hover,#dropzone.drag{border-color:var(--purple);background:var(--pbg)}
-#dropzone p{font-size:.78rem;color:var(--muted)}
-#dropzone strong{color:var(--purple)}
-#file-input{display:none}
-.upbar-wrap{height:4px;background:rgba(255,255,255,.1);border-radius:2px;overflow:hidden;margin:.5rem 0 .25rem}
-#upbar{height:100%;width:0%;background:var(--purple);transition:width .2s}
-
-/* POI */
-.poi-item{display:flex;align-items:center;gap:.4rem;padding:.38rem .6rem;background:var(--surf2);border-radius:7px;margin-bottom:.28rem;font-size:.78rem}
-.poi-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
-.poi-lbl{flex:1}
-.player-marker-label{background:rgba(0,0,0,.78);color:#fff;padding:2px 6px;border-radius:4px;font-size:.65rem;white-space:nowrap;border:1px solid rgba(255,255,255,.15)}
-
-/* NOTIF */
-#notif{position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);background:var(--surf);border:1px solid var(--purple);border-radius:9px;padding:.5rem 1rem;font-size:.78rem;z-index:600;opacity:0;transition:opacity .25s;pointer-events:none;max-width:88vw;text-align:center}
-#notif.show{opacity:1}
-
-/* MODAL */
-.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:700;align-items:center;justify-content:center;padding:1rem}
-.modal-bg.show{display:flex}
-.modal{background:var(--surf);border:1px solid var(--border);border-radius:var(--r);padding:1.1rem;width:100%;max-width:360px}
-.modal h3{font-size:.88rem;color:var(--purple);margin-bottom:.75rem}
-.modal-brow{display:flex;gap:.4rem;justify-content:flex-end;margin-top:.75rem}
-.err{color:#F0997B;font-size:.72rem;min-height:1em;margin-top:.25rem}
-
-/* MUSIC BAR */
-.music-mini{background:var(--surf3);border-top:1px solid var(--border);padding:.5rem .9rem;flex-shrink:0;display:none}
-.music-mini.show{display:block}
-.mm-name{font-size:.75rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:.28rem}
-
-audio{display:none}
+  :root{
+    --bg:#14121c;
+    --panel:#1e1a29;
+    --panel-2:#25202f;
+    --line:#3a3247;
+    --gold:#c9a24b;
+    --gold-bright:#e9c874;
+    --parchment:#e8e1cf;
+    --parchment-dim:#a89d84;
+    --blood:#8a2f2f;
+    --blood-bright:#c24b4b;
+    --emerald:#4a7c59;
+    --emerald-bright:#6fae83;
+    --sapphire:#3f5f8a;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{
+    background:
+      radial-gradient(ellipse at top, #241f33 0%, var(--bg) 60%),
+      var(--bg);
+    color:var(--parchment);
+    font-family:'EB Garamond', serif;
+    font-size:18px;
+    min-height:100vh;
+  }
+  h1,h2,h3,h4,.display{
+    font-family:'Cinzel', serif;
+    letter-spacing:0.03em;
+    color:var(--gold-bright);
+    margin:0;
+  }
+  #app{max-width:1000px;margin:0 auto;padding:28px 20px 60px;min-height:100vh;}
+  .eyebrow{
+    font-family:'Cinzel',serif;
+    font-size:12px;
+    letter-spacing:0.28em;
+    text-transform:uppercase;
+    color:var(--parchment-dim);
+    margin-bottom:6px;
+  }
+  .panel{
+    background:linear-gradient(180deg, var(--panel), var(--panel-2));
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:24px;
+    position:relative;
+  }
+  .panel::before{
+    content:'';
+    position:absolute; inset:6px;
+    border:1px solid rgba(201,162,75,0.15);
+    border-radius:3px;
+    pointer-events:none;
+  }
+  .btn{
+    font-family:'Cinzel',serif;
+    font-size:14px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    background:linear-gradient(180deg, #3a3247, #2a2436);
+    color:var(--parchment);
+    border:1px solid var(--gold);
+    border-radius:4px;
+    padding:12px 20px;
+    cursor:pointer;
+    transition:all .15s ease;
+  }
+  .btn:hover{background:linear-gradient(180deg, #4a4257, #3a3446); color:var(--gold-bright); transform:translateY(-1px);}
+  .btn:active{transform:translateY(0);}
+  .btn:disabled{opacity:0.35; cursor:not-allowed; transform:none;}
+  .btn-primary{background:linear-gradient(180deg, var(--gold), #a4813a); color:#1a1622; border-color:var(--gold-bright); font-weight:700;}
+  .btn-primary:hover{background:linear-gradient(180deg, var(--gold-bright), var(--gold)); color:#1a1622;}
+  .btn-danger{border-color:var(--blood-bright); }
+  .btn-danger:hover{color:var(--blood-bright);}
+  .btn-small{padding:7px 12px; font-size:12px;}
+  input, select, textarea{
+    font-family:'EB Garamond', serif;
+    font-size:17px;
+    background:#100e17;
+    border:1px solid var(--line);
+    color:var(--parchment);
+    border-radius:4px;
+    padding:10px 12px;
+    width:100%;
+  }
+  input:focus, select:focus{outline:none; border-color:var(--gold);}
+  label{display:block; font-size:13px; color:var(--parchment-dim); margin-bottom:6px; font-family:'Cinzel',serif; letter-spacing:0.05em;}
+  .field{margin-bottom:16px;}
+  .row{display:flex; gap:14px; flex-wrap:wrap;}
+  .center{display:flex; align-items:center; justify-content:center;}
+  .muted{color:var(--parchment-dim);}
+  .divider{height:1px; background:linear-gradient(90deg, transparent, var(--line), transparent); margin:22px 0;}
+  .topbar{display:flex; justify-content:space-between; align-items:center; margin-bottom:26px; flex-wrap:wrap; gap:10px;}
+  .brand{display:flex; align-items:center; gap:10px;}
+  .brand .sigil{font-size:26px;}
+  .navgrid{display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr)); gap:14px; margin-top:20px;}
+  .navcard{
+    background:linear-gradient(180deg, var(--panel), var(--panel-2));
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:22px 16px;
+    text-align:center;
+    cursor:pointer;
+    transition:all .15s ease;
+  }
+  .navcard:hover{border-color:var(--gold); transform:translateY(-2px);}
+  .navcard.locked{opacity:.4; cursor:not-allowed;}
+  .navcard.locked:hover{transform:none; border-color:var(--line);}
+  .navcard .icon{font-size:30px; display:block; margin-bottom:8px;}
+  .navcard .label{font-family:'Cinzel',serif; font-size:14px; letter-spacing:0.05em;}
+  .navcard .sub{font-size:12px; color:var(--parchment-dim); margin-top:4px;}
+  .classcard{
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:20px;
+    cursor:pointer;
+    text-align:center;
+    background:var(--panel);
+    transition:all .15s ease;
+  }
+  .classcard.selected{border-color:var(--gold); background:var(--panel-2); box-shadow:0 0 0 1px var(--gold) inset;}
+  .classcard .icon{font-size:44px;}
+  .badge{
+    display:inline-block; font-family:'Cinzel',serif; font-size:11px; letter-spacing:0.06em;
+    padding:3px 9px; border-radius:20px; border:1px solid var(--line); color:var(--parchment-dim);
+  }
+  .badge.gold{border-color:var(--gold); color:var(--gold-bright);}
+  .xpbar{height:10px; border-radius:6px; background:#100e17; border:1px solid var(--line); overflow:hidden;}
+  .xpbar-fill{height:100%; background:linear-gradient(90deg, var(--emerald), var(--emerald-bright)); transition:width .4s ease;}
+  .memberrow{display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--line);}
+  .memberrow:last-child{border-bottom:none;}
+  .dungeon-card{
+    border:1px solid var(--line); border-radius:6px; padding:20px; background:var(--panel);
+    display:flex; justify-content:space-between; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:14px;
+  }
+  .diff-Facile{color:var(--emerald-bright);}
+  .diff-Moyen{color:var(--gold-bright);}
+  .diff-Difficile{color:#d98a4b;}
+  .diff-Impossible{color:var(--blood-bright);}
+  .tier-display{
+    font-family:'Cinzel',serif; font-weight:900; font-size:min(22vw,140px); line-height:1;
+    text-align:center; color:var(--gold-bright);
+    text-shadow:0 0 40px rgba(201,162,75,0.35);
+  }
+  .toast{
+    position:fixed; top:18px; right:18px; z-index:999;
+    background:var(--panel-2); border:1px solid var(--gold); border-radius:6px; padding:14px 18px;
+    font-family:'Cinzel',serif; font-size:13px; color:var(--gold-bright); max-width:280px;
+    box-shadow:0 8px 30px rgba(0,0,0,0.5);
+    animation:slidein .25s ease;
+  }
+  @keyframes slidein{from{transform:translateX(30px);opacity:0;} to{transform:translateX(0);opacity:1;}}
+  .levelup-overlay{
+    position:fixed; inset:0; background:rgba(10,8,14,0.85); z-index:1000;
+    display:flex; align-items:center; justify-content:center; flex-direction:column;
+    animation:fadein .3s ease;
+  }
+  @keyframes fadein{from{opacity:0;} to{opacity:1;}}
+  .levelup-num{
+    font-family:'Cinzel',serif; font-weight:900; font-size:120px; color:var(--gold-bright);
+    text-shadow:0 0 60px var(--gold); animation:pop .5s cubic-bezier(.3,1.6,.5,1);
+  }
+  @keyframes pop{0%{transform:scale(0.2); opacity:0;} 70%{transform:scale(1.15);} 100%{transform:scale(1); opacity:1;}}
+  .chest{
+    width:160px; height:160px; margin:0 auto; display:flex; align-items:center; justify-content:center;
+    font-size:80px; cursor:pointer; user-select:none; transition:transform .08s ease;
+    border-radius:50%; border:2px solid var(--gold); background:var(--panel-2);
+  }
+  .chest:active{transform:scale(0.94);}
+  table{width:100%; border-collapse:collapse;}
+  th,td{text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); font-size:15px;}
+  th{font-family:'Cinzel',serif; font-size:11px; letter-spacing:0.06em; color:var(--parchment-dim); text-transform:uppercase;}
+  .authwrap{max-width:420px; margin:6vh auto 0;}
+  .link-btn{background:none; border:none; color:var(--gold-bright); font-family:'EB Garamond',serif; text-decoration:underline; cursor:pointer; font-size:15px; padding:0;}
+  .errbox{color:var(--blood-bright); font-size:14px; margin-top:10px;}
+  .item-pill{display:inline-block; background:var(--panel-2); border:1px solid var(--line); border-radius:20px; padding:4px 12px; font-size:14px; margin:3px 4px 0 0;}
+  ::selection{background:var(--gold); color:#1a1622;}
+  .footer-admin{position:fixed; bottom:10px; left:10px; font-size:11px; color:#4a4257;}
 </style>
 </head>
 <body>
+<div id="app"></div>
+<div id="overlays"></div>
 
-<!-- SPLASH -->
-<div id="splash">
-  <div class="splash-logo">🕵️</div>
-  <div class="splash-title">JDR OPS</div>
-  <div class="splash-sub">Entre ton pseudo pour rejoindre l'opération</div>
-  <input class="splash-input" type="text" id="pseudo-in" placeholder="Ton pseudo..." maxlength="20" onkeydown="if(event.key==='Enter')joinGame()"/>
-  <button class="splash-btn" onclick="joinGame()">Rejoindre l'opération</button>
-</div>
-
-<!-- WAITING -->
-<div id="screen-waiting">
-  <div class="wait-pulse">⏳</div>
-  <div class="wait-title">En attente du lancement...</div>
-
-  <!-- TUTO GPS -->
-  <div class="gps-tuto">
-    <strong>📍 Activer votre localisation</strong>
-    Sur iPhone : Réglages → Safari → Localisation → Autoriser<br>
-    Sur Android : Réglages → Applis → Navigateur → Autorisations → Position<br>
-    Puis rechargez la page.
-    <div class="gps-status-row">
-      <div class="gps-dot" id="gps-dot-waiting"></div>
-      <span id="gps-status-waiting">Vérification GPS...</span>
-    </div>
-  </div>
-
-  <!-- TEST DE LOC -->
-  <div class="loc-test-box">
-    <div style="font-size:.78rem;color:var(--muted);margin-bottom:.5rem">Test de localisation</div>
-    <button class="btn b-t" onclick="testGps()" style="width:100%">📍 Tester ma position</button>
-    <div id="loc-test-result" style="font-size:.75rem;color:var(--muted);margin-top:.45rem;min-height:1.2em"></div>
-  </div>
-
-  <div style="font-size:.82rem;color:var(--muted);margin-bottom:.3rem">Joueurs connectés :</div>
-  <div class="wait-players" id="wait-players-list"></div>
-  <button class="waiting-browse-btn" onclick="browseApp()">🗺 Voir la carte & les joueurs</button>
-</div>
-
-<!-- ADMIN FLOTTANT (toujours visible) -->
-<button id="floating-admin-btn" onclick="goAdmin()">🎛 Admin</button>
-
-<!-- ROLE REVEAL -->
-<div id="screen-role">
-  <div style="font-size:.78rem;color:var(--muted);margin-bottom:.5rem">Votre mission</div>
-
-  <!-- CARTE RETOURNABLE -->
-  <div class="card-flip-container" onclick="toggleFlipCard()">
-    <div class="card-flip-inner" id="card-flip-inner">
-      <!-- FACE : le rôle -->
-      <div class="card-face">
-        <div class="role-icon" id="role-icon">🃏</div>
-        <div class="role-name" id="role-name">?</div>
-        <div class="role-desc" id="role-desc">En attente...</div>
-      </div>
-      <!-- DOS : caché -->
-      <div class="card-back">
-        <div class="card-back-icon">🔒</div>
-        <div class="card-back-hint">Appuyez pour révéler</div>
-      </div>
-    </div>
-  </div>
-  <div class="flip-hint">Appuyez sur la carte pour la retourner</div>
-
-  <!-- TUTO GPS pendant la distribution -->
-  <div class="gps-tuto" style="margin-top:.6rem">
-    <strong>📍 Localisation requise pour jouer</strong>
-    Autorisez la localisation dans votre navigateur si ce n'est pas fait.
-    <div class="gps-status-row">
-      <div class="gps-dot" id="gps-dot-role"></div>
-      <span id="gps-status-role">Vérification...</span>
-    </div>
-  </div>
-
-  <div class="role-wait" id="role-wait">En attente du lancement de la partie...</div>
-</div>
-
-<!-- DEAD -->
-<div id="screen-dead">
-  <div style="font-size:4rem">💀</div>
-  <div style="font-size:1.3rem;font-weight:800;color:var(--red)">Vous êtes éliminé</div>
-  <div style="font-size:.85rem;color:var(--muted)">L'admin peut vous réintégrer dans la partie</div>
-</div>
-
-<!-- ANNONCE -->
-<div id="ann-overlay">
-  <div class="ann-box">
-    <div class="ann-from">📢 Annonce officielle</div>
-    <div class="ann-text" id="ann-text"></div>
-    <button class="ann-close" onclick="closeAnn()">Compris</button>
-  </div>
-</div>
-
-<!-- MODALS -->
-<div class="modal-bg" id="modal-myrole">
-  <div class="modal">
-    <h3>🎭 Mon rôle</h3>
-    <div style="font-size:1.05rem;font-weight:800;color:var(--purple);margin-bottom:.5rem" id="myrole-name"></div>
-    <div style="font-size:.85rem;color:var(--muted);line-height:1.5" id="myrole-desc"></div>
-    <div class="modal-brow">
-      <button class="btn b-p" onclick="closeModal('modal-myrole')">Fermer</button>
-    </div>
-  </div>
-</div>
-
-<div class="modal-bg" id="modal-poi">
-  <div class="modal">
-    <h3>Ajouter un point d'intérêt</h3>
-    <div class="fgroup"><label class="flabel">Nom</label><input class="fin" id="poi-label" placeholder="Ex: Cache d'armes" maxlength="40"/></div>
-    <div class="fgroup"><label class="flabel">Visible par (laisser vide ou "all" = tout le monde, sinon noms de rôles séparés par des virgules)</label>
-      <input class="fin" id="poi-visible" placeholder="all"/>
-    </div>
-    <div class="fgroup"><label class="flabel">Couleur</label>
-      <div class="brow" id="poi-color-btns">
-        <button class="btn" style="background:#7F77DD;color:#fff;outline:2px solid #fff" onclick="poiColor='#7F77DD';highlightColor(this)">Bleu</button>
-        <button class="btn" style="background:#D85A30;color:#fff" onclick="poiColor='#D85A30';highlightColor(this)">Rouge</button>
-        <button class="btn" style="background:#1D9E75;color:#fff" onclick="poiColor='#1D9E75';highlightColor(this)">Vert</button>
-        <button class="btn" style="background:#C9A84C;color:#fff" onclick="poiColor='#C9A84C';highlightColor(this)">Or</button>
-      </div>
-    </div>
-    <div class="modal-brow">
-      <button class="btn b-g" onclick="closeModal('modal-poi')">Annuler</button>
-      <button class="btn b-p" onclick="confirmAddPoi()">Ajouter</button>
-    </div>
-  </div>
-</div>
-
-<div class="modal-bg" id="modal-announce">
-  <div class="modal">
-    <h3>Envoyer une annonce</h3>
-    <div class="fgroup"><label class="flabel">Message</label><textarea class="fin" id="ann-msg" rows="3" style="resize:none" placeholder="Votre annonce..."></textarea></div>
-    <div class="fgroup"><label class="flabel">Destinataires (laisser vide ou "all" = tout le monde, sinon nom du rôle)</label>
-      <input class="fin" id="ann-target" placeholder="all"/>
-    </div>
-    <div class="modal-brow">
-      <button class="btn b-g" onclick="closeModal('modal-announce')">Annuler</button>
-      <button class="btn b-gold" onclick="sendAnnounce()">Envoyer</button>
-    </div>
-  </div>
-</div>
-
-<div class="modal-bg" id="modal-rename-track">
-  <div class="modal">
-    <h3>Renommer la piste</h3>
-    <input class="fin" type="text" id="rename-track-input" placeholder="Nouveau nom..." maxlength="60" onkeydown="if(event.key==='Enter')doRenameTrack()"/>
-    <div class="modal-brow">
-      <button class="btn b-g" onclick="closeModal('modal-rename-track')">Annuler</button>
-      <button class="btn b-p" onclick="doRenameTrack()">Renommer</button>
-    </div>
-  </div>
-</div>
-
-<div class="modal-bg" id="modal-save-pl">
-  <div class="modal">
-    <h3>Sauvegarder la playlist</h3>
-    <input class="fin" type="text" id="save-pl-input" placeholder="Nom de la playlist..." maxlength="40" onkeydown="if(event.key==='Enter')doSavePlaylist()"/>
-    <div class="modal-brow">
-      <button class="btn b-g" onclick="closeModal('modal-save-pl')">Annuler</button>
-      <button class="btn b-p" onclick="doSavePlaylist()">Sauvegarder</button>
-    </div>
-  </div>
-</div>
-
-<div class="modal-bg" id="modal-rename-pl">
-  <div class="modal">
-    <h3>Renommer la playlist</h3>
-    <input class="fin" type="text" id="rename-pl-input" placeholder="Nouveau nom..." maxlength="40" onkeydown="if(event.key==='Enter')doRenamePl()"/>
-    <div class="modal-brow">
-      <button class="btn b-g" onclick="closeModal('modal-rename-pl')">Annuler</button>
-      <button class="btn b-p" onclick="doRenamePl()">Renommer</button>
-    </div>
-  </div>
-</div>
-
-<div id="notif"></div>
-
-<!-- MODAL ADMIN SECRET -->
-<div class="modal-bg" id="modal-admin-login">
-  <div class="modal">
-    <h3 style="color:var(--purple)">🎛 Accès admin</h3>
-    <input class="fin" type="password" id="admin-login-pass" placeholder="Mot de passe..." onkeydown="if(event.key==='Enter')tryAdminLogin()"/>
-    <div class="err" id="admin-login-err"></div>
-    <div class="modal-brow">
-      <button class="btn b-g" onclick="closeModal('modal-admin-login')">Annuler</button>
-      <button class="btn b-p" onclick="tryAdminLogin()">Entrer</button>
-    </div>
-  </div>
-</div>
-
-<!-- APP -->
-<div id="app">
-  <div class="hdr">
-    <div class="hdr-logo" id="hdr-logo" style="cursor:pointer;user-select:none" title="">🕵️ JDR</div>
-    <div class="hdr-center">
-      <div id="timer-display">--:--</div>
-      <div id="phase-badge">Attente</div>
-    </div>
-    <div style="display:flex;align-items:center;gap:.4rem">
-      <div id="my-role-badge"></div>
-      <div id="conn-badge" class="off">...</div>
-    </div>
-  </div>
-
-  <div class="nav" id="main-nav">
-    <button class="on" onclick="switchTab('map')" id="nav-map">🗺 Carte</button>
-    <button onclick="switchTab('players')" id="nav-players">👥 Joueurs</button>
-    <button onclick="switchTab('admin')" id="nav-admin" style="display:none">🎛 Admin</button>
-  </div>
-
-  <div class="views">
-    <!-- MAP -->
-    <div id="view-map" class="view on"><div id="map"></div><button id="fit-all-btn" onclick="fitAllPlayers()">🎯 Voir tous les joueurs</button>
-      <div id="gps-banner">
-        <span id="gps-banner-text">📍 Localisation en cours...</span>
-        <button onclick="retryGPS()">Réessayer</button>
-      </div>
-    </div>
-
-    <!-- PLAYERS -->
-    <div id="view-players" class="view">
-      <div class="card" id="myrole-card" style="display:none">
-        <div class="card-title">🎭 Mon rôle</div>
-        <button class="btn b-p" onclick="showMyRoleModal()">Revoir mon rôle</button>
-      </div>
-      <div class="card">
-        <div class="card-title">Joueurs connectés</div>
-        <div id="players-list"></div>
-      </div>
-    </div>
-
-    <!-- ADMIN -->
-    <div id="view-admin" class="view">
-      <div id="admin-gate" class="card">
-        <div class="card-title">Accès administrateur</div>
-        <div class="fgroup">
-          <label class="flabel">Mot de passe</label>
-          <input class="fin" type="password" id="admin-pass" placeholder="Mot de passe" onkeydown="if(event.key==='Enter')unlockAdmin()"/>
-        </div>
-        <button class="btn b-p" onclick="unlockAdmin()">Déverrouiller</button>
-        <div class="err" id="admin-err"></div>
-      </div>
-
-      <div id="admin-panel" style="display:none;flex-direction:column;gap:.75rem;width:100%;max-width:500px">
-
-        <!-- PHASE -->
-        <div class="card">
-          <div class="card-title">🎮 Phase du jeu</div>
-          <div class="brow" style="margin-bottom:.65rem">
-            <button class="btn b-g" onclick="setPhase('waiting')">⏳ Attente</button>
-            <button class="btn b-p" onclick="setPhase('roles')">🎭 Rôles</button>
-            <button class="btn b-t" onclick="setPhase('playing')">⚔️ Lancer</button>
-            <button class="btn b-c" onclick="setPhase('ended')">🏁 Fin</button>
-          </div>
-          <div class="fgroup">
-            <label class="flabel">Durée (minutes)</label>
-            <div class="brow">
-              <input class="fin" type="number" id="timer-dur" value="60" min="1" max="480" style="width:90px"/>
-              <button class="btn b-g" onclick="setTimerDuration()">Appliquer</button>
-              <button class="btn b-gold" onclick="wsSend({type:'pause_timer'})">⏸ Pause</button>
-              <button class="btn b-t" onclick="wsSend({type:'resume_timer'})">▶ Reprendre</button>
-            </div>
-          </div>
-          <button class="btn b-red" style="margin-top:.35rem" onclick="if(confirm('Reset complet de la partie ?'))wsSend({type:'reset_game'})">🔄 Reset la partie</button>
-        </div>
-
-        <!-- ROLES -->
-        <div class="card">
-          <div class="card-title">🎭 Attribution des rôles</div>
-          <!-- Rôles disponibles (créés dans descriptions) -->
-          <div id="role-quick-btns" style="display:flex;flex-wrap:wrap;gap:.35rem;margin-bottom:.65rem;min-height:1rem">
-            <span style="font-size:.72rem;color:var(--muted);font-style:italic" id="role-quick-hint">Crée des rôles dans "Descriptions des rôles" ci-dessous</span>
-          </div>
-          <div id="admin-players-list" style="margin-bottom:.65rem"></div>
-          <div class="fgroup">
-            <label class="flabel">Attribution automatique aléatoire</label>
-            <div style="margin-bottom:.4rem;display:flex;flex-wrap:wrap;gap:.3rem" id="auto-role-tags"></div>
-            <div class="brow">
-              <button class="btn b-p" onclick="autoAssignFromTags()" style="flex:1">🎲 Assigner aléatoirement</button>
-              <button class="btn b-g" onclick="clearAutoTags()">Vider</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- DESCRIPTIONS DE ROLES -->
-        <div class="card">
-          <div class="card-title">📝 Descriptions des rôles</div>
-          <p style="font-size:.74rem;color:var(--muted);margin-bottom:.55rem">Définis une description pour chaque rôle : les joueurs la verront et pourront la revoir à tout moment.</p>
-          <div class="fgroup">
-            <label class="flabel">Nom du rôle</label>
-            <input class="fin" id="rd-role" placeholder="ex: tueur"/>
-          </div>
-          <div class="fgroup">
-            <label class="flabel">Description</label>
-            <textarea class="fin" id="rd-desc" rows="3" style="resize:none" placeholder="Ex: Eliminez vos cibles discretement sans vous faire repérer."></textarea>
-          </div>
-          <button class="btn b-p" onclick="saveRoleDescription()">Enregistrer</button>
-          <div id="role-desc-list" style="margin-top:.65rem"></div>
-        </div>
-
-        <!-- ANNONCES -->
-        <div class="card">
-          <div class="card-title">📢 Annonces</div>
-          <button class="btn b-gold" onclick="openModal('modal-announce')">Envoyer une annonce</button>
-        </div>
-
-        <!-- POI -->
-        <div class="card">
-          <div class="card-title">📍 Points d'intérêt</div>
-          <p style="font-size:.74rem;color:var(--muted);margin-bottom:.55rem">Clique sur la carte (onglet Carte) pour placer un point</p>
-          <div id="poi-list"></div>
-        </div>
-
-        <!-- MUSIQUE -->
-        <div class="card">
-          <div class="card-title">🎵 Musique — Contrôles</div>
-          <div id="music-now" style="font-size:.78rem;color:var(--muted);margin-bottom:.5rem">Aucune piste</div>
-          <div class="brow" style="margin-bottom:.5rem">
-            <button class="btn b-g" onclick="wsSend({type:'music_prev'})">⏮</button>
-            <button class="btn b-t" onclick="musicPlay()">▶ Play</button>
-            <button class="btn b-g" onclick="wsSend({type:'music_pause'})">⏸</button>
-            <button class="btn b-c" onclick="stopMusic()">⏹ Arrêter</button>
-            <button class="btn b-g" onclick="wsSend({type:'music_next'})">⏭</button>
-          </div>
-          <div class="toggle-row" style="margin-bottom:.5rem">
-            <span style="font-size:.8rem">🔁 Boucle</span>
-            <label class="toggle"><input type="checkbox" id="loop-tog" onchange="wsSend({type:'music_loop',loop:this.checked})"/><span class="slider"></span></label>
-          </div>
-          <div class="srow">
-            <span style="font-size:.75rem">🔈</span>
-            <input type="range" id="vol-sl" min="0" max="1" step="0.05" value="0.8" oninput="wsSend({type:'music_volume',volume:parseFloat(this.value)});document.getElementById('vol-lbl').textContent=Math.round(this.value*100)+'%'"/>
-            <span style="font-size:.75rem">🔊</span>
-            <span id="vol-lbl" style="font-size:.75rem;min-width:2.5rem">80%</span>
-          </div>
-        </div>
-
-        <!-- PLAYLIST COURANTE -->
-        <div class="card">
-          <div class="card-title">▶ Playlist en cours</div>
-          <div id="pl-current" style="max-height:180px;overflow-y:auto;margin-bottom:.6rem">
-            <p style="font-size:.76rem;color:var(--muted)">Vide — clique +PL sur une piste</p>
-          </div>
-          <div class="brow">
-            <button class="btn b-g" onclick="clearPlaylist()">Vider</button>
-            <button class="btn b-t" onclick="playPlaylist()">▶ Lancer</button>
-            <button class="btn b-c" onclick="stopMusic()">⏹ Arrêter</button>
-            <button class="btn b-gold" onclick="openModal('modal-save-pl')">Sauvegarder</button>
-          </div>
-        </div>
-
-        <!-- PLAYLISTS SAUVEGARDEES -->
-        <div class="card">
-          <div class="card-title">💾 Playlists sauvegardées</div>
-          <div id="saved-playlists"><p style="font-size:.76rem;color:var(--muted)">Aucune</p></div>
-        </div>
-
-        <!-- PISTES -->
-        <div class="card">
-          <div class="card-title">🎵 Mes pistes</div>
-          <div id="dropzone" onclick="document.getElementById('file-input').click()" ondragover="dzEv(event,true)" ondragleave="dzEv(event,false)" ondrop="dzDrop(event)">
-            <p>Glisse un MP3 ici</p><p><strong>ou clique pour choisir</strong></p>
-            <p style="font-size:.68rem;margin-top:.2rem">MP3 OGG WAV — max 200 Mo</p>
-          </div>
-          <input type="file" id="file-input" accept="audio/*" onchange="uploadTrack(this.files[0])"/>
-          <div id="up-prog" style="display:none"><div class="upbar-wrap"><div id="upbar"></div></div><div id="up-lbl" style="font-size:.7rem;color:var(--muted);text-align:center"></div></div>
-          <div class="err" id="up-err"></div>
-          <div id="track-list" style="margin-top:.6rem;max-height:240px;overflow-y:auto"></div>
-        </div>
-
-        <!-- PARTICIPANTS -->
-        <div class="card">
-          <div class="card-title">👥 Participants</div>
-          <div id="admin-conn" style="font-size:.78rem;color:var(--teal)">...</div>
-        </div>
-
-      </div>
-    </div>
-  </div>
-
-  <!-- MINI PLAYER -->
-  <div class="music-mini" id="music-mini">
-    <div class="mm-name" id="mm-name">...</div>
-    <div class="prog-wrap"><div id="music-prog"></div></div>
-    <div class="trow"><span id="mm-tc">0:00</span><span id="mm-tt">0:00</span></div>
-  </div>
-</div>
-
-<audio id="audio" preload="auto"></audio>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
-// ── STATE ──────────────────────────────────────
-var ws, myId='', myPseudo='', myRole=null, myRoleDescription='', myAlive=true;
-var roleDescriptions={};
-var adminPwd='', isAdmin=false;
-var currentTab='map';
-var waitingBypassed=false;
-var allPlayers=[], allPois=[], allTracks=[], currentPlaylist=[], currentPlIdx=0;
-var currentTrackUrl='';
-var progTimer;
-var pendingPoi=null, poiColor='#7F77DD';
-var gamePhase='waiting';
-var timerInterval=null, timerStart=null, timerDuration=3600;
-var timerPaused=false, timerElapsed=0, timerEnded=false;
-var renameTrackTarget='', renamePlTarget='';
+/* =========================================================
+   TERRES DE KONNE — mini-MMORPG simulé
+   Etat partagé via window.storage (shared:true) pour que
+   tous les joueurs / l'admin voient le même monde.
+   ========================================================= */
 
-// ── MAP ────────────────────────────────────────
-var map=null, playerMarkers={}, poiMarkers={};
-var myMarker=null, myAccCircle=null;
-var gpsStarted=false;
+// ---------- Config ----------
+const DUNGEONS = {
+  facile:      { key:'facile',      name:'Camp Barbares',            diff:'Facile',      tiers:3, gold:2, xp:5  },
+  moyen:       { key:'moyen',       name:'Pyramides du Sphinx',      diff:'Moyen',       tiers:4, gold:4, xp:15 },
+  difficile:   { key:'difficile',   name:'Le Cimetière',             diff:'Difficile',   tiers:5, gold:6, xp:35 },
+  impossible:  { key:'impossible',  name:"Château de l'Empereur Konne", diff:'Impossible', tiers:6, gold:9, xp:50 }
+};
+const TIER_MS = 10*60*1000;
+const BREAK_MS = 10*60*1000;
+const MAX_LEVEL = 30;
+const CLASSES = {
+  guerrier:{label:'Guerrier', icon:'⚔️', desc:'Force brute et endurance au corps-à-corps.'},
+  mage:{label:'Mage', icon:'🔮', desc:'Maîtrise des arcanes et de la magie destructrice.'},
+  paladin:{label:'Paladin', icon:'🛡️', desc:'Foi et acier, gardien de ses compagnons.'}
+};
 
-function initMap(){
-  if(map) return;
-  // Centrer sur position actuelle si dispo, sinon 48,2 par defaut provisoire
-  map = L.map('map',{zoomControl:true,attributionControl:false}).setView([48,2],5);
-  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:20}).addTo(map);
-  // Admin peut cliquer pour ajouter POI
-  map.on('click',function(e){
-    if(!isAdmin) return;
-    pendingPoi={lat:e.latlng.lat,lng:e.latlng.lng};
-    openModal('modal-poi');
+function xpNeeded(level){ return 10*(level+1); }
+
+// ---------- Storage helpers ----------
+// Ces fonctions parlent au petit serveur (server.js) qui garde l'état
+// du monde en mémoire / dans un fichier JSON sur le serveur, afin que
+// tous les joueurs connectés à ton site voient le même monde.
+async function getData(key, def){
+  try{
+    const r = await fetch('/api/kv/' + encodeURIComponent(key));
+    if(r.status === 404) return def;
+    if(!r.ok) return def;
+    const data = await r.json();
+    return (data && data.value !== undefined) ? data.value : def;
+  }catch(e){ console.error('getData failed', key, e); return def; }
+}
+async function setData(key, value){
+  try{
+    await fetch('/api/kv/' + encodeURIComponent(key), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value })
+    });
+  }catch(e){ console.error('setData failed', key, e); }
+}
+
+// ---------- Global in-memory state ----------
+let S = {
+  currentUser: null,     // pseudo (lowercase key)
+  view: 'loading',
+  authMode: 'login',
+  authError: '',
+  charClass: null,
+  guildCreateStep: false,
+  toasts: [],
+  levelupQueue: [],
+  chestTaps: 0,
+  activeGuildTab: null
+};
+
+let pollTimer = null;
+
+function toast(msg){
+  const id = Math.random().toString(36).slice(2);
+  S.toasts.push({id,msg});
+  renderToasts();
+  setTimeout(()=>{ S.toasts = S.toasts.filter(t=>t.id!==id); renderToasts(); }, 4000);
+}
+function renderToasts(){
+  const el = document.getElementById('overlays');
+  const existing = el.querySelectorAll('.toast');
+  existing.forEach(e=>e.remove());
+  S.toasts.forEach((t,i)=>{
+    const d = document.createElement('div');
+    d.className='toast';
+    d.style.top = (18+i*70)+'px';
+    d.textContent = t.msg;
+    el.appendChild(d);
   });
-  setTimeout(function(){map.invalidateSize();},200);
-  startGPS();
 }
 
-function startGPS(){
-  if(gpsStarted) return;
-  gpsStarted=true;
-  if(location.protocol!=='https:'&&location.hostname!=='localhost'&&location.hostname!=='127.0.0.1'){
-    showGpsBanner('📍 Le site doit être ouvert en HTTPS pour te localiser.');return;
-  }
-  if(!navigator.geolocation){
-    showGpsBanner('📍 Ton navigateur ne supporte pas la localisation.');return;
-  }
-  showGpsBanner('📍 Localisation en cours...');
-  // Essai rapide d'abord pour centrer la carte
-  navigator.geolocation.getCurrentPosition(function(pos){
-    hideGpsBanner();
-    centerMapOnMe(pos.coords.latitude,pos.coords.longitude,pos.coords.accuracy);
-  },function(e){showGpsBanner(gpsErrorMsg(e));},{enableHighAccuracy:true,timeout:8000});
-  // Watch continu
-  navigator.geolocation.watchPosition(function(pos){
-    hideGpsBanner();
-    var lat=pos.coords.latitude,lng=pos.coords.longitude,acc=pos.coords.accuracy;
-    if(ws&&ws.readyState===1) ws.send(JSON.stringify({type:'location_update',lat:lat,lng:lng,acc:acc}));
-    centerMapOnMe(lat,lng,acc);
-  },function(e){showGpsBanner(gpsErrorMsg(e));},{enableHighAccuracy:true,maximumAge:5000,timeout:15000});
-}
-function gpsErrorMsg(e){
-  if(e&&e.code===1) return '📍 Localisation refusée — active-la pour ce site dans les réglages de ton téléphone, puis réessaie.';
-  if(e&&e.code===2) return '📍 Position indisponible pour le moment. Réessaie en extérieur.';
-  if(e&&e.code===3) return '📍 Délai dépassé pour te localiser. Réessaie.';
-  return '📍 Impossible de te localiser.';
-}
-function showGpsBanner(msg){
-  var b=document.getElementById('gps-banner');if(!b)return;
-  document.getElementById('gps-banner-text').textContent=msg;
-  b.classList.add('show');
-}
-function hideGpsBanner(){var b=document.getElementById('gps-banner');if(b)b.classList.remove('show');}
-function retryGPS(){
-  gpsStarted=false;
-  startGPS();
+// ---------- Boot ----------
+async function boot(){
+  S.view = 'auth';
+  render();
+  if(pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(pollWorld, 3500);
 }
 
-var mapCenteredOnce=false;
-function centerMapOnMe(lat,lng,acc){
-  if(!map) return;
-  // Creer/mettre a jour marqueur bleu = moi
-  if(!myMarker){
-    var myIcon=L.divIcon({className:'',html:'<div style="width:14px;height:14px;background:#4A90E2;border-radius:50%;border:2.5px solid #fff;box-shadow:0 0 8px rgba(74,144,226,.8)"></div>',iconSize:[14,14],iconAnchor:[7,7]});
-    myMarker=L.marker([lat,lng],{icon:myIcon,zIndexOffset:1000}).addTo(map);
-    myMarker.bindTooltip('Vous',{permanent:true,direction:'top',className:'player-marker-label',offset:[0,-9]});
-    myAccCircle=L.circle([lat,lng],{radius:acc,color:'#4A90E2',fillOpacity:.08,weight:1}).addTo(map);
+async function pollWorld(){
+  if(!S.currentUser) return;
+  if(['village','personnage','guildes','guildDetail','donjons','dungeonPlay','dungeonReward','hotelVentes','rp','classements','adminPanel'].includes(S.view)){
+    render();
+  }
+}
+
+// ---------- Auth ----------
+async function handleAuthSubmit(e){
+  e.preventDefault();
+  const pseudo = document.getElementById('inp-pseudo').value.trim();
+  const pass = document.getElementById('inp-pass').value;
+  if(!pseudo || !pass){ S.authError='Pseudo et mot de passe requis.'; render(); return; }
+  const key = pseudo.toLowerCase();
+  const users = await getData('users', {});
+
+  if(S.authMode === 'login'){
+    const u = users[key];
+    if(!u){ S.authError = "Ce pseudo n'existe pas encore. Crée un compte."; render(); return; }
+    if(u.password !== pass){ S.authError = 'Mot de passe incorrect.'; render(); return; }
+    S.currentUser = key;
+    S.authError='';
+    if(u.isAdmin){ S.view='adminPanel'; }
+    else if(!u.class){ S.view='charCreate'; }
+    else { S.view='village'; }
+    render();
   } else {
-    myMarker.setLatLng([lat,lng]);
-    myAccCircle.setLatLng([lat,lng]);
-    myAccCircle.setRadius(acc);
+    if(users[key]){ S.authError = 'Ce pseudo est déjà pris.'; render(); return; }
+    const isAdmin = key === 'admin';
+    users[key] = {
+      pseudo, password: pass, isAdmin,
+      class: isAdmin ? 'admin' : null,
+      level: 0, xp: 0, gold: isAdmin ? 0 : 10,
+      items: [], guildId: null
+    };
+    await setData('users', users);
+    S.currentUser = key;
+    S.authError='';
+    S.view = isAdmin ? 'adminPanel' : 'charCreate';
+    render();
   }
-  // Centrer une seule fois au debut
-  if(!mapCenteredOnce){
-    mapCenteredOnce=true;
-    map.setView([lat,lng],17);
+}
+
+function switchAuthMode(mode){ S.authMode = mode; S.authError=''; render(); }
+
+function logout(){
+  S.currentUser = null;
+  S.view = 'auth';
+  render();
+}
+
+// ---------- Character creation ----------
+function selectClass(c){ S.charClass = c; render(); }
+async function confirmCharCreate(){
+  if(!S.charClass){ toast('Choisis une classe.'); return; }
+  const users = await getData('users', {});
+  const u = users[S.currentUser];
+  u.class = S.charClass;
+  await setData('users', users);
+  S.view = 'village';
+  render();
+}
+
+// ---------- Village / navigation ----------
+async function goVillage(){ S.view='village'; render(); }
+
+async function tryNav(target){
+  const season = await getData('season', {started:false});
+  if(!season.started){ toast("La saison n'a pas encore commencé."); return; }
+  const users = await getData('users', {});
+  const u = users[S.currentUser];
+  const dungeon = await getData('dungeon', null);
+  if(dungeon && dungeon.status==='active' && dungeon.participants.includes(S.currentUser) && !dungeon.onBreak){
+    toast('Tu es en plein donjon !'); return;
   }
+  S.view = target;
+  render();
 }
 
-function updatePlayerMarker(p){
-  if(!map||!p.location||p.id===myId) return;
-  var lat=p.location.lat,lng=p.location.lng;
-  var color=p.alive?'#1D9E75':'#e53e3e';
-  if(!playerMarkers[p.id]){
-    var icon=L.divIcon({className:'',html:'<div style="width:12px;height:12px;background:'+color+';border-radius:50%;border:2px solid #fff;"></div>',iconSize:[12,12],iconAnchor:[6,6]});
-    var m=L.marker([lat,lng],{icon:icon}).addTo(map);
-    m.bindTooltip(p.pseudo,{permanent:true,direction:'top',className:'player-marker-label',offset:[0,-8]});
-    playerMarkers[p.id]=m;
-  } else {
-    playerMarkers[p.id].setLatLng([lat,lng]);
-  }
-  if(isAdmin) updateFitBtnVisibility();
-}
-function fitAllPlayers(){
-  if(!map) return;
-  var pts=[];
-  Object.keys(playerMarkers).forEach(function(id){pts.push(playerMarkers[id].getLatLng());});
-  if(myMarker) pts.push(myMarker.getLatLng());
-  if(!pts.length){showNotif('Aucune position de joueur disponible');return;}
-  map.fitBounds(L.latLngBounds(pts),{padding:[50,50],maxZoom:17});
-}
-function updateFitBtnVisibility(){
-  var fb=document.getElementById('fit-all-btn');if(!fb)return;
-  fb.style.display=(currentTab==='map'&&isAdmin)?'block':'none';
-}
-function removePlayerMarker(id){if(playerMarkers[id]){map.removeLayer(playerMarkers[id]);delete playerMarkers[id];}}
+// ---------- Guilds ----------
+async function createGuildOpen(){ S.view='guildCreate'; render(); }
 
-function addPoiMarker(poi){
-  if(!map) return;
-  var icon=L.divIcon({className:'',html:'<div style="width:16px;height:16px;background:'+poi.color+';border-radius:50%;border:2px solid #fff;box-shadow:0 0 6px '+poi.color+'80"></div>',iconSize:[16,16],iconAnchor:[8,8]});
-  var m=L.marker([poi.lat,poi.lng],{icon:icon}).addTo(map);
-  m.bindPopup('<b style="font-size:.85rem">'+esc(poi.label)+'</b>');
-  poiMarkers[poi.id]=m;
-}
-function removePoiMarker(id){if(poiMarkers[id]){map.removeLayer(poiMarkers[id]);delete poiMarkers[id];}}
+async function submitGuildCreate(e){
+  e.preventDefault();
+  const name = document.getElementById('g-name').value.trim();
+  const emblem = document.getElementById('g-emblem').value.trim() || '🛡️';
+  const invA = document.getElementById('g-inv1').value.trim().toLowerCase();
+  const invB = document.getElementById('g-inv2').value.trim().toLowerCase();
+  if(!name || !invA || !invB){ toast('Nom et 2 invitations requis.'); return; }
+  if(invA===S.currentUser || invB===S.currentUser || invA===invB){ toast('Invitations invalides.'); return; }
+  const users = await getData('users', {});
+  if(!users[invA] || !users[invB]){ toast("Un des pseudos invités n'existe pas."); return; }
 
-// ── SPLASH ─────────────────────────────────────
-function joinGame(){
-  var p=(document.getElementById('pseudo-in').value||'').trim();
-  if(!p){document.getElementById('pseudo-in').focus();return;}
-  myPseudo=p;
-  var audio=document.getElementById('audio');
-  audio.src='data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
-  audio.volume=0;
-  var done=function(){audio.pause();audio.volume=1;audio.src='';document.getElementById('splash').classList.add('hidden');connect();};
-  var pr=audio.play();if(pr) pr.then(done).catch(done); else done();
-}
-
-function goAdmin(){
-  isAdmin=true;
-  document.getElementById('screen-waiting').classList.remove('show');
-  document.getElementById('screen-role').classList.remove('show');
-  document.getElementById('screen-dead').classList.remove('show');
-  document.getElementById('app').classList.add('show');
-  var navAdmin=document.getElementById('nav-admin');
-  if(navAdmin) navAdmin.style.display='';
-  // Forcer le switch sans garde isAdmin
-  currentTab='admin';
-  document.querySelectorAll('.view').forEach(function(v){v.classList.remove('on');});
-  document.querySelectorAll('.nav button').forEach(function(b){b.classList.remove('on');});
-  document.getElementById('view-admin').classList.add('on');
-  if(navAdmin) navAdmin.classList.add('on');
-}
-
-function browseApp(){
-  waitingBypassed=true;
-  document.getElementById('screen-waiting').classList.remove('show');
-  switchTab('map');
-}
-
-// ── WS ─────────────────────────────────────────
-function connect(){
-  var proto=location.protocol==='https:'?'wss':'ws';
-  ws=new WebSocket(proto+'://'+location.host);
-  ws.onopen=function(){
-    setBadge(true);
-    ws.send(JSON.stringify({type:'set_pseudo',pseudo:myPseudo}));
-    document.getElementById('app').classList.add('show');
-    // Le bouton admin flottant ne s'affiche QUE pour l'admin (géré dans updatePhaseDisplay)
-    updatePhaseDisplay();
-    setTimeout(initMap,150);
+  const guilds = await getData('guilds', {});
+  const id = 'g_'+Date.now().toString(36);
+  guilds[id] = {
+    id, name, emblem, founder: S.currentUser,
+    reputation: 0,
+    members: [S.currentUser],
+    bank: { gold: 0, items: [] },
+    invitesPending: [invA, invB]
   };
-  ws.onclose=function(){setBadge(false);setTimeout(connect,2000);};
-  ws.onmessage=function(e){handle(JSON.parse(e.data));};
+  await setData('guilds', guilds);
+
+  users[S.currentUser].guildId = id;
+  await setData('users', users);
+
+  const notifs = await getData('notifications', {});
+  [invA, invB].forEach(p=>{
+    notifs[p] = notifs[p] || [];
+    notifs[p].push({type:'guildInvite', guildId:id, guildName:name, from:S.currentUser, ts:Date.now()});
+  });
+  await setData('notifications', notifs);
+
+  toast('Guilde créée !');
+  S.view='guildes';
+  render();
 }
 
-function setBadge(ok){
-  var b=document.getElementById('conn-badge');
-  b.textContent=ok?myPseudo:'Deco';b.className=ok?'':'off';
-}
+async function respondInvite(idx, accept){
+  const notifs = await getData('notifications', {});
+  const mine = notifs[S.currentUser] || [];
+  const invite = mine[idx];
+  if(!invite) return;
+  mine.splice(idx,1);
+  notifs[S.currentUser] = mine;
+  await setData('notifications', notifs);
 
-function handle(msg){
-  switch(msg.type){
-    case 'welcome': myId=msg.id; break;
-    case 'game_state': applyGameState(msg); break;
-    case 'game_reset':
-      myRole=null;myRoleDescription='';myAlive=true;gamePhase='waiting';timerEnded=false;waitingBypassed=false;
-      document.getElementById('my-role-badge').style.display='none';
-      var mc2=document.getElementById('myrole-card');if(mc2)mc2.style.display='none';
-      document.getElementById('timer-display').classList.remove('ended');
-      Object.keys(playerMarkers).forEach(removePlayerMarker);
-      Object.keys(poiMarkers).forEach(removePoiMarker);
-      allPois=[];renderPoiList();updatePhaseDisplay();
-      showNotif('Partie reinitialise');break;
-    case 'timer_update':
-      timerPaused=msg.paused;timerElapsed=msg.elapsed||0;timerEnded=!!msg.timerEnded;
-      timerDuration=msg.duration||timerDuration;
-      if(!msg.paused&&msg.timerStart){timerStart=msg.timerStart;startTimerTick();}
-      if(msg.paused){clearInterval(timerInterval);}
-      if(timerEnded){clearInterval(timerInterval);document.getElementById('timer-display').textContent='00:00';document.getElementById('timer-display').classList.add('ended');}
-      break;
-    case 'your_role':
-      myRole=msg.role;myRoleDescription=msg.description||'';myAlive=msg.alive;
-      showRoleCard(myRole);updateRoleBadge();break;
-    case 'players_update':
-      allPlayers=msg.players||[];
-      renderPlayers(msg.admin);
-      allPlayers.forEach(updatePlayerMarker);
-      updateWaitingScreen();
-      var c2=document.getElementById('admin-conn');if(c2) c2.textContent=allPlayers.length+' joueur(s) connecte(s)';
-      break;
-    case 'player_location':
-      var fp=allPlayers.find(function(p){return p.id===msg.id;});
-      if(fp){fp.location={lat:msg.lat,lng:msg.lng};updatePlayerMarker(fp);}
-      else updatePlayerMarker({id:msg.id,pseudo:msg.pseudo,alive:msg.alive,location:{lat:msg.lat,lng:msg.lng}});
-      break;
-    case 'player_left': removePlayerMarker(msg.id); break;
-    case 'player_eliminated':
-      if(msg.id===myId){myAlive=msg.alive;updatePhaseDisplay();}
-      showNotif(msg.alive?msg.pseudo+' reintegre':msg.pseudo+' elimine');break;
-    case 'pois_update':
-      Object.keys(poiMarkers).forEach(removePoiMarker);
-      allPois=msg.pois||[];allPois.forEach(addPoiMarker);renderPoiList();break;
-    case 'poi_added': allPois.push(msg.poi);addPoiMarker(msg.poi);renderPoiList();break;
-    case 'poi_removed': allPois=allPois.filter(function(p){return p.id!==msg.poiId;});removePoiMarker(msg.poiId);renderPoiList();break;
-    case 'system_notice': showNotif(msg.text);break;
-    case 'role_descriptions_update': roleDescriptions=msg.roleDescriptions||{};renderRoleDescriptions();break;
-    case 'announcement': showAnn(msg.announcement);break;
-    case 'music_sync': applyMusicState(msg.music);break;
-    case 'music_track_changed':
-      var aud=document.getElementById('audio');
-      aud.src=msg.trackUrl;currentTrackUrl=msg.trackUrl;
-      document.getElementById('mm-name').textContent=msg.trackName||'';
-      document.getElementById('music-now').textContent='En cours: '+(msg.trackName||'');
-      document.getElementById('music-mini').classList.add('show');
-      renderTrackList();break;
-    case 'music_play':
-      var aud=document.getElementById('audio');
-      aud.currentTime=msg.currentTime+(Date.now()-msg.serverTime)/1000;
-      aud.play().catch(function(){});startProgTimer();break;
-    case 'music_pause':
-      var aud=document.getElementById('audio');aud.pause();aud.currentTime=msg.currentTime;stopProgTimer();break;
-    case 'music_stop':
-      var aud=document.getElementById('audio');aud.pause();aud.currentTime=0;setMusicProg(0,0);stopProgTimer();break;
-    case 'music_seek':
-      var aud=document.getElementById('audio');var lag=msg.status==='playing'?(Date.now()-msg.serverTime)/1000:0;
-      aud.currentTime=msg.currentTime+lag;if(msg.status!=='playing')aud.pause();break;
-    case 'music_volume': document.getElementById('audio').volume=msg.volume;break;
-    case 'music_loop': document.getElementById('audio').loop=msg.loop;break;
-    case 'music_playlist': currentPlaylist=msg.playlist||[];currentPlIdx=msg.index||0;renderCurrentPlaylist();break;
-    case 'error': document.getElementById('admin-err').textContent=msg.message;break;
-  }
-}
-
-// ── GAME STATE ─────────────────────────────────
-function applyGameState(s){
-  gamePhase=s.phase;timerStart=s.timerStart;timerDuration=s.timerDuration||3600;
-  timerPaused=s.timerPaused;timerElapsed=s.timerElapsed||0;timerEnded=!!s.timerEnded;
-  updatePhaseDisplay();
-  if(s.phase==='playing'&&!timerPaused&&!timerEnded) startTimerTick();
-  if(timerEnded){clearInterval(timerInterval);document.getElementById('timer-display').textContent='00:00';document.getElementById('timer-display').classList.add('ended');}
-}
-
-function updatePhaseDisplay(){
-  var labels={waiting:'Attente',roles:'Attribution roles',playing:'En cours',ended:'Termine'};
-  document.getElementById('phase-badge').textContent=labels[gamePhase]||gamePhase;
-  var block=!isAdmin;
-
-  // Ecran attente
-  document.getElementById('screen-waiting').classList.toggle('show',block&&gamePhase==='waiting'&&!waitingBypassed);
-  // Ecran role : joueurs voient leur carte, mais la nav est bloquée (z-index de screen-role couvre tout)
-  document.getElementById('screen-role').classList.toggle('show',block&&gamePhase==='roles'&&!!myRole);
-  // Ecran mort
-  document.getElementById('screen-dead').classList.toggle('show',block&&!myAlive&&gamePhase==='playing');
-  // Retirer ecrans si partie lancee
-  if(gamePhase==='playing'||gamePhase==='ended'){
-    document.getElementById('screen-waiting').classList.remove('show');
-    document.getElementById('screen-role').classList.remove('show');
-  }
-  if(gamePhase==='waiting'){clearInterval(timerInterval);document.getElementById('timer-display').textContent='--:--';document.getElementById('timer-display').classList.remove('ended');}
-
-  // Bouton flottant admin : visible SEULEMENT pour l'admin
-  var fab=document.getElementById('floating-admin-btn');
-  if(fab){
-    if(isAdmin) fab.classList.add('show');
-    else fab.classList.remove('show');
-  }
-  // Onglet admin dans la nav : visible SEULEMENT pour l'admin
-  var navAdmin=document.getElementById('nav-admin');
-  if(navAdmin) navAdmin.style.display=isAdmin?'':'none';
-}
-
-function setPhase(phase){
-  if(phase==='playing'){var dur=parseInt(document.getElementById('timer-dur').value)||60;wsSend({type:'set_timer',duration:dur*60});}
-  wsSend({type:'set_phase',phase:phase});
-}
-function setTimerDuration(){var dur=parseInt(document.getElementById('timer-dur').value)||60;wsSend({type:'set_timer',duration:dur*60});}
-
-function startTimerTick(){
-  clearInterval(timerInterval);
-  timerInterval=setInterval(function(){
-    if(timerPaused||!timerStart||timerEnded){clearInterval(timerInterval);return;}
-    var elapsed=timerElapsed+(Date.now()-timerStart);
-    var remaining=Math.max(0,(timerDuration*1000)-elapsed);
-    var s=Math.floor(remaining/1000),m=Math.floor(s/60);s=s%60;
-    document.getElementById('timer-display').textContent=(m<10?'0':'')+m+':'+(s<10?'0':'')+s;
-    if(remaining===0){
-      clearInterval(timerInterval);timerEnded=true;
-      document.getElementById('timer-display').textContent='00:00';
-      document.getElementById('timer-display').classList.add('ended');
+  const guilds = await getData('guilds', {});
+  const g = guilds[invite.guildId];
+  if(g){
+    g.invitesPending = (g.invitesPending||[]).filter(p=>p!==S.currentUser);
+    if(accept){
+      if(!g.members.includes(S.currentUser)) g.members.push(S.currentUser);
+      const users = await getData('users', {});
+      users[S.currentUser].guildId = g.id;
+      await setData('users', users);
+      toast(`Tu as rejoint la guilde ${g.name} !`);
+    } else {
+      toast('Invitation refusée.');
     }
-  },500);
-}
-
-// ── ROLE ───────────────────────────────────────
-function showRoleCard(role){
-  document.getElementById('role-icon').textContent='🎭';
-  document.getElementById('role-name').textContent=role;
-  document.getElementById('role-desc').textContent=myRoleDescription||'Aucune description fournie par l\'admin.';
-  // Partir du dos, révéler le rôle après 800ms
-  var inner=document.getElementById('card-flip-inner');
-  if(inner){inner.classList.add('flipped');setTimeout(function(){inner.classList.remove('flipped');},800);}
-  if(gamePhase==='roles'&&!isAdmin) document.getElementById('screen-role').classList.add('show');
-}
-
-function toggleFlipCard(){
-  var inner=document.getElementById('card-flip-inner');
-  if(inner) inner.classList.toggle('flipped');
-}
-
-// ── GPS TEST & STATUS ──────────────────────────
-function testGps(){
-  var result=document.getElementById('loc-test-result');
-  if(result) result.textContent='Localisation en cours...';
-  if(!navigator.geolocation){setGpsStatus('err','Non supporté par ce navigateur');if(result)result.textContent='Non supporté.';return;}
-  navigator.geolocation.getCurrentPosition(function(pos){
-    var lat=pos.coords.latitude.toFixed(5),lng=pos.coords.longitude.toFixed(5),acc=Math.round(pos.coords.accuracy);
-    setGpsStatus('ok','GPS actif — précision ~'+acc+'m');
-    if(result) result.textContent='Position ok : '+lat+', '+lng+' (±'+acc+'m)';
-  },function(err){
-    var msgs={1:'Accès refusé — activez la localisation',2:'Position indisponible',3:'Délai dépassé'};
-    setGpsStatus('err',msgs[err.code]||'Erreur');
-    if(result) result.textContent='Erreur : '+(msgs[err.code]||'inconnue');
-  },{enableHighAccuracy:true,timeout:10000});
-}
-
-function setGpsStatus(status,text){
-  ['waiting','role'].forEach(function(s){
-    var dot=document.getElementById('gps-dot-'+s);var lbl=document.getElementById('gps-status-'+s);
-    if(dot)dot.className='gps-dot '+status;if(lbl)lbl.textContent=text;
-  });
-}
-
-function checkGpsStatus(){
-  if(!navigator.geolocation){setGpsStatus('err','GPS non supporté');return;}
-  navigator.geolocation.getCurrentPosition(
-    function(p){setGpsStatus('ok','GPS actif — précision ~'+Math.round(p.coords.accuracy)+'m');},
-    function(e){if(e.code===1)setGpsStatus('err','Accès refusé — activez la localisation');else setGpsStatus('warn','En attente du GPS...');},
-    {enableHighAccuracy:false,timeout:5000}
-  );
-}
-setTimeout(checkGpsStatus,1500);
-function updateRoleBadge(){
-  if(!myRole) return;
-  var b=document.getElementById('my-role-badge');
-  b.textContent='🎭 Revoir mon rôle';b.style.display='inline-flex';b.style.cursor='pointer';b.onclick=showMyRoleModal;
-  var mc=document.getElementById('myrole-card');if(mc)mc.style.display='block';
-}
-function showMyRoleModal(){
-  if(!myRole) return;
-  document.getElementById('myrole-name').textContent=myRole;
-  document.getElementById('myrole-desc').textContent=myRoleDescription||'Aucune description fournie par l\'admin.';
-  openModal('modal-myrole');
-}
-
-function updateWaitingScreen(){
-  var list=document.getElementById('wait-players-list');if(!list)return;
-  list.innerHTML='';
-  allPlayers.filter(function(p){return p.pseudo;}).forEach(function(p){
-    var div=document.createElement('div');div.className='wait-player-item';div.textContent=p.pseudo+(p.id===myId?' (vous)':'');list.appendChild(div);
-  });
-}
-
-// ── PLAYERS ────────────────────────────────────
-function renderPlayers(adminView){
-  var list=document.getElementById('players-list');
-  var alist=document.getElementById('admin-players-list');
-  if(list){
-    list.innerHTML='';
-    allPlayers.filter(function(p){return p.pseudo;}).forEach(function(p){
-      var div=document.createElement('div');div.className='player-row';
-      var left=document.createElement('div');left.className='pr-left';
-      var name=document.createElement('span');name.className='pr-name';name.textContent=p.pseudo+(p.id===myId?' (vous)':'');left.appendChild(name);
-      if(p.role){var rb=document.createElement('span');rb.className='pr-role';rb.textContent=p.role;left.appendChild(rb);}
-      if(!p.alive){var d=document.createElement('span');d.className='pr-dead';d.textContent='💀';left.appendChild(d);}
-      div.appendChild(left);
-      list.appendChild(div);
-    });
+    await setData('guilds', guilds);
   }
-  if(alist&&adminView){
-    alist.innerHTML='';
-    allPlayers.filter(function(p){return p.pseudo;}).forEach(function(p){
-      var div=document.createElement('div');div.className='player-row';
-      var left=document.createElement('div');left.className='pr-left';
-      var name=document.createElement('span');name.className='pr-name';name.textContent=p.pseudo;left.appendChild(name);
-      if(p.role){var rb=document.createElement('span');rb.className='pr-role';rb.textContent=p.role;left.appendChild(rb);}
-      if(!p.alive){var dd=document.createElement('span');dd.className='pr-dead';dd.textContent='💀';left.appendChild(dd);}
-      div.appendChild(left);
-      var brow=document.createElement('div');brow.style.cssText='display:flex;gap:.25rem;align-items:center';
-      // Boutons éliminer/réintégrer
-      var belim=document.createElement('button');belim.className=p.alive?'btn b-red':'btn b-t';belim.style.cssText='font-size:.68rem;padding:.22rem .55rem';belim.textContent=p.alive?'💀':'♻️';
-      belim.onclick=(function(pid,alive){return function(){wsSend({type:'eliminate',playerId:pid,alive:!alive});};})(p.id,p.alive);
-      brow.appendChild(belim);div.appendChild(brow);
-      // Boutons de rôles disponibles
-      var roleKeys=Object.keys(roleDescriptions);
-      if(roleKeys.length>0){
-        var rbtns=document.createElement('div');rbtns.className='role-assign-btns';
-        roleKeys.forEach(function(r){
-          var rb=document.createElement('button');rb.className='role-assign-btn'+(p.role===r?' assigned':'');rb.textContent=r;
-          rb.onclick=(function(pid,role){return function(){wsSend({type:'assign_role',playerId:pid,role:role});showNotif(role+' attribue !');};})(p.id,r);
-          rbtns.appendChild(rb);
-        });
-        // Bouton "Aucun rôle" pour retirer
-        var rnone=document.createElement('button');rnone.className='role-assign-btn'+((!p.role)?' assigned':'');rnone.textContent='— Aucun';rnone.style.borderColor='var(--coral)';rnone.style.color='var(--coral)';
-        rnone.onclick=(function(pid){return function(){wsSend({type:'assign_role',playerId:pid,role:''});};})(p.id);
-        rbtns.appendChild(rnone);
-        div.appendChild(rbtns);
-      } else {
-        // Fallback: input libre si aucun rôle créé
-        var inp2=document.createElement('input');inp2.className='fin';inp2.style.cssText='width:100%;font-size:.75rem;margin-top:.3rem';inp2.placeholder='Rôle libre...';if(p.role)inp2.value=p.role;
-        inp2.onkeydown=function(e){if(e.key==='Enter'&&inp2.value.trim())wsSend({type:'assign_role',playerId:p.id,role:inp2.value.trim()});};
-        div.appendChild(inp2);
-      }
-      alist.appendChild(div);
-    });
+  render();
+}
+
+async function guildBankDeposit(){
+  const amtEl = document.getElementById('bank-gold-amt');
+  const amt = parseInt(amtEl.value,10);
+  if(!amt || amt<=0){ toast('Montant invalide.'); return; }
+  const users = await getData('users', {});
+  const u = users[S.currentUser];
+  if(u.gold < amt){ toast("Pas assez d'or."); return; }
+  const guilds = await getData('guilds', {});
+  const g = guilds[u.guildId];
+  u.gold -= amt;
+  g.bank.gold += amt;
+  await setData('users', users);
+  await setData('guilds', guilds);
+  toast(`${amt} or déposés à la banque.`);
+  render();
+}
+async function guildBankWithdraw(){
+  const amtEl = document.getElementById('bank-gold-amt-w');
+  const amt = parseInt(amtEl.value,10);
+  if(!amt || amt<=0){ toast('Montant invalide.'); return; }
+  const users = await getData('users', {});
+  const u = users[S.currentUser];
+  const guilds = await getData('guilds', {});
+  const g = guilds[u.guildId];
+  if(g.bank.gold < amt){ toast('Fonds insuffisants dans la banque.'); return; }
+  g.bank.gold -= amt;
+  u.gold += amt;
+  await setData('users', users);
+  await setData('guilds', guilds);
+  toast(`${amt} or retirés de la banque.`);
+  render();
+}
+async function guildBankDepositItem(){
+  const el = document.getElementById('bank-item-name');
+  const name = el.value.trim();
+  if(!name) return;
+  const users = await getData('users', {});
+  const u = users[S.currentUser];
+  const idx = u.items.indexOf(name);
+  if(idx===-1){ toast("Tu ne possèdes pas cet objet."); return; }
+  u.items.splice(idx,1);
+  const guilds = await getData('guilds', {});
+  const g = guilds[u.guildId];
+  g.bank.items.push(name);
+  await setData('users', users);
+  await setData('guilds', guilds);
+  toast(`${name} déposé à la banque.`);
+  render();
+}
+async function guildBankWithdrawItem(name){
+  const guilds = await getData('guilds', {});
+  const users = await getData('users', {});
+  const u = users[S.currentUser];
+  const g = guilds[u.guildId];
+  const idx = g.bank.items.indexOf(name);
+  if(idx===-1) return;
+  g.bank.items.splice(idx,1);
+  u.items.push(name);
+  await setData('guilds', guilds);
+  await setData('users', users);
+  toast(`${name} récupéré.`);
+  render();
+}
+
+// ---------- Dungeons ----------
+async function launchDungeon(key){
+  const dungeon = await getData('dungeon', null);
+  if(dungeon && dungeon.status==='active'){ toast('Un donjon est déjà en cours dans le monde.'); return; }
+  const users = await getData('users', {});
+  const u = users[S.currentUser];
+  let participants = [S.currentUser];
+  let guildId = u.guildId || null;
+  if(guildId){
+    const guilds = await getData('guilds', {});
+    const g = guilds[guildId];
+    if(g) participants = g.members.slice();
   }
+  const cfg = DUNGEONS[key];
+  const newDungeon = {
+    type:key, totalTiers:cfg.tiers, currentTier:1, tiersCompleted:0,
+    tierStart: Date.now(), onBreak:false, breakEnd:0,
+    participants, guildId, status:'active',
+    rewardsClaimed:[], repAdded:false
+  };
+  await setData('dungeon', newDungeon);
+  toast(`${cfg.name} commence !`);
+  S.view='dungeonPlay';
+  render();
 }
 
-
-// ── DESCRIPTIONS DE ROLES ──────────────────────
-function saveRoleDescription(){
-  var role=document.getElementById('rd-role').value.trim();
-  var desc=document.getElementById('rd-desc').value.trim();
-  if(!role)return;
-  wsSend({type:'set_role_description',role:role,description:desc});
-  showNotif('Description enregistree pour "'+role+'"');
+// admin controls
+async function adminStartSeason(){
+  await setData('season', {started:true});
+  toast('Saison lancée !');
+  render();
 }
-function editRoleDescription(role,desc){
-  document.getElementById('rd-role').value=role;
-  document.getElementById('rd-desc').value=desc;
-}
-function renderRoleQuickBtns(){
-  var el=document.getElementById('role-quick-btns');if(!el)return;
-  renderRoleQuickBtns();
-  var roles=Object.keys(roleDescriptions);
-  if(!roles.length){
-    el.innerHTML='<span style="font-size:.72rem;color:var(--muted);font-style:italic">Crée des rôles dans "Descriptions des rôles" ci-dessous</span>';
-    return;
-  }
-  el.innerHTML='';
-  roles.forEach(function(r){
-    var btn=document.createElement('button');btn.className='role-quick-btn';btn.textContent=r;
-    btn.onclick=function(){addAutoTag(r);};
-    el.appendChild(btn);
-  });
+async function adminEndSeason(){
+  await setData('season', {started:false});
+  toast('Saison arrêtée.');
+  render();
 }
 
-var autoRoleTags=[];
-function addAutoTag(role){
-  autoRoleTags.push(role);renderAutoTags();
-}
-function removeAutoTag(idx){autoRoleTags.splice(idx,1);renderAutoTags();}
-function clearAutoTags(){autoRoleTags=[];renderAutoTags();}
-function renderAutoTags(){
-  var el=document.getElementById('auto-role-tags');if(!el)return;
-  el.innerHTML='';
-  autoRoleTags.forEach(function(r,i){
-    var tag=document.createElement('span');tag.className='auto-role-tag';
-    tag.innerHTML=r+' ';
-    var rm=document.createElement('button');rm.textContent='×';rm.onclick=(function(ii){return function(){removeAutoTag(ii);};})(i);
-    tag.appendChild(rm);el.appendChild(tag);
-  });
-}
-function autoAssignFromTags(){
-  if(!autoRoleTags.length){showNotif('Ajoute des roles d\'abord !');return;}
-  wsSend({type:'auto_assign_roles',roles:autoRoleTags.slice()});
-  showNotif('Roles assignes aleatoirement !');
-}
-
-function renderRoleDescriptions(){
-  var el=document.getElementById('role-desc-list');if(!el)return;
-  var roles=Object.keys(roleDescriptions);
-  if(!roles.length){el.innerHTML='<p style="font-size:.76rem;color:var(--muted)">Aucun rôle défini pour l\'instant</p>';return;}
-  el.innerHTML='';
-  roles.forEach(function(role){
-    var div=document.createElement('div');div.className='rd-item';
-    var rname=document.createElement('div');rname.className='rd-role';rname.textContent=role;
-    var rtext=document.createElement('div');rtext.className='rd-text';rtext.textContent=roleDescriptions[role]||'(vide)';
-    var brow2=document.createElement('div');brow2.style.cssText='display:flex;gap:.3rem;margin-top:.3rem';
-    var bedit=document.createElement('button');bedit.className='btn b-g';bedit.style.cssText='font-size:.68rem;padding:.22rem .55rem';bedit.textContent='Modifier';
-    bedit.onclick=(function(r,d){return function(){editRoleDescription(r,d);};})(role,roleDescriptions[role]||'');
-    var bdel=document.createElement('button');bdel.className='btn b-red';bdel.style.cssText='font-size:.68rem;padding:.22rem .55rem';bdel.textContent='Supprimer';
-    bdel.onclick=(function(r){return function(){if(confirm('Supprimer le rôle "'+r+'" ?')){delete roleDescriptions[r];wsSend({type:'save_role_descriptions',roleDescriptions:roleDescriptions});showNotif(r+' supprimé');}};})(role);
-    brow2.appendChild(bedit);brow2.appendChild(bdel);
-    div.appendChild(rname);div.appendChild(rtext);div.appendChild(brow2);el.appendChild(div);
-  });
-}
-
-// ── MESSAGES PRIVÉS ────────────────────────────
-// (MP retire)
-
-// ── ANNONCES ───────────────────────────────────
-function showAnn(ann){document.getElementById('ann-text').textContent=ann.text;document.getElementById('ann-overlay').classList.add('show');}
-function closeAnn(){document.getElementById('ann-overlay').classList.remove('show');}
-function sendAnnounce(){var txt=document.getElementById('ann-msg').value.trim();if(!txt)return;var target=document.getElementById('ann-target').value.trim()||'all';wsSend({type:'announce',text:txt,targetRoles:[target]});document.getElementById('ann-msg').value='';document.getElementById('ann-target').value='';closeModal('modal-announce');showNotif('Annonce envoyee !');}
-
-// ── POI ────────────────────────────────────────
-function highlightColor(btn){document.querySelectorAll('#poi-color-btns .btn').forEach(function(b){b.style.outline='none';});btn.style.outline='2px solid #fff';}
-function confirmAddPoi(){
-  if(!pendingPoi)return;
-  var label=document.getElementById('poi-label').value.trim()||'Point';
-  var vis=document.getElementById('poi-visible').value.trim()||'all';
-  var visibleTo=vis==='all'?['all']:vis.split(',').map(function(r){return r.trim();}).filter(Boolean);
-  if(!visibleTo.length)visibleTo=['all'];
-  wsSend({type:'add_poi',lat:pendingPoi.lat,lng:pendingPoi.lng,label:label,color:poiColor,visibleTo:visibleTo});
-  document.getElementById('poi-label').value='';document.getElementById('poi-visible').value='';closeModal('modal-poi');pendingPoi=null;showNotif('Point ajoute !');
-}
-function renderPoiList(){
-  var el=document.getElementById('poi-list');if(!el)return;
-  el.innerHTML='';
-  if(!allPois.length){el.innerHTML='<p style="font-size:.74rem;color:var(--muted)">Aucun point. Clique sur la carte.</p>';return;}
-  allPois.forEach(function(poi){
-    var div=document.createElement('div');div.className='poi-item';
-    var dot=document.createElement('div');dot.className='poi-dot';dot.style.background=poi.color;
-    var lbl=document.createElement('span');lbl.className='poi-lbl';lbl.textContent=poi.label+' ('+poi.visibleTo.join(',')+')';
-    var btn=document.createElement('button');btn.className='btn b-c';btn.style.cssText='font-size:.7rem;padding:.2rem .48rem';btn.textContent='X';
-    btn.onclick=(function(id){return function(){wsSend({type:'remove_poi',poiId:id});};})(poi.id);
-    div.appendChild(dot);div.appendChild(lbl);div.appendChild(btn);el.appendChild(div);
-  });
-}
-
-// ── MUSIQUE ────────────────────────────────────
-var aud=document.getElementById('audio');
-aud.onloadedmetadata=function(){document.getElementById('mm-tt').textContent=fmt(aud.duration);};
-aud.addEventListener('ended',function(){if(!aud.loop&&currentPlaylist.length>1)wsSend({type:'music_next'});});
-
-function applyMusicState(m){
-  if(!m)return;
-  if(m.trackUrl){aud.src=m.trackUrl;currentTrackUrl=m.trackUrl;document.getElementById('mm-name').textContent=m.trackName||'';document.getElementById('music-now').textContent='En cours: '+(m.trackName||'');document.getElementById('music-mini').classList.add('show');}
-  aud.volume=m.volume||0.8;aud.loop=!!m.loop;
-  var lt=document.getElementById('loop-tog');if(lt)lt.checked=!!m.loop;
-  if(m.playlist){currentPlaylist=m.playlist;currentPlIdx=m.playlistIndex||0;renderCurrentPlaylist();}
-  if(m.status==='playing'){var lag=(Date.now()-(m.startedAt||Date.now()))/1000;aud.currentTime=(m.currentTime||0)+lag;aud.play().catch(function(){});startProgTimer();}
-  else if(m.status==='paused'){aud.currentTime=m.currentTime||0;}
-}
-function musicPlay(){wsSend({type:'music_play',currentTime:aud.currentTime});}
-function stopMusic(){wsSend({type:'music_stop'});}
-function startProgTimer(){stopProgTimer();progTimer=setInterval(function(){if(!isNaN(aud.duration))setMusicProg(aud.currentTime,aud.duration);},500);}
-function stopProgTimer(){clearInterval(progTimer);}
-function setMusicProg(c,t){var p=t?(c/t)*100:0;document.getElementById('music-prog').style.width=p+'%';document.getElementById('mm-tc').textContent=fmt(c);document.getElementById('mm-tt').textContent=fmt(t);}
-function fmt(s){s=Math.floor(s||0);return Math.floor(s/60)+':'+(s%60<10?'0':'')+s%60;}
-
-// ── TRACKS ─────────────────────────────────────
-function loadTracks(){fetch('/api/tracks').then(function(r){return r.json();}).then(function(t){allTracks=t;renderTrackList();});}
-function renderTrackList(){
-  var el=document.getElementById('track-list');if(!el)return;
-  el.innerHTML='';
-  if(!allTracks.length){el.innerHTML='<p style="font-size:.76rem;color:var(--muted)">Aucune piste</p>';return;}
-  allTracks.forEach(function(t){
-    var div=document.createElement('div');div.className='track-item'+(currentTrackUrl===t.url?' active-track':'');
-    var info=document.createElement('div');info.className='ti-info';
-    var str=document.createElement('strong');str.title=t.name;str.textContent=t.name;
-    var sz=document.createElement('span');sz.textContent=(t.size/1024/1024).toFixed(1)+' Mo';
-    info.appendChild(str);info.appendChild(sz);div.appendChild(info);
-    var tb=document.createElement('div');tb.className='ti-btns';
-    var bp=document.createElement('button');bp.className='t-play';bp.textContent='Jouer';
-    bp.onclick=(function(u,n){return function(){wsSend({type:'music_set_track',trackUrl:u,trackName:n});currentTrackUrl=u;document.getElementById('music-now').textContent='En cours: '+n;renderTrackList();};})(t.url,t.name);
-    var bpl=document.createElement('button');bpl.className='t-pl';bpl.textContent='+PL';
-    bpl.onclick=(function(tr){return function(){addToPlaylist(tr);};})(t);
-    if(currentTrackUrl===t.url){var bstop=document.createElement('button');bstop.className='t-play';bstop.style.background='var(--cbg)';bstop.style.color='var(--coral)';bstop.textContent='⏹';bstop.onclick=stopMusic;tb.appendChild(bstop);}
-    var bren=document.createElement('button');bren.className='t-ren';bren.textContent='Ren.';
-    bren.onclick=(function(fn,n){return function(){openRenameTrack(fn,n);};})(t.filename,t.name);
-    var bdel=document.createElement('button');bdel.className='t-del';bdel.textContent='X';
-    bdel.onclick=(function(fn){return function(){if(confirm('Supprimer ?'))fetch('/api/tracks/'+encodeURIComponent(fn),{method:'DELETE',headers:{'x-admin-password':adminPwd}}).then(function(){loadTracks();});};})(t.filename);
-    tb.appendChild(bp);tb.appendChild(bpl);tb.appendChild(bren);tb.appendChild(bdel);div.appendChild(tb);el.appendChild(div);
-  });
-}
-
-// ── RENOMMER PISTE ─────────────────────────────
-function openRenameTrack(fn,name){renameTrackTarget=fn;document.getElementById('rename-track-input').value=name;openModal('modal-rename-track');setTimeout(function(){document.getElementById('rename-track-input').select();},100);}
-function doRenameTrack(){
-  var newName=document.getElementById('rename-track-input').value.trim();if(!newName||!renameTrackTarget)return;
-  fetch('/api/tracks/'+encodeURIComponent(renameTrackTarget)+'/rename',{method:'POST',headers:{'Content-Type':'application/json','x-admin-password':adminPwd},body:JSON.stringify({name:newName})})
-    .then(function(){closeModal('modal-rename-track');loadTracks();showNotif('Piste renommee !');});
-}
-
-// ── PLAYLIST COURANTE ──────────────────────────
-function addToPlaylist(track){currentPlaylist.push({url:track.url,name:track.name,filename:track.filename});wsSend({type:'music_set_playlist',playlist:currentPlaylist,index:currentPlIdx});showNotif(track.name+' ajoute a la playlist');}
-function clearPlaylist(){currentPlaylist=[];currentPlIdx=0;wsSend({type:'music_set_playlist',playlist:[],index:0});}
-function playPlaylist(){if(!currentPlaylist.length){showNotif('Playlist vide !');return;}wsSend({type:'music_goto',index:0});}
-function renderCurrentPlaylist(){
-  var el=document.getElementById('pl-current');if(!el)return;
-  if(!currentPlaylist.length){el.innerHTML='<p style="font-size:.76rem;color:var(--muted)">Vide</p>';return;}
-  el.innerHTML='';
-  currentPlaylist.forEach(function(t,i){
-    var div=document.createElement('div');div.className='pl-item'+(i===currentPlIdx?' pl-active':'');
-    var idx=document.createElement('span');idx.className='pl-idx';idx.textContent=(i+1)+'.';
-    var name=document.createElement('span');name.className='pl-name';name.textContent=t.name;
-    var bg=document.createElement('button');bg.className='pl-goto';bg.textContent='▶';bg.title='Jouer';bg.onclick=(function(ii){return function(){wsSend({type:'music_goto',index:ii});};})(i);
-    var rm=document.createElement('button');rm.className='pl-rm';rm.textContent='x';rm.onclick=(function(ii){return function(){currentPlaylist.splice(ii,1);wsSend({type:'music_set_playlist',playlist:currentPlaylist,index:Math.min(currentPlIdx,currentPlaylist.length-1)});};})(i);
-    div.appendChild(idx);div.appendChild(name);div.appendChild(bg);div.appendChild(rm);el.appendChild(div);
-  });
-}
-
-// ── PLAYLISTS SAUVEGARDEES ─────────────────────
-function loadSavedPlaylists(){fetch('/api/playlists').then(function(r){return r.json();}).then(renderSavedPlaylists);}
-function renderSavedPlaylists(pls){
-  var el=document.getElementById('saved-playlists');if(!el)return;
-  if(!pls||!pls.length){el.innerHTML='<p style="font-size:.76rem;color:var(--muted)">Aucune playlist sauvegardee</p>';return;}
-  el.innerHTML='';
-  pls.forEach(function(pl){
-    var div=document.createElement('div');div.className='spl-item';
-    var name=document.createElement('span');name.className='spl-name';name.textContent=pl.name;
-    var count=document.createElement('span');count.className='spl-count';count.textContent=(pl.tracks||[]).length+' piste(s)';
-    var brow=document.createElement('div');brow.style.cssText='display:flex;gap:.3rem';
-    var bload=document.createElement('button');bload.className='btn b-t';bload.style.cssText='font-size:.7rem;padding:.2rem .5rem';bload.textContent='Charger';
-    bload.onclick=(function(p){return function(){currentPlaylist=(p.tracks||[]).slice();currentPlIdx=0;wsSend({type:'music_set_playlist',playlist:currentPlaylist,index:0});showNotif('"'+p.name+'" chargee !');};})(pl);
-    var bren=document.createElement('button');bren.className='btn b-g';bren.style.cssText='font-size:.7rem;padding:.2rem .5rem';bren.textContent='Ren.';
-    bren.onclick=(function(n){return function(){renamePlTarget=n;document.getElementById('rename-pl-input').value=n;openModal('modal-rename-pl');setTimeout(function(){document.getElementById('rename-pl-input').select();},100);};})(pl.name);
-    var bdel=document.createElement('button');bdel.className='btn b-c';bdel.style.cssText='font-size:.7rem;padding:.2rem .5rem';bdel.textContent='X';
-    bdel.onclick=(function(n){return function(){if(confirm('Supprimer "'+n+'" ?'))fetch('/api/playlists/'+encodeURIComponent(n),{method:'DELETE',headers:{'x-admin-password':adminPwd}}).then(function(){loadSavedPlaylists();});};})(pl.name);
-    brow.appendChild(bload);brow.appendChild(bren);brow.appendChild(bdel);
-    div.appendChild(name);div.appendChild(count);div.appendChild(brow);el.appendChild(div);
-  });
-}
-function doSavePlaylist(){
-  var name=document.getElementById('save-pl-input').value.trim();if(!name)return;
-  fetch('/api/playlists',{method:'POST',headers:{'Content-Type':'application/json','x-admin-password':adminPwd},body:JSON.stringify({name:name,tracks:currentPlaylist})})
-    .then(function(){closeModal('modal-save-pl');document.getElementById('save-pl-input').value='';loadSavedPlaylists();showNotif('Playlist sauvegardee !');});
-}
-function doRenamePl(){
-  var newName=document.getElementById('rename-pl-input').value.trim();if(!newName||!renamePlTarget)return;
-  fetch('/api/playlists/rename',{method:'POST',headers:{'Content-Type':'application/json','x-admin-password':adminPwd},body:JSON.stringify({oldName:renamePlTarget,newName:newName})})
-    .then(function(){closeModal('modal-rename-pl');loadSavedPlaylists();showNotif('Playlist renommee !');});
-}
-
-// ── UPLOAD ─────────────────────────────────────
-function dzEv(e,on){e.preventDefault();document.getElementById('dropzone').className=on?'drag':'';}
-function dzDrop(e){e.preventDefault();document.getElementById('dropzone').className='';var f=e.dataTransfer.files[0];if(f)uploadTrack(f);}
-function uploadTrack(file){
-  if(!file)return;document.getElementById('up-err').textContent='';
-  document.getElementById('up-prog').style.display='block';document.getElementById('upbar').style.width='0%';
-  var fd=new FormData();fd.append('track',file);
-  var xhr=new XMLHttpRequest();xhr.open('POST','/api/upload');xhr.setRequestHeader('x-admin-password',adminPwd);
-  xhr.upload.onprogress=function(e){if(e.lengthComputable){var p=Math.round(e.loaded/e.total*100);document.getElementById('upbar').style.width=p+'%';document.getElementById('up-lbl').textContent='Upload '+p+'%';}};
-  xhr.onload=function(){document.getElementById('up-prog').style.display='none';if(xhr.status===200){loadTracks();showNotif('Upload reussi !');}else{var d=JSON.parse(xhr.responseText);document.getElementById('up-err').textContent=d.error||'Erreur';}};
-  xhr.send(fd);
-}
-
-// ── ADMIN ──────────────────────────────────────
-function unlockAdmin(){
-  var p=document.getElementById('admin-pass').value;if(!p){document.getElementById('admin-err').textContent='Requis';return;}
-  adminPwd=p;isAdmin=true;
-  wsSend({type:'music_volume',volume:parseFloat(document.getElementById('vol-sl').value)});
-  document.getElementById('admin-err').textContent='';
-  setTimeout(function(){
-    if(document.getElementById('admin-err').textContent)return;
-    document.getElementById('admin-gate').style.display='none';
-    document.getElementById('admin-panel').style.display='flex';
-    updateFitBtnVisibility();
-    // Montrer l'onglet admin dans la nav
-    var navAdmin=document.getElementById('nav-admin');
-    if(navAdmin) navAdmin.style.display='';
-    updatePhaseDisplay();loadTracks();loadSavedPlaylists();
-    switchTab('admin');
-    // Demander la liste admin
-    wsSend({type:'auto_assign_roles',roles:[]});// trick pour rafraichir la liste
-  },350);
-}
-function wsSend(obj){if(ws&&ws.readyState===1)ws.send(JSON.stringify(Object.assign({},obj,{password:adminPwd})));}
-
-// ── PM ─────────────────────────────────────────
-
-
-// ── UTILS ──────────────────────────────────────
-function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-
-// ── ACCÈS ADMIN SECRET (appui long sur logo) ──
-var logoHoldTimer=null;
-document.addEventListener('DOMContentLoaded',function(){
-  var logo=document.getElementById('hdr-logo');
-  if(!logo) return;
-  function startHold(){ logoHoldTimer=setTimeout(function(){ openModal('modal-admin-login'); document.getElementById('admin-login-pass').value=''; document.getElementById('admin-login-err').textContent=''; setTimeout(function(){document.getElementById('admin-login-pass').focus();},100); },800); }
-  function cancelHold(){ clearTimeout(logoHoldTimer); }
-  logo.addEventListener('mousedown',startHold);
-  logo.addEventListener('touchstart',startHold,{passive:true});
-  logo.addEventListener('mouseup',cancelHold);
-  logo.addEventListener('mouseleave',cancelHold);
-  logo.addEventListener('touchend',cancelHold);
-});
-
-function tryAdminLogin(){
-  var p=document.getElementById('admin-login-pass').value;
-  if(!p) return;
-  // Tester le mdp via WebSocket
-  adminPwd=p;
-  wsSend({type:'music_volume',volume:0.8});
-  document.getElementById('admin-login-err').textContent='';
-  setTimeout(function(){
-    if(document.getElementById('admin-login-err').textContent){
-      adminPwd='';return;
+async function adminAdvanceTier(){
+  const dungeon = await getData('dungeon', null);
+  if(!dungeon || dungeon.status!=='active') return;
+  const cfg = DUNGEONS[dungeon.type];
+  dungeon.tiersCompleted = Math.min(dungeon.tiersCompleted+1, dungeon.totalTiers);
+  if(dungeon.tiersCompleted >= dungeon.totalTiers){
+    dungeon.currentTier = dungeon.totalTiers;
+  } else {
+    dungeon.currentTier = dungeon.tiersCompleted+1;
+    dungeon.tierStart = Date.now();
+    if(dungeon.tiersCompleted % 2 === 0){
+      dungeon.onBreak = true;
+      dungeon.breakEnd = Date.now()+BREAK_MS;
     }
-    isAdmin=true;
-    closeModal('modal-admin-login');
-    var navAdmin=document.getElementById('nav-admin');
-    if(navAdmin) navAdmin.style.display='';
-    var fab=document.getElementById('floating-admin-btn');
-    if(fab) fab.classList.add('show');
-    // Retirer les écrans de blocage
-    document.getElementById('screen-waiting').classList.remove('show');
-    document.getElementById('screen-role').classList.remove('show');
-    // Aller sur l'onglet admin
-    currentTab='admin';
-    document.querySelectorAll('.view').forEach(function(v){v.classList.remove('on');});
-    document.querySelectorAll('.nav button').forEach(function(b){b.classList.remove('on');});
-    document.getElementById('view-admin').classList.add('on');
-    if(navAdmin) navAdmin.classList.add('on');
-    loadTracks();loadSavedPlaylists();
-    wsSend({type:'auto_assign_roles',roles:[]});
-    showNotif('Mode admin activé !');
-  },400);
+  }
+  await setData('dungeon', dungeon);
+  render();
 }
-function showNotif(txt){var n=document.getElementById('notif');n.textContent=txt;n.classList.add('show');setTimeout(function(){n.classList.remove('show');},2500);}
-function openModal(id){document.getElementById(id).classList.add('show');}
-function closeModal(id){document.getElementById(id).classList.remove('show');}
-function switchTab(t){
-  // Bloquer l'accès à la carte et joueurs si la partie n'est pas commencée (pour les non-admins)
-  if(!isAdmin && (t==='map'||t==='players') && gamePhase!=='playing' && gamePhase!=='ended') return;
-  // Bloquer l'accès à admin pour les non-admins
-  if(!isAdmin && t==='admin') return;
-  currentTab=t;
-  document.querySelectorAll('.view').forEach(function(v){v.classList.remove('on');});
-  document.querySelectorAll('.nav button').forEach(function(b){b.classList.remove('on');});
-  document.getElementById('view-'+t).classList.add('on');
-  var navBtn=document.getElementById('nav-'+t);
-  if(navBtn) navBtn.classList.add('on');
-  if(t==='map'&&map){setTimeout(function(){map.invalidateSize();},100);}
-  updateFitBtnVisibility();
+async function adminEndBreakNow(){
+  const dungeon = await getData('dungeon', null);
+  if(!dungeon) return;
+  dungeon.onBreak = false;
+  dungeon.tierStart = Date.now();
+  await setData('dungeon', dungeon);
+  render();
 }
+async function adminDeclare(result){
+  const dungeon = await getData('dungeon', null);
+  if(!dungeon || dungeon.status!=='active') return;
+  dungeon.status = result;
+  dungeon.onBreak = false;
+  if(result==='won') dungeon.tiersCompleted = dungeon.totalTiers;
+  if(dungeon.guildId && !dungeon.repAdded){
+    const guilds = await getData('guilds', {});
+    const g = guilds[dungeon.guildId];
+    if(g){ g.reputation += dungeon.tiersCompleted; await setData('guilds', guilds); }
+    dungeon.repAdded = true;
+  }
+  await setData('dungeon', dungeon);
+  toast(result==='won' ? 'Victoire déclarée !' : 'Défaite déclarée.');
+  render();
+}
+async function adminResetDungeon(){
+  await setData('dungeon', null);
+  toast('Le monde est de nouveau libre.');
+  render();
+}
+
+// ---------- Reward claiming ----------
+function tapChest(){
+  S.chestTaps++;
+  const need = 8;
+  const chestEl = document.getElementById('chest-el');
+  if(chestEl){ chestEl.style.transform = `scale(${1+Math.min(S.chestTaps,need)*0.02})`; }
+  if(S.chestTaps>=need){ claimReward(); }
+  else { renderChestProgress(); }
+}
+function renderChestProgress(){
+  const p = document.getElementById('chest-progress');
+  if(p) p.textContent = `${S.chestTaps} / 8 — continue de taper !`;
+}
+
+async function claimReward(){
+  const dungeon = await getData('dungeon', null);
+  if(!dungeon) return;
+  const cfg = DUNGEONS[dungeon.type];
+  const users = await getData('users', {});
+  const u = users[S.currentUser];
+  const goldGain = dungeon.tiersCompleted * cfg.gold;
+  const xpGain = dungeon.tiersCompleted * cfg.xp;
+
+  const beforeLevel = u.level;
+  u.gold += goldGain;
+  let xp = u.xp + xpGain;
+  let level = u.level;
+  while(level < MAX_LEVEL && xp >= xpNeeded(level)){
+    xp -= xpNeeded(level);
+    level++;
+  }
+  if(level>=MAX_LEVEL){ level=MAX_LEVEL; xp=0; }
+  u.xp = xp; u.level = level;
+  await setData('users', users);
+
+  dungeon.rewardsClaimed = dungeon.rewardsClaimed || [];
+  if(!dungeon.rewardsClaimed.includes(S.currentUser)) dungeon.rewardsClaimed.push(S.currentUser);
+  await setData('dungeon', dungeon);
+
+  S.view='village';
+  S.chestTaps=0;
+  render();
+
+  if(level>beforeLevel){ showLevelUp(level); }
+  toast(`+${goldGain} or, +${xpGain} xp`);
+}
+
+function showLevelUp(level){
+  const el = document.getElementById('overlays');
+  const div = document.createElement('div');
+  div.className='levelup-overlay';
+  div.innerHTML = `
+    <div class="eyebrow">Niveau supérieur</div>
+    <div class="levelup-num">${level}</div>
+    <div class="muted" style="margin-top:10px;">Ton personnage atteint le niveau ${level} !</div>
+    <button class="btn btn-primary" style="margin-top:24px;" onclick="this.parentElement.remove()">Continuer</button>
+  `;
+  el.appendChild(div);
+}
+
+// ---------- Render dispatcher ----------
+function render(){
+  const app = document.getElementById('app');
+  const v = S.view;
+  const routes = {
+    auth: screenAuth, charCreate: screenCharCreate, village: screenVillage,
+    personnage: screenPersonnage, guildes: screenGuildes, guildCreate: screenGuildCreate,
+    donjons: screenDonjons, dungeonPlay: screenDungeonPlay, hotelVentes: screenPlaceholder('Hôtel des ventes','🏛️','Les enchères ouvriront bientôt.'),
+    rp: screenPlaceholder('Rôle-play','📜','Le scribe du village n’a encore rien à raconter.'),
+    classements: screenClassements, adminPanel: screenAdmin
+  };
+  const fn = routes[v] || screenAuth;
+  Promise.resolve(fn()).then(html=>{ app.innerHTML = html; renderToasts(); });
+}
+
+function topbarHTML(u, title){
+  return `
+    <div class="topbar">
+      <div class="brand"><span class="sigil">🗡️</span><h1 style="font-size:22px;">Terres de Konne</h1></div>
+      <div class="row" style="align-items:center;">
+        ${u? `<span class="badge gold">${u.pseudo}</span>` : ''}
+        <button class="btn btn-small" onclick="logout()">Quitter</button>
+      </div>
+    </div>
+    ${title? `<div class="eyebrow">${title}</div>` : ''}
+  `;
+}
+
+// ---------- Screens ----------
+async function screenAuth(){
+  const isLogin = S.authMode==='login';
+  return `
+  <div class="authwrap panel">
+    <div class="eyebrow" style="text-align:center;">Bienvenue voyageur</div>
+    <h2 style="text-align:center; font-size:28px; margin-bottom:20px;">Terres de Konne</h2>
+    <form onsubmit="handleAuthSubmit(event)">
+      <div class="field">
+        <label>Pseudonyme</label>
+        <input id="inp-pseudo" type="text" autocomplete="off" placeholder="Ton nom de légende">
+      </div>
+      <div class="field">
+        <label>Mot de passe</label>
+        <input id="inp-pass" type="password" placeholder="•••••••">
+      </div>
+      ${S.authError? `<div class="errbox">${S.authError}</div>` : ''}
+      <button class="btn btn-primary" style="width:100%; margin-top:8px;" type="submit">${isLogin? 'Se connecter' : 'Créer mon compte'}</button>
+    </form>
+    <div class="divider"></div>
+    <div style="text-align:center;" class="muted">
+      ${isLogin? `Pas encore de compte ? <button class="link-btn" onclick="switchAuthMode('register')">Créer un compte</button>`
+                : `Déjà un compte ? <button class="link-btn" onclick="switchAuthMode('login')">Se connecter</button>`}
+    </div>
+  </div>`;
+}
+
+async function screenCharCreate(){
+  const cards = Object.keys(CLASSES).map(k=>{
+    const c = CLASSES[k];
+    return `<div class="classcard ${S.charClass===k?'selected':''}" onclick="selectClass('${k}')">
+      <div class="icon">${c.icon}</div>
+      <div class="display" style="font-size:16px; margin-top:8px;">${c.label}</div>
+      <div class="muted" style="font-size:13px; margin-top:6px;">${c.desc}</div>
+    </div>`;
+  }).join('');
+  return `
+  <div class="panel" style="max-width:700px; margin:6vh auto 0;">
+    <div class="eyebrow" style="text-align:center;">Création du personnage</div>
+    <h2 style="text-align:center; margin-bottom:20px;">Choisis ta voie</h2>
+    <div class="row" style="justify-content:center;">
+      <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:14px; width:100%;">${cards}</div>
+    </div>
+    <div class="center" style="margin-top:26px;">
+      <button class="btn btn-primary" onclick="confirmCharCreate()">Entrer dans le village</button>
+    </div>
+  </div>`;
+}
+
+async function screenVillage(){
+  const users = await getData('users', {});
+  const u = users[S.currentUser];
+  const season = await getData('season', {started:false});
+  const notifs = await getData('notifications', {});
+  const myNotifs = notifs[S.currentUser] || [];
+  const dungeon = await getData('dungeon', null);
+  if(dungeon && dungeon.status!=='active' && dungeon.participants && dungeon.participants.includes(S.currentUser) && !dungeon.rewardsClaimed.includes(S.currentUser)){
+    S.view='dungeonPlay';
+    return screenDungeonPlay();
+  }
+  if(dungeon && dungeon.status==='active' && dungeon.participants.includes(S.currentUser) && !dungeon.onBreak){
+    S.view='dungeonPlay';
+    return screenDungeonPlay();
+  }
+
+  const cats = [
+    {id:'personnage', icon:'🧙', label:'Personnage', sub:'Fiche & équipement'},
+    {id:'guildes', icon:'🏰', label:'Guildes', sub:'Ta compagnie'},
+    {id:'hotelVentes', icon:'🏛️', label:'Hôtel des ventes', sub:'Bientôt'},
+    {id:'donjons', icon:'💀', label:'Donjons', sub:'4 lieux périlleux'},
+    {id:'rp', icon:'📜', label:'Rôle-play', sub:'Bientôt'},
+    {id:'classements', icon:'🏆', label:'Classements', sub:'Gloire & renom'}
+  ];
+  const cards = cats.map(c=>`
+    <div class="navcard ${season.started? '' : 'locked'}" onclick="${season.started? `tryNav('${c.id}')` : ''}">
+      <span class="icon">${c.icon}</span>
+      <div class="label">${c.label}</div>
+      <div class="sub">${season.started? c.sub : 'Verrouillé'}</div>
+    </div>`).join('');
+
+  const inviteBlock = myNotifs.length ? `
+    <div class="panel" style="margin-top:20px;">
+      <div class="eyebrow">Notifications</div>
+      ${myNotifs.map((n,i)=>`
+        <div class="memberrow">
+          <span>${n.from} t'invite à rejoindre la guilde <strong>${n.guildName}</strong></span>
+          <span class="row">
+            <button class="btn btn-small btn-primary" onclick="respondInvite(${i},true)">Accepter</button>
+            <button class="btn btn-small btn-danger" onclick="respondInvite(${i},false)">Refuser</button>
+          </span>
+        </div>`).join('')}
+    </div>` : '';
+
+  return `
+    ${topbarHTML(u)}
+    <div class="panel">
+      <h2>Le Village</h2>
+      <p class="muted">${season.started? "La saison est lancée. Choisis ta voie." : "L'administrateur n'a pas encore ouvert la saison. Reviens plus tard, voyageur."}</p>
+      <div class="navgrid">${cards}</div>
+    </div>
+    ${inviteBlock}
+  `;
+}
+
+async function screenPersonnage(){
+  const users = await getData('users', {});
+  const u = users[S.currentUser];
+  const guilds = await getData('guilds', {});
+  const g = u.guildId ? guilds[u.guildId] : null;
+  const need = xpNeeded(u.level);
+  const pct = u.level>=MAX_LEVEL ? 100 : Math.min(100, Math.round((u.xp/need)*100));
+  return `
+    ${topbarHTML(u)}
+    <button class="btn btn-small" onclick="goVillage()">← Retour au village</button>
+    <div class="panel" style="margin-top:16px;">
+      <div class="eyebrow">Fiche de personnage</div>
+      <h2>${u.pseudo} <span style="font-size:26px;">${CLASSES[u.class]?.icon||''}</span></h2>
+      <div class="row" style="margin-top:10px;">
+        <span class="badge gold">${CLASSES[u.class]?.label || u.class}</span>
+        <span class="badge">Niveau ${u.level}${u.level>=MAX_LEVEL?' (Max)':''}</span>
+        <span class="badge">${u.gold} 🪙 or</span>
+        <span class="badge">${g? `Guilde: ${g.emblem} ${g.name}` : 'Sans guilde'}</span>
+      </div>
+      <div class="divider"></div>
+      <label>Expérience</label>
+      <div class="xpbar"><div class="xpbar-fill" style="width:${pct}%"></div></div>
+      <div class="muted" style="font-size:13px; margin-top:6px;">${u.level>=MAX_LEVEL? 'Niveau maximum atteint' : `${u.xp} / ${need} xp`}</div>
+      <div class="divider"></div>
+      <label>Objets</label>
+      <div>${u.items.length? u.items.map(i=>`<span class="item-pill">${i}</span>`).join('') : '<span class="muted">Aucun objet pour le moment.</span>'}</div>
+    </div>
+  `;
+}
+
+async function screenGuildes(){
+  const users = await getData('users', {});
+  const u = users[S.currentUser];
+  const guilds = await getData('guilds', {});
+  const g = u.guildId ? guilds[u.guildId] : null;
+
+  if(!g){
+    return `
+    ${topbarHTML(u)}
+    <button class="btn btn-small" onclick="goVillage()">← Retour au village</button>
+    <div class="panel center" style="flex-direction:column; margin-top:16px; padding:50px 24px;">
+      <div class="eyebrow">Guildes</div>
+      <p class="muted" style="text-align:center; max-width:420px;">Tu ne fais partie d'aucune guilde. Rassemble deux compagnons pour en fonder une.</p>
+      <button class="btn btn-primary" style="margin-top:14px;" onclick="createGuildOpen()">Créer une guilde</button>
+    </div>`;
+  }
+
+  const membersHtml = g.members.map(p=>{
+    const mu = users[p];
+    return `<div class="memberrow">
+      <span>${p===g.founder? '⭐ ':''}${mu?mu.pseudo:p} ${mu?`<span class="muted" style="font-size:13px;">(niv. ${mu.level})</span>`:''}</span>
+      <span class="muted" style="font-size:13px;">${mu&&mu.class? CLASSES[mu.class]?.label : ''}</span>
+    </div>`;
+  }).join('');
+
+  const bankItems = g.bank.items.length? g.bank.items.map(it=>`
+    <span class="item-pill">${it} <button class="link-btn" style="font-size:12px; margin-left:6px;" onclick="guildBankWithdrawItem('${it.replace(/'/g,"\\'")}')">retirer</button></span>
+  `).join('') : '<span class="muted">Coffre vide.</span>';
+
+  return `
+    ${topbarHTML(u)}
+    <button class="btn btn-small" onclick="goVillage()">← Retour au village</button>
+    <div class="panel" style="margin-top:16px;">
+      <div class="eyebrow">Guilde</div>
+      <h2>${g.emblem} ${g.name}</h2>
+      <div class="row" style="margin-top:8px;">
+        <span class="badge gold">Réputation: ${g.reputation}</span>
+        <span class="badge">${g.members.length} membres</span>
+      </div>
+      <div class="divider"></div>
+      <label>Membres</label>
+      ${membersHtml}
+      <div class="divider"></div>
+      <label>Banque de guilde — ${g.bank.gold} 🪙 or</label>
+      <div class="row" style="margin-top:8px;">
+        <input id="bank-gold-amt" type="number" min="1" placeholder="Montant à déposer" style="max-width:200px;">
+        <button class="btn btn-small" onclick="guildBankDeposit()">Déposer</button>
+        <input id="bank-gold-amt-w" type="number" min="1" placeholder="Montant à retirer" style="max-width:200px;">
+        <button class="btn btn-small" onclick="guildBankWithdraw()">Retirer</button>
+      </div>
+      <div class="row" style="margin-top:12px;">
+        <input id="bank-item-name" type="text" placeholder="Nom de l'objet à déposer" style="max-width:240px;">
+        <button class="btn btn-small" onclick="guildBankDepositItem()">Déposer l'objet</button>
+      </div>
+      <div style="margin-top:10px;">${bankItems}</div>
+    </div>
+  `;
+}
+
+async function screenGuildCreate(){
+  const users = await getData('users', {});
+  const u = users[S.currentUser];
+  return `
+    ${topbarHTML(u)}
+    <button class="btn btn-small" onclick="tryNav('guildes')">← Annuler</button>
+    <div class="panel" style="max-width:520px; margin:16px auto 0;">
+      <div class="eyebrow">Nouvelle guilde</div>
+      <h2>Fonder une guilde</h2>
+      <form onsubmit="submitGuildCreate(event)">
+        <div class="field"><label>Nom de la guilde</label><input id="g-name" type="text" placeholder="Les Lames d'Or"></div>
+        <div class="field"><label>Blason (emoji)</label><input id="g-emblem" type="text" placeholder="🛡️" maxlength="4"></div>
+        <div class="field"><label>Inviter un joueur (pseudo)</label><input id="g-inv1" type="text" placeholder="Pseudo du premier compagnon"></div>
+        <div class="field"><label>Inviter un second joueur (pseudo)</label><input id="g-inv2" type="text" placeholder="Pseudo du second compagnon"></div>
+        <button class="btn btn-primary" style="width:100%;" type="submit">Fonder la guilde</button>
+      </form>
+    </div>
+  `;
+}
+
+async function screenDonjons(){
+  const users = await getData('users', {});
+  const u = users[S.currentUser];
+  const dungeon = await getData('dungeon', null);
+  const busy = dungeon && dungeon.status==='active';
+  const cards = Object.values(DUNGEONS).map(d=>`
+    <div class="dungeon-card">
+      <div>
+        <div class="display" style="font-size:18px;">${d.name}</div>
+        <div class="diff-${d.diff}" style="font-family:'Cinzel',serif; font-size:13px; margin-top:4px;">${d.diff} — ${d.tiers} tiers</div>
+        <div class="muted" style="font-size:13px; margin-top:4px;">${d.gold} or & ${d.xp} xp par tier réussi</div>
+      </div>
+      <button class="btn ${busy?'':'btn-primary'}" ${busy?'disabled':''} onclick="launchDungeon('${d.key}')">Lancer</button>
+    </div>
+  `).join('');
+  return `
+    ${topbarHTML(u)}
+    <button class="btn btn-small" onclick="goVillage()">← Retour au village</button>
+    <div class="panel" style="margin-top:16px;">
+      <div class="eyebrow">Donjons</div>
+      <h2>Choisis ton épreuve</h2>
+      ${u.guildId? `<p class="muted">Tu es en guilde : tous les membres seront envoyés avec toi.</p>` : `<p class="muted">Tu n'as pas de guilde, tu partiras seul.</p>`}
+      ${busy? `<p style="color:var(--blood-bright);">Un donjon est déjà en cours dans le monde.</p>` : ''}
+      <div style="margin-top:14px;">${cards}</div>
+    </div>
+  `;
+}
+
+async function screenDungeonPlay(){
+  const users = await getData('users', {});
+  const u = users[S.currentUser];
+  const dungeon = await getData('dungeon', null);
+  if(!dungeon || !dungeon.participants.includes(S.currentUser)){
+    S.view='village'; return screenVillage();
+  }
+  const cfg = DUNGEONS[dungeon.type];
+
+  if(dungeon.status !== 'active'){
+    // reward screen
+    const already = dungeon.rewardsClaimed && dungeon.rewardsClaimed.includes(S.currentUser);
+    if(already){
+      return `
+        ${topbarHTML(u)}
+        <div class="panel center" style="flex-direction:column; margin-top:16px; padding:60px 20px;">
+          <div class="eyebrow">${cfg.name}</div>
+          <h2>${dungeon.status==='won'? 'Victoire !' : 'Défaite...'}</h2>
+          <p class="muted">Récompense déjà réclamée.</p>
+          <button class="btn btn-primary" style="margin-top:14px;" onclick="goVillage()">Retourner au village</button>
+        </div>`;
+    }
+    return `
+      ${topbarHTML(u)}
+      <div class="panel center" style="flex-direction:column; margin-top:16px; padding:50px 20px;">
+        <div class="eyebrow">${cfg.name}</div>
+        <h2 style="color:${dungeon.status==='won'?'var(--emerald-bright)':'var(--blood-bright)'};">${dungeon.status==='won'? 'Victoire !' : 'Défaite...'}</h2>
+        <p class="muted">${dungeon.tiersCompleted} tier(s) réussi(s) sur ${dungeon.totalTiers}.</p>
+        <p class="muted">Tape sur le coffre pour débloquer ta récompense.</p>
+        <div id="chest-el" class="chest" onclick="tapChest()">🎁</div>
+        <div id="chest-progress" class="muted" style="margin-top:12px;">0 / 8 — continue de taper !</div>
+      </div>`;
+  }
+
+  // active tier display
+  if(dungeon.onBreak){
+    const remain = Math.max(0, dungeon.breakEnd - Date.now());
+    const m = Math.floor(remain/60000), s = Math.floor((remain%60000)/1000);
+    return `
+      ${topbarHTML(u)}
+      <div class="panel" style="margin-top:16px;">
+        <div class="eyebrow">${cfg.name} — pause</div>
+        <h2>Repos au campement</h2>
+        <p class="muted">Temps avant la reprise : ${m}m ${s<10?'0':''}${s}s</p>
+        <div class="navgrid" style="margin-top:16px;">
+          <div class="navcard" onclick="tryNav('personnage')"><span class="icon">🧙</span><div class="label">Personnage</div></div>
+          <div class="navcard" onclick="tryNav('guildes')"><span class="icon">🏰</span><div class="label">Guildes</div></div>
+          <div class="navcard" onclick="tryNav('hotelVentes')"><span class="icon">🏛️</span><div class="label">Hôtel des ventes</div></div>
+          <div class="navcard" onclick="tryNav('classements')"><span class="icon">🏆</span><div class="label">Classements</div></div>
+        </div>
+      </div>`;
+  }
+
+  const remain = Math.max(0, TIER_MS - (Date.now()-dungeon.tierStart));
+  const m = Math.floor(remain/60000), s = Math.floor((remain%60000)/1000);
+  const isBoss = dungeon.currentTier === dungeon.totalTiers;
+  return `
+    ${topbarHTML(u)}
+    <div class="panel" style="margin-top:16px; text-align:center;">
+      <div class="eyebrow">${cfg.name} — ${cfg.diff}</div>
+      <div class="tier-display">${dungeon.currentTier}</div>
+      <div class="muted" style="margin-top:6px;">sur ${dungeon.totalTiers} tiers</div>
+      ${isBoss? `<div class="badge gold" style="margin-top:14px;">⚔️ Combat de boss</div>` : ''}
+      <div class="divider"></div>
+      <label>Temps restant</label>
+      <h3 style="font-size:32px; margin-top:6px;">${m}m ${s<10?'0':''}${s}s</h3>
+      <p class="muted" style="margin-top:16px; font-size:14px;">Compagnons : ${dungeon.participants.join(', ')}</p>
+    </div>
+  `;
+}
+
+async function screenClassements(){
+  const users = await getData('users', {});
+  const guilds = await getData('guilds', {});
+  const uArr = Object.values(users).filter(u=>!u.isAdmin).sort((a,b)=>b.level-a.level || b.xp-a.xp);
+  const gArr = Object.values(guilds).sort((a,b)=>b.reputation-a.reputation);
+  const u = users[S.currentUser];
+  return `
+    ${topbarHTML(u)}
+    <button class="btn btn-small" onclick="goVillage()">← Retour au village</button>
+    <div class="panel" style="margin-top:16px;">
+      <div class="eyebrow">Classements</div>
+      <h2>Joueurs</h2>
+      <table><thead><tr><th>#</th><th>Pseudo</th><th>Classe</th><th>Niveau</th></tr></thead>
+      <tbody>${uArr.map((p,i)=>`<tr><td>${i+1}</td><td>${p.pseudo}</td><td>${CLASSES[p.class]?.label||'-'}</td><td>${p.level}</td></tr>`).join('')}</tbody></table>
+      <div class="divider"></div>
+      <h2>Guildes</h2>
+      <table><thead><tr><th>#</th><th>Guilde</th><th>Réputation</th></tr></thead>
+      <tbody>${gArr.map((g,i)=>`<tr><td>${i+1}</td><td>${g.emblem} ${g.name}</td><td>${g.reputation}</td></tr>`).join('')}</tbody></table>
+    </div>
+  `;
+}
+
+function screenPlaceholder(title, icon, msg){
+  return async ()=>{
+    const users = await getData('users', {});
+    const u = users[S.currentUser];
+    return `
+      ${topbarHTML(u)}
+      <button class="btn btn-small" onclick="goVillage()">← Retour au village</button>
+      <div class="panel center" style="flex-direction:column; margin-top:16px; padding:60px 20px;">
+        <span style="font-size:44px;">${icon}</span>
+        <h2 style="margin-top:10px;">${title}</h2>
+        <p class="muted">${msg}</p>
+      </div>`;
+  };
+}
+
+async function screenAdmin(){
+  const users = await getData('users', {});
+  const u = users[S.currentUser];
+  const season = await getData('season', {started:false});
+  const dungeon = await getData('dungeon', null);
+  const guilds = await getData('guilds', {});
+
+  let dungeonBlock = `<p class="muted">Aucun donjon en cours.</p>`;
+  if(dungeon){
+    const cfg = DUNGEONS[dungeon.type];
+    dungeonBlock = `
+      <div class="row" style="margin-bottom:10px;">
+        <span class="badge gold">${cfg.name}</span>
+        <span class="badge">Statut: ${dungeon.status}</span>
+        <span class="badge">Tier ${dungeon.currentTier}/${dungeon.totalTiers}</span>
+        <span class="badge">Réussis: ${dungeon.tiersCompleted}</span>
+        ${dungeon.onBreak? '<span class="badge">En pause</span>':''}
+      </div>
+      <p class="muted">Participants : ${dungeon.participants.join(', ')}</p>
+      <p class="muted">Récompenses réclamées : ${(dungeon.rewardsClaimed||[]).join(', ')||'aucune'}</p>
+      <div class="row" style="margin-top:12px;">
+        ${dungeon.status==='active' ? `
+          ${dungeon.onBreak? `<button class="btn" onclick="adminEndBreakNow()">Terminer la pause</button>` : `<button class="btn btn-primary" onclick="adminAdvanceTier()" ${dungeon.tiersCompleted>=dungeon.totalTiers?'disabled':''}>Tier suivant</button>`}
+          <button class="btn btn-primary" onclick="adminDeclare('won')">Déclarer victoire</button>
+          <button class="btn btn-danger" onclick="adminDeclare('lost')">Déclarer défaite</button>
+        ` : `<button class="btn" onclick="adminResetDungeon()">Réinitialiser (libérer le monde)</button>`}
+      </div>
+    `;
+  }
+
+  const userRows = Object.values(users).filter(x=>!x.isAdmin).map(x=>`
+    <tr><td>${x.pseudo}</td><td>${CLASSES[x.class]?.label||'-'}</td><td>${x.level}</td><td>${x.gold}</td><td>${x.guildId? (guilds[x.guildId]?.name||'-') : '-'}</td></tr>
+  `).join('');
+
+  return `
+    ${topbarHTML(u)}
+    <div class="panel">
+      <div class="eyebrow">Panneau d'administration</div>
+      <h2>Maître du jeu</h2>
+      <div class="row" style="margin-top:14px;">
+        <span class="badge ${season.started?'gold':''}">Saison ${season.started? 'active':'inactive'}</span>
+        ${season.started? `<button class="btn btn-danger btn-small" onclick="adminEndSeason()">Arrêter la saison</button>`
+                          : `<button class="btn btn-primary btn-small" onclick="adminStartSeason()">Lancer la saison</button>`}
+      </div>
+      <div class="divider"></div>
+      <label>Donjon en cours</label>
+      ${dungeonBlock}
+      <div class="divider"></div>
+      <label>Joueurs (${userRows? Object.values(users).filter(x=>!x.isAdmin).length : 0})</label>
+      <table><thead><tr><th>Pseudo</th><th>Classe</th><th>Niv.</th><th>Or</th><th>Guilde</th></tr></thead>
+      <tbody>${userRows || '<tr><td class="muted">Aucun joueur inscrit.</td></tr>'}</tbody></table>
+    </div>
+  `;
+}
+
+boot();
 </script>
 </body>
 </html>
