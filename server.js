@@ -1,4 +1,3 @@
-
 // server.js — Terres de Konne
 // Petit serveur Express qui sert le site et stocke l'état du monde
 // (comptes, guildes, saison, donjon en cours...) dans un fichier JSON
@@ -183,32 +182,33 @@ function levelUpBots(db) {
 function growBotGuilds(db) {
   db.guilds = db.guilds || {};
   const users = db.users || {};
-  const bots = Object.values(users).filter(u => u.isBot);
+  let ungrouped = Object.keys(users).filter(k => users[k].isBot && !users[k].guildId);
 
-  // Formation spontanée de nouvelles guildes de bots
-  const ungrouped = bots.filter(b => !b.guildId);
-  if (ungrouped.length >= 3 && Math.random() < 0.10) {
+  // Formation de guildes de bots : par lots de 3 à 5, avec une probabilité
+  // assez haute pour que ça se voie rapidement plutôt que de dépendre d'un
+  // tirage rare qui pourrait ne jamais se déclencher.
+  while (ungrouped.length >= 3 && Math.random() < 0.5) {
+    const groupSize = Math.min(ungrouped.length, randInt(3, 5));
     const founders = [];
-    const pool = ungrouped.slice();
-    for (let i = 0; i < 3 && pool.length; i++) {
-      const idx = randInt(0, pool.length - 1);
-      founders.push(pool.splice(idx, 1)[0]);
+    for (let i = 0; i < groupSize; i++) {
+      const idx = randInt(0, ungrouped.length - 1);
+      founders.push(ungrouped.splice(idx, 1)[0]);
     }
-    const id = 'g_bot_' + Date.now().toString(36) + randInt(100, 999);
+    const id = 'g_bot_' + Date.now().toString(36) + randInt(1000, 9999);
     const usedNames = new Set(Object.values(db.guilds).map(g => g.name));
     let name = pick(BOT_GUILD_NAMES);
     if (usedNames.has(name)) name = name + ' ' + randInt(2, 99);
     const guild = {
       id, name, emblem: pick(GUILD_EMBLEMS),
-      founder: null,
+      founder: founders[0],
       reputation: 0,
-      members: founders.map(f => Object.keys(users).find(k => users[k] === f)),
+      members: founders.slice(),
       bank: { gold: 0, items: [] },
       invitesPending: []
     };
-    guild.founder = guild.members[0];
     db.guilds[id] = guild;
-    founders.forEach(f => { f.guildId = id; });
+    founders.forEach(k => { users[k].guildId = id; });
+    console.log(`[bots] Nouvelle guilde de bots : "${name}" (${founders.length} membres).`);
   }
 
   // Des bots isolés rejoignent parfois une guilde de bots existante
@@ -266,6 +266,7 @@ function autoListAssignedItems(db) {
 function botsBuyItems(db) {
   db.market = db.market || { listings: [] };
   db.users = db.users || {};
+  db.botPendingResale = db.botPendingResale || [];
   if (!db.market.listings.length) return;
   const users = db.users;
   const bots = Object.values(users).filter(u => u.isBot);
@@ -286,7 +287,55 @@ function botsBuyItems(db) {
     bot.power = (bot.power || 0) + (POWER_BY_RARITY[listing.rarity] || 0);
     const seller = users[listing.sellerKey];
     if (seller) seller.gold = (seller.gold || 0) + listing.price;
+
+    // Le bot garde l'objet quelques secondes, puis pourra le remettre en vente.
+    db.botPendingResale.push({
+      itemName: listing.itemName,
+      rarity: listing.rarity,
+      price: listing.price,
+      categoryTopId: listing.categoryTopId || null,
+      categorySubId: listing.categorySubId || null,
+      categoryLabel: listing.categoryLabel || '',
+      botKey,
+      readyAt: Date.now() + randInt(8000, 20000) // 8 à 20 secondes
+    });
   });
+}
+
+// Un peu après un achat, le bot a une chance de remettre l'objet en vente
+// (sinon il le garde définitivement dans son inventaire).
+function processBotResales(db) {
+  db.botPendingResale = db.botPendingResale || [];
+  db.market = db.market || { listings: [] };
+  const users = db.users || {};
+  if (!db.botPendingResale.length) return;
+
+  const stillPending = [];
+  db.botPendingResale.forEach(entry => {
+    if (Date.now() < entry.readyAt) { stillPending.push(entry); return; }
+    const bot = users[entry.botKey];
+    if (bot && Math.random() < 0.45) {
+      const idx = (bot.items || []).indexOf(entry.itemName);
+      if (idx !== -1) {
+        bot.items.splice(idx, 1);
+        db.market.listings.push({
+          id: 'lst_' + Date.now().toString(36) + randInt(100, 999),
+          itemId: null,
+          itemName: entry.itemName,
+          rarity: entry.rarity,
+          price: entry.price,
+          categoryTopId: entry.categoryTopId,
+          categorySubId: entry.categorySubId,
+          categoryLabel: entry.categoryLabel,
+          sellerKey: entry.botKey,
+          sellerPseudo: bot.pseudo,
+          createdAt: Date.now()
+        });
+      }
+    }
+    // sinon le bot garde l'objet pour de bon
+  });
+  db.botPendingResale = stillPending;
 }
 
 function checkBotDungeonTimer(db) {
@@ -319,6 +368,7 @@ function botTick() {
     growBotGuilds(dbCache);
     autoListAssignedItems(dbCache);
     botsBuyItems(dbCache);
+    processBotResales(dbCache);
     checkBotDungeonTimer(dbCache);
     writeDb(dbCache);
   } catch (e) {
