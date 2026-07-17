@@ -214,6 +214,12 @@ const CLASSES = {
   mage:{label:'Mage', icon:'🔮', desc:'Maîtrise des arcanes et de la magie destructrice.'},
   paladin:{label:'Paladin', icon:'🛡️', desc:'Foi et acier, gardien de ses compagnons.'}
 };
+const RARITIES = {
+  commun:     {label:'Commun',     min:1,  max:10,  color:'#a8a2b8'},
+  rare:       {label:'Rare',       min:10, max:30,  color:'#3f5f8a'},
+  tres_rare:  {label:'Très rare',  min:30, max:50,  color:'#8a5fc9'},
+  legendaire: {label:'Légendaire', min:50, max:100, color:'#e9c874'}
+};
 
 function xpNeeded(level){ return 10*(level+1); }
 
@@ -494,6 +500,130 @@ async function guildBankWithdrawItem(name){
   render();
 }
 
+// ---------- Hôtel des ventes ----------
+function setMarketFilter(topId, subId){
+  S.marketFilterCat = topId || '';
+  S.marketFilterSub = subId || '';
+  render();
+}
+
+async function buyMarketItem(listingId){
+  const market = await getData('market', {listings:[]});
+  const idx = (market.listings||[]).findIndex(l=>l.id===listingId);
+  if(idx===-1){ toast('Cet objet a déjà été vendu.'); render(); return; }
+  const listing = market.listings[idx];
+  const users = await getData('users', {});
+  const u = users[S.currentUser];
+  if(u.gold < listing.price){ toast("Pas assez d'or."); return; }
+  u.gold -= listing.price;
+  u.items.push(listing.itemName);
+  if(users[listing.sellerKey]){ users[listing.sellerKey].gold = (users[listing.sellerKey].gold||0) + listing.price; }
+  market.listings.splice(idx,1);
+  await setData('users', users);
+  await setData('market', market);
+  toast(`Tu as acheté ${listing.itemName} pour ${listing.price} or !`);
+  render();
+}
+
+// ---------- Admin : catégories, objets, bots, minuteur secret ----------
+function updateSubcatSelect(){
+  const catSel = document.getElementById('item-cat');
+  const subSel = document.getElementById('item-subcat');
+  if(!catSel || !subSel) return;
+  const catId = catSel.value;
+  const cats = S.categoriesCache || {};
+  const subs = Object.values(cats).filter(c=>c.parentId===catId);
+  subSel.innerHTML = '<option value="">— Sous-catégorie (optionnel) —</option>' +
+    subs.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+}
+function updateRarityHint(){
+  const sel = document.getElementById('item-rarity');
+  const hint = document.getElementById('rarity-hint');
+  if(!sel || !hint) return;
+  const r = RARITIES[sel.value];
+  hint.textContent = r ? `Valeur générée entre ${r.min} et ${r.max} or.` : '';
+}
+
+async function adminAddCategory(){
+  const el = document.getElementById('new-cat-name');
+  const name = el.value.trim();
+  if(!name){ toast('Nom de catégorie requis.'); return; }
+  const categories = await getData('categories', {});
+  const id = 'cat_'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+  categories[id] = {id, name, parentId:null};
+  await setData('categories', categories);
+  el.value='';
+  toast(`Catégorie "${name}" créée.`);
+  render();
+}
+async function adminAddSubcategory(){
+  const parentSel = document.getElementById('new-subcat-parent');
+  const nameEl = document.getElementById('new-subcat-name');
+  const parentId = parentSel.value;
+  const name = nameEl.value.trim();
+  if(!parentId || !name){ toast('Catégorie parente et nom requis.'); return; }
+  const categories = await getData('categories', {});
+  const id = 'cat_'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+  categories[id] = {id, name, parentId};
+  await setData('categories', categories);
+  nameEl.value='';
+  toast(`Sous-catégorie "${name}" créée.`);
+  render();
+}
+
+async function adminCreateItem(e){
+  e.preventDefault();
+  const name = document.getElementById('item-name').value.trim();
+  const rarityKey = document.getElementById('item-rarity').value;
+  const catTop = document.getElementById('item-cat').value;
+  const catSub = document.getElementById('item-subcat').value;
+  if(!name || !rarityKey){ toast('Nom et rareté requis.'); return; }
+  const r = RARITIES[rarityKey];
+  const value = r.min + Math.floor(Math.random()*(r.max-r.min+1));
+  const categories = await getData('categories', {});
+  let label = '';
+  if(catTop && categories[catTop]) label = categories[catTop].name;
+  if(catSub && categories[catSub]) label += (label? ' > ':'') + categories[catSub].name;
+  const catalog = await getData('itemCatalog', {});
+  const id = 'it_'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+  catalog[id] = {
+    id, name, rarity:rarityKey, value,
+    categoryTopId: catTop||null, categorySubId: catSub||null, categoryLabel: label,
+    assignedTo:null, listed:false, createdAt:Date.now()
+  };
+  await setData('itemCatalog', catalog);
+  document.getElementById('item-name').value='';
+  toast(`Objet "${name}" créé — ${r.label}, ${value} or.`);
+  render();
+}
+
+async function adminAssignItemToBot(itemId){
+  const sel = document.getElementById('assign-bot-'+itemId);
+  if(!sel || !sel.value){ toast('Choisis un aventurier.'); return; }
+  const catalog = await getData('itemCatalog', {});
+  const it = catalog[itemId];
+  if(!it || it.assignedTo){ toast('Objet déjà confié.'); return; }
+  it.assignedTo = sel.value;
+  it.listed = false;
+  await setData('itemCatalog', catalog);
+  toast(`${it.name} confié — il sera mis en vente sous peu.`);
+  render();
+}
+
+async function adminSetBotTimer(){
+  const el = document.getElementById('bot-timer-min');
+  const min = parseInt(el.value,10);
+  if(!min || min<=0){ toast('Durée invalide.'); return; }
+  await setData('dungeonBotTimer', { enabled:true, deadline: Date.now()+min*60000 });
+  toast(`Minuteur secret activé : ${min} min avant que les bots ne terminent le donjon.`);
+  render();
+}
+async function adminCancelBotTimer(){
+  await setData('dungeonBotTimer', { enabled:false, deadline:null });
+  toast('Minuteur secret désactivé.');
+  render();
+}
+
 // ---------- Dungeons ----------
 async function launchDungeon(key){
   let dungeon = await getData('dungeon', null);
@@ -670,7 +800,7 @@ function render(){
   const routes = {
     auth: screenAuth, charCreate: screenCharCreate, village: screenVillage,
     personnage: screenPersonnage, guildes: screenGuildes, guildCreate: screenGuildCreate,
-    donjons: screenDonjons, dungeonPlay: screenDungeonPlay, hotelVentes: screenPlaceholder('Hôtel des ventes','🏛️','Les enchères ouvriront bientôt.'),
+    donjons: screenDonjons, dungeonPlay: screenDungeonPlay, hotelVentes: screenHotelVentes,
     rp: screenPlaceholder('Rôle-play','📜','Le scribe du village n’a encore rien à raconter.'),
     classements: screenClassements, adminPanel: screenAdmin
   };
@@ -760,7 +890,7 @@ async function screenVillage(){
   const cats = [
     {id:'personnage', icon:'🧙', label:'Personnage', sub:'Fiche & équipement'},
     {id:'guildes', icon:'🏰', label:'Guildes', sub:'Ta compagnie'},
-    {id:'hotelVentes', icon:'🏛️', label:'Hôtel des ventes', sub:'Bientôt'},
+    {id:'hotelVentes', icon:'🏛️', label:'Hôtel des ventes', sub:'Achète & vends'},
     {id:'donjons', icon:'💀', label:'Donjons', sub:'4 lieux périlleux'},
     {id:'rp', icon:'📜', label:'Rôle-play', sub:'Bientôt'},
     {id:'classements', icon:'🏆', label:'Classements', sub:'Gloire & renom'}
@@ -1008,11 +1138,81 @@ async function screenDungeonPlay(){
   `;
 }
 
+async function screenHotelVentes(){
+  const users = await getData('users', {});
+  const u = users[S.currentUser];
+  const market = await getData('market', {listings:[]});
+  const categories = await getData('categories', {});
+  const topCats = Object.values(categories).filter(c=>!c.parentId);
+  const filterCat = S.marketFilterCat || '';
+  const filterSub = S.marketFilterSub || '';
+  const subCatsOfFilter = filterCat ? Object.values(categories).filter(c=>c.parentId===filterCat) : [];
+
+  let listings = (market.listings||[]).slice().sort((a,b)=>b.createdAt-a.createdAt);
+  if(filterCat) listings = listings.filter(l=>l.categoryTopId===filterCat);
+  if(filterSub) listings = listings.filter(l=>l.categorySubId===filterSub);
+
+  const filterHtml = `
+    <div class="row" style="margin-bottom:6px;">
+      <select style="max-width:220px;" onchange="setMarketFilter(this.value, '')">
+        <option value="">Toutes les catégories</option>
+        ${topCats.map(c=>`<option value="${c.id}" ${filterCat===c.id?'selected':''}>${c.name}</option>`).join('')}
+      </select>
+      ${filterCat && subCatsOfFilter.length ? `
+        <select style="max-width:220px;" onchange="setMarketFilter('${filterCat}', this.value)">
+          <option value="">Toutes les sous-catégories</option>
+          ${subCatsOfFilter.map(s=>`<option value="${s.id}" ${filterSub===s.id?'selected':''}>${s.name}</option>`).join('')}
+        </select>` : ''}
+      ${filterCat ? `<button class="btn btn-small" onclick="setMarketFilter('','')">Réinitialiser</button>` : ''}
+    </div>
+  `;
+
+  const rows = listings.length ? listings.map(l=>{
+    const r = RARITIES[l.rarity] || {label:l.rarity, color:'var(--parchment-dim)'};
+    return `
+    <div class="dungeon-card">
+      <div>
+        <div class="display" style="font-size:17px;">${l.itemName}</div>
+        <div style="font-family:'Cinzel',serif; font-size:12px; letter-spacing:0.05em; margin-top:4px; color:${r.color};">${r.label}</div>
+        <div class="muted" style="font-size:13px; margin-top:4px;">${l.categoryLabel? l.categoryLabel+' · ' : ''}vendu par ${l.sellerPseudo}</div>
+      </div>
+      <div style="text-align:right;">
+        <div class="badge gold" style="margin-bottom:8px;">${l.price} 🪙</div><br>
+        <button class="btn btn-small btn-primary" ${u.gold<l.price?'disabled':''} onclick="buyMarketItem('${l.id}')">Acheter</button>
+      </div>
+    </div>`;
+  }).join('') : `<p class="muted" style="margin-top:14px;">Aucun objet en vente pour l'instant. Reviens plus tard, voyageur.</p>`;
+
+  return `
+    ${topbarHTML(u)}
+    <button class="btn btn-small" onclick="goVillage()">← Retour au village</button>
+    <div class="panel" style="margin-top:16px;">
+      <div class="eyebrow">Hôtel des ventes</div>
+      <h2>Marché de Konne</h2>
+      <div class="row" style="margin-top:6px;"><span class="badge gold">Ta bourse : ${u.gold} 🪙</span></div>
+      <div class="divider"></div>
+      ${filterHtml}
+      <div style="margin-top:10px;">${rows}</div>
+    </div>
+  `;
+}
+
 async function screenClassements(){
   const users = await getData('users', {});
   const guilds = await getData('guilds', {});
-  const uArr = Object.values(users).filter(u=>!u.isAdmin).sort((a,b)=>b.level-a.level || b.xp-a.xp);
-  const gArr = Object.values(guilds).sort((a,b)=>b.reputation-a.reputation);
+  // Les vrais joueurs restent toujours devant les bots, quel que soit leur niveau.
+  const uArr = Object.values(users).filter(u=>!u.isAdmin)
+    .sort((a,b)=> (a.isBot?1:0)-(b.isBot?1:0) || b.level-a.level || b.xp-a.xp)
+    .slice(0,50);
+  const gArr = Object.values(guilds)
+    .sort((a,b)=>{
+      const aMembers = (a.members||[]).map(m=>users[m]).filter(Boolean);
+      const bMembers = (b.members||[]).map(m=>users[m]).filter(Boolean);
+      const aBotOnly = aMembers.length>0 && aMembers.every(m=>m.isBot);
+      const bBotOnly = bMembers.length>0 && bMembers.every(m=>m.isBot);
+      return (aBotOnly?1:0)-(bBotOnly?1:0) || b.reputation-a.reputation;
+    })
+    .slice(0,30);
   const u = users[S.currentUser];
   return `
     ${topbarHTML(u)}
@@ -1052,6 +1252,20 @@ async function screenAdmin(){
   let dungeon = await getData('dungeon', null);
   dungeon = await checkAutoResolve(dungeon);
   const guilds = await getData('guilds', {});
+  const categories = await getData('categories', {});
+  const itemCatalog = await getData('itemCatalog', {});
+  const market = await getData('market', {listings:[]});
+  const botTimer = await getData('dungeonBotTimer', {enabled:false, deadline:null});
+
+  // rendu accessible à updateSubcatSelect() sans nouvel appel réseau
+  S.categoriesCache = categories;
+
+  const realPlayers = Object.values(users).filter(x=>!x.isAdmin && !x.isBot);
+  const botCount = Object.values(users).filter(x=>x.isBot).length;
+  const botGuildCount = Object.values(guilds).filter(g=>{
+    const mem = (g.members||[]).map(m=>users[m]).filter(Boolean);
+    return mem.length>0 && mem.every(m=>m.isBot);
+  }).length;
 
   let dungeonBlock = `<p class="muted">Aucun donjon en cours.</p>`;
   if(dungeon){
@@ -1067,6 +1281,7 @@ async function screenAdmin(){
         <span class="badge">Réussis: ${dungeon.tiersCompleted}</span>
         ${dungeon.status==='active'? `<span class="badge">Temps restant: ${rm}m ${rs<10?'0':''}${rs}s</span>` : ''}
         ${dungeon.onBreak? '<span class="badge">En pause</span>':''}
+        ${dungeon.finishedByBots? '<span class="badge" style="border-color:var(--blood-bright); color:var(--blood-bright);">Terminé par les bots</span>':''}
       </div>
       <p class="muted">Participants : ${dungeon.participants.join(', ')}</p>
       <p class="muted">Récompenses réclamées : ${(dungeon.rewardsClaimed||[]).join(', ')||'aucune'}</p>
@@ -1077,12 +1292,60 @@ async function screenAdmin(){
         ` : `<button class="btn" onclick="adminResetDungeon()">Réinitialiser (libérer le monde)</button>`}
       </div>
       <p class="muted" style="font-size:13px; margin-top:10px;">Victoire automatique dès que le dernier tier est validé. Si le temps global s'épuise avant, c'est une défaite automatique.</p>
+      <div class="divider"></div>
+      <label>Minuteur secret (invisible pour les joueurs)</label>
+      <p class="muted" style="font-size:13px;">Si activé, les bots terminent ce donjon à la place des joueurs une fois le délai écoulé — la saison s'arrête alors automatiquement.</p>
+      ${dungeon.status==='active' ? `
+        ${botTimer.enabled ? `
+          <div class="row" style="margin-top:8px; align-items:center;">
+            <span class="badge gold">Minuteur actif — ${Math.max(0,Math.ceil((botTimer.deadline-Date.now())/60000))} min restantes</span>
+            <button class="btn btn-small btn-danger" onclick="adminCancelBotTimer()">Désactiver</button>
+          </div>
+        ` : `
+          <div class="row" style="margin-top:8px;">
+            <input id="bot-timer-min" type="number" min="1" placeholder="Minutes avant que les bots terminent" style="max-width:260px;">
+            <button class="btn btn-small" onclick="adminSetBotTimer()">Activer le minuteur secret</button>
+          </div>
+        `}
+      ` : `<p class="muted" style="font-size:13px;">Disponible uniquement pendant qu'un donjon est actif.</p>`}
     `;
   }
 
-  const userRows = Object.values(users).filter(x=>!x.isAdmin).map(x=>`
+  const userRows = realPlayers.map(x=>`
     <tr><td>${x.pseudo}</td><td>${CLASSES[x.class]?.label||'-'}</td><td>${x.level}</td><td>${x.gold}</td><td>${x.guildId? (guilds[x.guildId]?.name||'-') : '-'}</td></tr>
   `).join('');
+
+  // ---- Bloc catégories ----
+  const topCats = Object.values(categories).filter(c=>!c.parentId);
+  const catRows = topCats.map(c=>{
+    const subs = Object.values(categories).filter(s=>s.parentId===c.id);
+    return `<div class="memberrow"><span>${c.name}</span><span class="muted" style="font-size:13px;">${subs.length? subs.map(s=>s.name).join(', ') : 'aucune sous-catégorie'}</span></div>`;
+  }).join('') || '<p class="muted">Aucune catégorie créée.</p>';
+
+  // ---- Bloc création d'objets ----
+  const rarityOptions = Object.keys(RARITIES).map(k=>`<option value="${k}">${RARITIES[k].label} (${RARITIES[k].min}-${RARITIES[k].max} or)</option>`).join('');
+  const topCatOptions = topCats.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+
+  // ---- Bloc catalogue d'objets (non assignés / assignés) ----
+  const bots = Object.values(users).filter(x=>x.isBot);
+  const botOptions = bots.slice(0,300).map(b=>`<option value="${Object.keys(users).find(k=>users[k]===b)}">${b.pseudo} (niv. ${b.level})</option>`).join('');
+  const catalogRows = Object.values(itemCatalog).sort((a,b)=>b.createdAt-a.createdAt).map(it=>{
+    const r = RARITIES[it.rarity]||{label:it.rarity,color:'var(--parchment-dim)'};
+    let status;
+    if(it.listed) status = `<span class="badge gold">En vente à l'hôtel des ventes</span>`;
+    else if(it.assignedTo) status = `<span class="badge">Confié, mise en vente imminente…</span>`;
+    else status = `
+      <span class="row" style="align-items:center;">
+        <select id="assign-bot-${it.id}" style="max-width:200px;"><option value="">— choisir un aventurier —</option>${botOptions}</select>
+        <button class="btn btn-small" onclick="adminAssignItemToBot('${it.id}')">Confier & mettre en vente</button>
+      </span>`;
+    return `
+      <div class="memberrow" style="align-items:flex-start; flex-wrap:wrap;">
+        <span><strong>${it.name}</strong> <span style="color:${r.color}; font-size:12px; font-family:'Cinzel',serif;">${r.label}</span>
+          <span class="muted" style="font-size:12px;"> — ${it.value} or ${it.categoryLabel? '· '+it.categoryLabel : ''}</span></span>
+        <span>${status}</span>
+      </div>`;
+  }).join('') || '<p class="muted">Aucun objet créé pour l\'instant.</p>';
 
   return `
     ${topbarHTML(u)}
@@ -1093,14 +1356,71 @@ async function screenAdmin(){
         <span class="badge ${season.started?'gold':''}">Saison ${season.started? 'active':'inactive'}</span>
         ${season.started? `<button class="btn btn-danger btn-small" onclick="adminEndSeason()">Arrêter la saison</button>`
                           : `<button class="btn btn-primary btn-small" onclick="adminStartSeason()">Lancer la saison</button>`}
+        <span class="badge">🤖 ${botCount} bots vivants</span>
+        <span class="badge">🏰 ${botGuildCount} guildes de bots</span>
+        <span class="badge">🏛️ ${(market.listings||[]).length} objets en vente</span>
       </div>
       <div class="divider"></div>
       <label>Donjon en cours</label>
       ${dungeonBlock}
       <div class="divider"></div>
-      <label>Joueurs (${userRows? Object.values(users).filter(x=>!x.isAdmin).length : 0})</label>
+      <label>Joueurs réels (${realPlayers.length}) — les bots ne sont pas listés ici</label>
       <table><thead><tr><th>Pseudo</th><th>Classe</th><th>Niv.</th><th>Or</th><th>Guilde</th></tr></thead>
       <tbody>${userRows || '<tr><td class="muted">Aucun joueur inscrit.</td></tr>'}</tbody></table>
+    </div>
+
+    <div class="panel" style="margin-top:20px;">
+      <div class="eyebrow">Hôtel des ventes — catégories</div>
+      <h2>Catégories & sous-catégories</h2>
+      ${catRows}
+      <div class="divider"></div>
+      <div class="row">
+        <input id="new-cat-name" type="text" placeholder="Nouvelle catégorie (ex : Armes)" style="max-width:260px;">
+        <button class="btn btn-small" onclick="adminAddCategory()">Créer la catégorie</button>
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <select id="new-subcat-parent" style="max-width:220px;">
+          <option value="">— Catégorie parente —</option>
+          ${topCatOptions}
+        </select>
+        <input id="new-subcat-name" type="text" placeholder="Nouvelle sous-catégorie (ex : Épées)" style="max-width:240px;">
+        <button class="btn btn-small" onclick="adminAddSubcategory()">Créer la sous-catégorie</button>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:20px;">
+      <div class="eyebrow">Hôtel des ventes — objets</div>
+      <h2>Créer un objet</h2>
+      <form onsubmit="adminCreateItem(event)">
+        <div class="row">
+          <div class="field" style="flex:1; min-width:200px;"><label>Nom de l'objet</label><input id="item-name" type="text" placeholder="Épée de Konne"></div>
+          <div class="field" style="min-width:200px;">
+            <label>Rareté</label>
+            <select id="item-rarity" onchange="updateRarityHint()">
+              <option value="">— choisir —</option>
+              ${rarityOptions}
+            </select>
+            <div id="rarity-hint" class="muted" style="font-size:12px; margin-top:4px;"></div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="field" style="min-width:200px;">
+            <label>Catégorie</label>
+            <select id="item-cat" onchange="updateSubcatSelect()">
+              <option value="">— Catégorie (optionnel) —</option>
+              ${topCatOptions}
+            </select>
+          </div>
+          <div class="field" style="min-width:200px;">
+            <label>Sous-catégorie</label>
+            <select id="item-subcat"><option value="">— Sous-catégorie (optionnel) —</option></select>
+          </div>
+        </div>
+        <button class="btn btn-primary" type="submit">Créer l'objet</button>
+      </form>
+      <div class="divider"></div>
+      <label>Catalogue d'objets</label>
+      <div>${catalogRows}</div>
     </div>
   `;
 }
