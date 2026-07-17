@@ -530,7 +530,7 @@ async function buyMarketItem(listingId){
   market.listings.splice(idx,1);
   await setData('users', users);
   await setData('market', market);
-  toast(powerGain ? `Tu as acheté ${listing.itemName} pour ${listing.price} or (+${powerGain} 💪 puissance) !` : `Tu as acheté ${listing.itemName} pour ${listing.price} or !`);
+  toast(`Tu as acheté ${listing.itemName} pour ${listing.price} or !`);
   render();
 }
 
@@ -1003,7 +1003,6 @@ async function screenPersonnage(){
         <span class="badge gold">${CLASSES[u.class]?.label || u.class}</span>
         <span class="badge">Niveau ${u.level}${u.level>=MAX_LEVEL?' (Max)':''}</span>
         <span class="badge">${u.gold} 🪙 or</span>
-        <span class="badge gold">💪 Puissance ${u.power||0}</span>
         <span class="badge">${g? `Guilde: ${g.emblem} ${g.name}` : 'Sans guilde'}</span>
       </div>
       <div class="divider"></div>
@@ -1013,7 +1012,6 @@ async function screenPersonnage(){
       <div class="divider"></div>
       <label>Objets</label>
       <div>${u.items.length? u.items.map(i=>`<span class="item-pill">${i}</span>`).join('') : '<span class="muted">Aucun objet pour le moment.</span>'}</div>
-      <p class="muted" style="font-size:12px; margin-top:10px;">Chaque objet acheté à l'hôtel des ventes augmente ta puissance selon sa rareté : commun +1, rare +3, très rare +6, légendaire +12.</p>
     </div>
   `;
 }
@@ -1292,8 +1290,8 @@ async function screenClassements(){
     <div class="panel" style="margin-top:16px;">
       <div class="eyebrow">Classements</div>
       <h2>Joueurs</h2>
-      <table><thead><tr><th>#</th><th>Pseudo</th><th>Classe</th><th>Niveau</th><th>💪 Puissance</th></tr></thead>
-      <tbody>${uArr.map((p,i)=>`<tr><td>${i+1}</td><td>${p.pseudo}</td><td>${CLASSES[p.class]?.label||'-'}</td><td>${p.level}</td><td>${p.power||0}</td></tr>`).join('')}</tbody></table>
+      <table><thead><tr><th>#</th><th>Pseudo</th><th>Classe</th><th>Niveau</th></tr></thead>
+      <tbody>${uArr.map((p,i)=>`<tr><td>${i+1}</td><td>${p.pseudo}</td><td>${CLASSES[p.class]?.label||'-'}</td><td>${p.level}</td></tr>`).join('')}</tbody></table>
       <div class="divider"></div>
       <h2>Guildes</h2>
       <table><thead><tr><th>#</th><th>Guilde</th><th>Réputation</th></tr></thead>
