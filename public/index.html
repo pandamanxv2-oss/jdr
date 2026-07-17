@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -581,23 +582,46 @@ async function adminCreateItem(e){
   const rarityKey = document.getElementById('item-rarity').value;
   const catTop = document.getElementById('item-cat').value;
   const catSub = document.getElementById('item-subcat').value;
+  const qtyRaw = parseInt(document.getElementById('item-qty').value, 10);
+  const qty = Math.min(200, Math.max(1, isNaN(qtyRaw) ? 1 : qtyRaw));
   if(!name || !rarityKey){ toast('Nom et rareté requis.'); return; }
   const r = RARITIES[rarityKey];
-  const value = r.min + Math.floor(Math.random()*(r.max-r.min+1));
   const categories = await getData('categories', {});
   let label = '';
   if(catTop && categories[catTop]) label = categories[catTop].name;
   if(catSub && categories[catSub]) label += (label? ' > ':'') + categories[catSub].name;
   const catalog = await getData('itemCatalog', {});
-  const id = 'it_'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-  catalog[id] = {
-    id, name, rarity:rarityKey, value,
-    categoryTopId: catTop||null, categorySubId: catSub||null, categoryLabel: label,
-    assignedTo:null, listed:false, createdAt:Date.now()
-  };
+  let lastValue = 0;
+  for(let i=0; i<qty; i++){
+    const value = r.min + Math.floor(Math.random()*(r.max-r.min+1));
+    lastValue = value;
+    const id = 'it_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8)+'_'+i;
+    catalog[id] = {
+      id, name, rarity:rarityKey, value,
+      categoryTopId: catTop||null, categorySubId: catSub||null, categoryLabel: label,
+      assignedTo:null, listed:false, createdAt:Date.now()
+    };
+  }
   await setData('itemCatalog', catalog);
   document.getElementById('item-name').value='';
-  toast(`Objet "${name}" créé — ${r.label}, ${value} or.`);
+  toast(qty>1 ? `${qty} exemplaires de "${name}" créés — ${r.label}.` : `Objet "${name}" créé — ${r.label}, ${lastValue} or.`);
+  render();
+}
+
+async function adminDistributeUnassigned(){
+  const catalog = await getData('itemCatalog', {});
+  const users = await getData('users', {});
+  const botKeys = Object.keys(users).filter(k=>users[k].isBot);
+  if(!botKeys.length){ toast('Aucun bot disponible.'); return; }
+  const unassigned = Object.values(catalog).filter(it=>!it.assignedTo);
+  if(!unassigned.length){ toast('Aucun objet à distribuer — tous sont déjà confiés.'); return; }
+  unassigned.forEach(it=>{
+    const bot = botKeys[Math.floor(Math.random()*botKeys.length)];
+    it.assignedTo = bot;
+    it.listed = false;
+  });
+  await setData('itemCatalog', catalog);
+  toast(`${unassigned.length} objet(s) distribué(s) aléatoirement à des bots — mise en vente imminente.`);
   render();
 }
 
@@ -1204,18 +1228,11 @@ async function screenHotelVentes(){
 async function screenClassements(){
   const users = await getData('users', {});
   const guilds = await getData('guilds', {});
-  // Les vrais joueurs restent toujours devant les bots, quel que soit leur niveau.
   const uArr = Object.values(users).filter(u=>!u.isAdmin)
-    .sort((a,b)=> (a.isBot?1:0)-(b.isBot?1:0) || b.level-a.level || b.xp-a.xp)
+    .sort((a,b)=> b.level-a.level || b.xp-a.xp)
     .slice(0,50);
   const gArr = Object.values(guilds)
-    .sort((a,b)=>{
-      const aMembers = (a.members||[]).map(m=>users[m]).filter(Boolean);
-      const bMembers = (b.members||[]).map(m=>users[m]).filter(Boolean);
-      const aBotOnly = aMembers.length>0 && aMembers.every(m=>m.isBot);
-      const bBotOnly = bMembers.length>0 && bMembers.every(m=>m.isBot);
-      return (aBotOnly?1:0)-(bBotOnly?1:0) || b.reputation-a.reputation;
-    })
+    .sort((a,b)=>b.reputation-a.reputation)
     .slice(0,30);
   const u = users[S.currentUser];
   return `
@@ -1333,7 +1350,14 @@ async function screenAdmin(){
   // ---- Bloc catalogue d'objets (non assignés / assignés) ----
   const bots = Object.values(users).filter(x=>x.isBot);
   const botOptions = bots.slice(0,300).map(b=>`<option value="${Object.keys(users).find(k=>users[k]===b)}">${b.pseudo} (niv. ${b.level})</option>`).join('');
-  const catalogRows = Object.values(itemCatalog).sort((a,b)=>b.createdAt-a.createdAt).map(it=>{
+  const allItems = Object.values(itemCatalog).sort((a,b)=>b.createdAt-a.createdAt);
+  const unassignedCount = allItems.filter(it=>!it.assignedTo).length;
+  const listedCount = allItems.filter(it=>it.listed).length;
+  const pendingCount = allItems.filter(it=>it.assignedTo && !it.listed).length;
+  // priorité d'affichage : non-assignés d'abord (à traiter), puis les plus récents — limité à 40 lignes
+  const displayItems = allItems.filter(it=>!it.assignedTo).slice(0,40)
+    .concat(allItems.filter(it=>it.assignedTo).slice(0,10));
+  const catalogRows = displayItems.map(it=>{
     const r = RARITIES[it.rarity]||{label:it.rarity,color:'var(--parchment-dim)'};
     let status;
     if(it.listed) status = `<span class="badge gold">En vente à l'hôtel des ventes</span>`;
@@ -1406,6 +1430,10 @@ async function screenAdmin(){
             </select>
             <div id="rarity-hint" class="muted" style="font-size:12px; margin-top:4px;"></div>
           </div>
+          <div class="field" style="max-width:140px;">
+            <label>Quantité</label>
+            <input id="item-qty" type="number" min="1" max="200" value="1">
+          </div>
         </div>
         <div class="row">
           <div class="field" style="min-width:200px;">
@@ -1420,10 +1448,14 @@ async function screenAdmin(){
             <select id="item-subcat"><option value="">— Sous-catégorie (optionnel) —</option></select>
           </div>
         </div>
-        <button class="btn btn-primary" type="submit">Créer l'objet</button>
+        <button class="btn btn-primary" type="submit">Créer l'objet (ou le lot)</button>
       </form>
+      <div class="row" style="margin-top:14px;">
+        <button class="btn" onclick="adminDistributeUnassigned()">🎲 Distribuer aléatoirement les objets non confiés à des bots</button>
+      </div>
       <div class="divider"></div>
-      <label>Catalogue d'objets</label>
+      <label>Catalogue d'objets — ${allItems.length} au total (${unassignedCount} à confier, ${pendingCount} en attente de mise en vente, ${listedCount} en vente)</label>
+      ${allItems.length>displayItems.length? `<p class="muted" style="font-size:12px;">Affichage limité aux objets non-confiés en priorité + 10 plus récents assignés.</p>`:''}
       <div>${catalogRows}</div>
     </div>
   `;
