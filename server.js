@@ -1,3 +1,4 @@
+
 // server.js — Terres de Konne
 // Petit serveur Express qui sert le site et stocke l'état du monde
 // (comptes, guildes, saison, donjon en cours...) dans un fichier JSON
@@ -111,6 +112,9 @@ const BOT_GUILD_NAMES = [
 ];
 const GUILD_EMBLEMS = ['🐺','🦅','⚔️','🛡️','🔥','🌙','🐉','⚡','🦁','🕊️','💀','🌪️','🐍','🦂','🏹'];
 
+// Bonus de puissance gagné en achetant un objet, selon sa rareté.
+const POWER_BY_RARITY = { commun: 1, rare: 3, tres_rare: 6, legendaire: 12 };
+
 function xpNeeded(level) { return 10 * (level + 1); }
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 function randInt(min, max) { return min + Math.floor(Math.random() * (max - min + 1)); }
@@ -146,6 +150,7 @@ function ensureBots(db) {
       level: 0,
       xp: 0,
       gold: randInt(5, 40),
+      power: 0,
       items: [],
       guildId: null,
       botTargetLevel: randInt(12, 27) // les bots plafonnent sous le niveau max
@@ -278,6 +283,7 @@ function botsBuyItems(db) {
     bot.gold -= listing.price;
     bot.items = bot.items || [];
     bot.items.push(listing.itemName);
+    bot.power = (bot.power || 0) + (POWER_BY_RARITY[listing.rarity] || 0);
     const seller = users[listing.sellerKey];
     if (seller) seller.gold = (seller.gold || 0) + listing.price;
   });
