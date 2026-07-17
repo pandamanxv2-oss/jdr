@@ -530,6 +530,34 @@ async function buyMarketItem(listingId){
   render();
 }
 
+async function sellMyItem(e){
+  e.preventDefault();
+  const nameSel = document.getElementById('sell-item-name');
+  const priceEl = document.getElementById('sell-item-price');
+  if(!nameSel || !nameSel.value){ toast('Choisis un objet à vendre.'); return; }
+  const name = nameSel.value;
+  const price = parseInt(priceEl.value, 10);
+  if(!price || price<=0){ toast('Prix invalide.'); return; }
+  const users = await getData('users', {});
+  const u = users[S.currentUser];
+  const idx = u.items.indexOf(name);
+  if(idx===-1){ toast('Tu ne possèdes plus cet objet.'); return; }
+  u.items.splice(idx,1);
+  await setData('users', users);
+  const market = await getData('market', {listings:[]});
+  market.listings = market.listings || [];
+  market.listings.push({
+    id: 'lst_'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+    itemId: null, itemName: name, rarity: null, price,
+    categoryTopId: null, categorySubId: null, categoryLabel: '',
+    sellerKey: S.currentUser, sellerPseudo: u.pseudo, createdAt: Date.now()
+  });
+  await setData('market', market);
+  priceEl.value = '';
+  toast(`${name} mis en vente pour ${price} or.`);
+  render();
+}
+
 // ---------- Admin : catégories, objets, bots, minuteur secret ----------
 function updateSubcatSelect(){
   const catSel = document.getElementById('item-cat');
@@ -1196,12 +1224,13 @@ async function screenHotelVentes(){
   `;
 
   const rows = listings.length ? listings.map(l=>{
-    const r = RARITIES[l.rarity] || {label:l.rarity, color:'var(--parchment-dim)'};
+    const r = RARITIES[l.rarity];
+    const rarityLine = r ? `<div style="font-family:'Cinzel',serif; font-size:12px; letter-spacing:0.05em; margin-top:4px; color:${r.color};">${r.label}</div>` : '';
     return `
     <div class="dungeon-card">
       <div>
         <div class="display" style="font-size:17px;">${l.itemName}</div>
-        <div style="font-family:'Cinzel',serif; font-size:12px; letter-spacing:0.05em; margin-top:4px; color:${r.color};">${r.label}</div>
+        ${rarityLine}
         <div class="muted" style="font-size:13px; margin-top:4px;">${l.categoryLabel? l.categoryLabel+' · ' : ''}vendu par ${l.sellerPseudo}</div>
       </div>
       <div style="text-align:right;">
@@ -1210,6 +1239,21 @@ async function screenHotelVentes(){
       </div>
     </div>`;
   }).join('') : `<p class="muted" style="margin-top:14px;">Aucun objet en vente pour l'instant. Reviens plus tard, voyageur.</p>`;
+
+  const sellBlock = u.items.length ? `
+    <div class="panel" style="margin-top:20px;">
+      <div class="eyebrow">Vendre un de tes objets</div>
+      <p class="muted" style="font-size:13px;">D'autres joueurs — et parfois des aventuriers de passage — peuvent l'acheter.</p>
+      <form onsubmit="sellMyItem(event)">
+        <div class="row" style="margin-top:8px;">
+          <select id="sell-item-name" style="max-width:240px;">
+            ${u.items.map(it=>`<option value="${it.replace(/"/g,'&quot;')}">${it}</option>`).join('')}
+          </select>
+          <input id="sell-item-price" type="number" min="1" placeholder="Prix en or" style="max-width:140px;">
+          <button class="btn btn-small btn-primary" type="submit">Mettre en vente</button>
+        </div>
+      </form>
+    </div>` : '';
 
   return `
     ${topbarHTML(u)}
@@ -1222,6 +1266,7 @@ async function screenHotelVentes(){
       ${filterHtml}
       <div style="margin-top:10px;">${rows}</div>
     </div>
+    ${sellBlock}
   `;
 }
 
