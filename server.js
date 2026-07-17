@@ -1,4 +1,3 @@
-
 // server.js — Terres de Konne
 // Petit serveur Express qui sert le site et stocke l'état du monde
 // (comptes, guildes, saison, donjon en cours...) dans un fichier JSON
@@ -144,7 +143,7 @@ function ensureBots(db) {
       isAdmin: false,
       isBot: true,
       class: pick(BOT_CLASSES),
-      level: randInt(1, 6),
+      level: 0,
       xp: 0,
       gold: randInt(5, 40),
       items: [],
@@ -159,11 +158,12 @@ function ensureBots(db) {
 function levelUpBots(db) {
   const bots = Object.values(db.users || {}).filter(u => u.isBot);
   bots.forEach(bot => {
-    // seule une partie des bots progresse à chaque cycle, pour un rythme organique
-    if (Math.random() > 0.22) return;
+    // rythme volontairement lent : un bot progresse à peu près comme
+    // un joueur qui ferait un donjon de temps en temps, pas plus vite.
+    if (Math.random() > 0.04) return;
     const target = bot.botTargetLevel || 20;
     if (bot.level >= target) return;
-    let xp = bot.xp + randInt(1, 4);
+    let xp = bot.xp + randInt(1, 2);
     let level = bot.level;
     while (level < target && xp >= xpNeeded(level)) {
       xp -= xpNeeded(level);
@@ -171,7 +171,7 @@ function levelUpBots(db) {
     }
     bot.xp = xp;
     bot.level = level;
-    bot.gold = (bot.gold || 0) + randInt(0, 2);
+    if (Math.random() < 0.3) bot.gold = (bot.gold || 0) + 1;
   });
 }
 
@@ -221,7 +221,7 @@ function growBotGuilds(db) {
       }
     }
     // réputation des guildes 100% bot : progression lente, plafonnée
-    if (Math.random() < 0.15 && g.reputation < 45) {
+    if (Math.random() < 0.04 && g.reputation < 45) {
       g.reputation += 1;
     }
   });
