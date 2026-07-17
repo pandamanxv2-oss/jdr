@@ -115,29 +115,6 @@ const GUILD_EMBLEMS = ['🐺','🦅','⚔️','🛡️','🔥','🌙','🐉','�
 // Bonus de puissance gagné en achetant un objet, selon sa rareté.
 const POWER_BY_RARITY = { commun: 1, rare: 3, tres_rare: 6, legendaire: 12 };
 
-// Fourchettes de valeur par rareté (mêmes règles que côté admin).
-const RARITY_RANGES = {
-  commun: [1, 10],
-  rare: [10, 30],
-  tres_rare: [30, 50],
-  legendaire: [50, 100]
-};
-const GENERIC_LOOT_NAMES = [
-  'Épée ébréchée','Dague rouillée','Amulette ternie','Bouclier de bois','Potion trouble',
-  'Cape élimée','Anneau simple','Heaume cabossé','Gantelet usé','Bâton noueux',
-  'Fiole scintillante','Médaillon gravé','Arc fendu','Hache émoussée','Collier de perles',
-  'Bottes de cuir','Parchemin ancien','Sceptre terni','Masque de bois','Pierre runique',
-  'Torche éternelle','Clochette d\'argent','Broche d\'émeraude','Lanterne fêlée','Vieux grimoire'
-];
-
-function pickWeightedRarity() {
-  const roll = Math.random();
-  if (roll > 0.98) return 'legendaire';
-  if (roll > 0.90) return 'tres_rare';
-  if (roll > 0.55) return 'rare';
-  return 'commun';
-}
-
 function xpNeeded(level) { return 10 * (level + 1); }
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 function randInt(min, max) { return min + Math.floor(Math.random() * (max - min + 1)); }
@@ -312,7 +289,7 @@ function botsBuyItems(db) {
     const seller = users[listing.sellerKey];
     if (seller) seller.gold = (seller.gold || 0) + listing.price;
 
-    // Le bot garde l'objet quelques secondes, puis pourra le remettre en vente.
+    // Le bot garde l'objet, et retentera sa chance de le revendre à chaque cycle.
     db.botPendingResale.push({
       itemName: listing.itemName,
       rarity: listing.rarity,
@@ -320,14 +297,14 @@ function botsBuyItems(db) {
       categoryTopId: listing.categoryTopId || null,
       categorySubId: listing.categorySubId || null,
       categoryLabel: listing.categoryLabel || '',
-      botKey,
-      readyAt: Date.now() + randInt(8000, 20000) // 8 à 20 secondes
+      botKey
     });
   });
 }
 
-// Un peu après un achat, le bot a une chance de remettre l'objet en vente
-// (sinon il le garde définitivement dans son inventaire).
+// À chaque cycle (~10s), chaque objet détenu par un bot a 1 chance sur 3
+// d'être remis en vente. Le cycle ne s'arrête jamais : tant que le bot n'a
+// pas revendu, il retente sa chance au cycle suivant.
 function processBotResales(db) {
   db.botPendingResale = db.botPendingResale || [];
   db.market = db.market || { listings: [] };
@@ -336,65 +313,32 @@ function processBotResales(db) {
 
   const stillPending = [];
   db.botPendingResale.forEach(entry => {
-    if (Date.now() < entry.readyAt) { stillPending.push(entry); return; }
     const bot = users[entry.botKey];
-    if (bot && Math.random() < 0.45) {
-      const idx = (bot.items || []).indexOf(entry.itemName);
-      if (idx !== -1) {
-        bot.items.splice(idx, 1);
-        db.market.listings.push({
-          id: 'lst_' + Date.now().toString(36) + randInt(100, 999),
-          itemId: null,
-          itemName: entry.itemName,
-          rarity: entry.rarity,
-          price: entry.price,
-          categoryTopId: entry.categoryTopId,
-          categorySubId: entry.categorySubId,
-          categoryLabel: entry.categoryLabel,
-          sellerKey: entry.botKey,
-          sellerPseudo: bot.pseudo,
-          createdAt: Date.now()
-        });
-      }
+    if (!bot) return; // le bot n'existe plus, on arrête de suivre cet objet
+    const idx = (bot.items || []).indexOf(entry.itemName);
+    if (idx === -1) return; // il ne l'a plus (donné à sa guilde, etc.)
+
+    if (Math.random() < (1 / 3)) {
+      bot.items.splice(idx, 1);
+      db.market.listings.push({
+        id: 'lst_' + Date.now().toString(36) + randInt(100, 999),
+        itemId: null,
+        itemName: entry.itemName,
+        rarity: entry.rarity,
+        price: entry.price,
+        categoryTopId: entry.categoryTopId,
+        categorySubId: entry.categorySubId,
+        categoryLabel: entry.categoryLabel,
+        sellerKey: entry.botKey,
+        sellerPseudo: bot.pseudo,
+        createdAt: Date.now()
+      });
+      // revendu : on ne le remet pas dans la liste d'attente
+    } else {
+      stillPending.push(entry); // retentera au prochain cycle
     }
-    // sinon le bot garde l'objet pour de bon
   });
   db.botPendingResale = stillPending;
-}
-
-// Le monde génère lui-même un peu de butin de temps en temps, mis en vente
-// par des bots — comme ça l'hôtel des ventes ne dépend pas uniquement des
-// objets créés à la main par l'admin et ne finit jamais par se vider.
-function autoGenerateWorldLoot(db) {
-  db.market = db.market || { listings: [] };
-  const users = db.users || {};
-  const bots = Object.values(users).filter(u => u.isBot);
-  if (!bots.length) return;
-  const activeCount = db.market.listings.length + (db.botPendingResale || []).length;
-  if (activeCount > 100) return; // stock déjà suffisant, on laisse la place se libérer
-  if (Math.random() > 0.4) return; // pas à chaque cycle
-
-  const count = randInt(1, 2);
-  for (let i = 0; i < count; i++) {
-    const rarity = pickWeightedRarity();
-    const [min, max] = RARITY_RANGES[rarity];
-    const value = randInt(min, max);
-    const seller = pick(bots);
-    const sellerKey = Object.keys(users).find(k => users[k] === seller);
-    db.market.listings.push({
-      id: 'lst_' + Date.now().toString(36) + randInt(1000, 9999),
-      itemId: null,
-      itemName: pick(GENERIC_LOOT_NAMES),
-      rarity,
-      price: value,
-      categoryTopId: null,
-      categorySubId: null,
-      categoryLabel: '',
-      sellerKey,
-      sellerPseudo: seller.pseudo,
-      createdAt: Date.now()
-    });
-  }
 }
 
 function checkBotDungeonTimer(db) {
@@ -426,9 +370,7 @@ function botTick() {
     levelUpBots(dbCache);
     growBotGuilds(dbCache);
     autoListAssignedItems(dbCache);
-    autoGenerateWorldLoot(dbCache);
     botsBuyItems(dbCache);
-    processBotResales(dbCache);
     checkBotDungeonTimer(dbCache);
     writeDb(dbCache);
   } catch (e) {
@@ -436,6 +378,22 @@ function botTick() {
   }
 }
 
+// Cycle séparé, plus rapide, dédié uniquement à la revente des objets que
+// les bots viennent d'acheter : à chaque passage, 1 chance sur 3 de
+// remettre l'objet en vente. Ce cycle ne s'arrête jamais tant que le bot
+// n'a pas revendu.
+function resaleTick() {
+  try {
+    processBotResales(dbCache);
+    writeDb(dbCache);
+  } catch (e) {
+    console.error('[bots] Erreur pendant le cycle de revente :', e);
+  }
+}
+
 // Premier cycle rapide au démarrage, puis toutes les 15 secondes.
 setTimeout(botTick, 2000);
 setInterval(botTick, 15000);
+
+// Cycle de revente : toutes les 10 secondes, comme demandé.
+setInterval(resaleTick, 10000);
