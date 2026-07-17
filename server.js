@@ -254,6 +254,35 @@ function autoListAssignedItems(db) {
   });
 }
 
+// Les bots achètent aussi de temps en temps ce qui est en vente — que ce
+// soit posté par un autre bot ou par un vrai joueur. Ça évite que le
+// marché ne fasse que s'empiler, et ça donne de l'or aux joueurs qui
+// vendent leurs objets.
+function botsBuyItems(db) {
+  db.market = db.market || { listings: [] };
+  db.users = db.users || {};
+  if (!db.market.listings.length) return;
+  const users = db.users;
+  const bots = Object.values(users).filter(u => u.isBot);
+
+  bots.forEach(bot => {
+    if (Math.random() > 0.025) return; // rare, sinon le marché se viderait trop vite
+    if (!db.market.listings.length) return;
+    const botKey = Object.keys(users).find(k => users[k] === bot);
+    const affordable = db.market.listings.filter(l => l.sellerKey !== botKey && l.price <= (bot.gold || 0));
+    if (!affordable.length) return;
+    const listing = pick(affordable);
+    const idx = db.market.listings.indexOf(listing);
+    if (idx === -1) return;
+    db.market.listings.splice(idx, 1);
+    bot.gold -= listing.price;
+    bot.items = bot.items || [];
+    bot.items.push(listing.itemName);
+    const seller = users[listing.sellerKey];
+    if (seller) seller.gold = (seller.gold || 0) + listing.price;
+  });
+}
+
 function checkBotDungeonTimer(db) {
   const timer = db.dungeonBotTimer;
   const dungeon = db.dungeon;
@@ -283,6 +312,7 @@ function botTick() {
     levelUpBots(dbCache);
     growBotGuilds(dbCache);
     autoListAssignedItems(dbCache);
+    botsBuyItems(dbCache);
     checkBotDungeonTimer(dbCache);
     writeDb(dbCache);
   } catch (e) {
