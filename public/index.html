@@ -291,6 +291,10 @@ async function boot(){
 
 async function pollWorld(){
   if(!S.currentUser) return;
+  // Ne pas rafraîchir automatiquement si l'utilisateur est en train d'écrire
+  // dans un champ (sinon le texte tapé disparaît à chaque re-rendu).
+  const active = document.activeElement;
+  if(active && ['INPUT','TEXTAREA','SELECT'].includes(active.tagName)) return;
   if(['village','personnage','guildes','guildDetail','donjons','dungeonPlay','dungeonReward','hotelVentes','rp','classements','adminPanel'].includes(S.view)){
     render();
   }
