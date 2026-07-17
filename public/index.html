@@ -298,7 +298,7 @@ async function pollWorld(){
   // dans un champ (sinon le texte tapé disparaît à chaque re-rendu).
   const active = document.activeElement;
   if(active && ['INPUT','TEXTAREA','SELECT'].includes(active.tagName)) return;
-  if(['village','personnage','guildes','guildDetail','donjons','dungeonPlay','dungeonReward','hotelVentes','rp','classements','adminPanel'].includes(S.view)){
+  if(['village','personnage','guildes','guildDetail','donjons','dungeonPlay','dungeonReward','hotelVentes','rp','rpSession','classements','adminPanel'].includes(S.view)){
     render();
   }
 }
@@ -371,6 +371,14 @@ async function tryNav(target){
   dungeon = await checkAutoResolve(dungeon);
   if(dungeon && dungeon.status==='active' && dungeon.participants.includes(S.currentUser) && !dungeon.onBreak){
     toast('Tu es en plein donjon !'); return;
+  }
+  let rp = await getData('rpSession', null);
+  rp = await checkRpAutoResolve(rp);
+  if(rp && rp.active){
+    toast('Une scène de rôle-play est en cours...');
+    S.view = 'rpSession';
+    render();
+    return;
   }
   S.view = target;
   render();
@@ -793,6 +801,56 @@ async function adminResetDungeon(){
   render();
 }
 
+// ---------- Rôle-play (sessions du meneu de jeu) ----------
+// Vérifie si le temps imparti à la scène est écoulé ; si oui, la clôture
+// automatiquement pour que tous les joueurs retrouvent le village.
+async function checkRpAutoResolve(rp){
+  if(!rp || !rp.active) return rp;
+  if(Date.now() >= rp.endTime){
+    rp.active = false;
+    await setData('rpSession', rp);
+    return rp;
+  }
+  return rp;
+}
+
+async function adminCreateRpSession(e){
+  e.preventDefault();
+  const title = document.getElementById('rp-title').value.trim();
+  const desc = document.getElementById('rp-desc').value.trim();
+  const objRaw = document.getElementById('rp-objectives').value;
+  const objectives = objRaw.split('\n').map(s=>s.trim()).filter(Boolean);
+  const duration = parseInt(document.getElementById('rp-duration').value, 10);
+  if(!title){ toast('Un titre est requis.'); return; }
+  if(!duration || duration<=0){ toast('Durée invalide.'); return; }
+  const existing = await getData('rpSession', null);
+  if(existing && existing.active){ toast('Une scène est déjà en cours.'); return; }
+  const rp = {
+    title, description: desc, objectives,
+    startTime: Date.now(), endTime: Date.now() + duration*60000,
+    active: true
+  };
+  await setData('rpSession', rp);
+  toast('Scène de rôle-play lancée — le village est verrouillé pour les joueurs.');
+  render();
+}
+
+async function adminExtendRpSession(minutes){
+  const rp = await getData('rpSession', null);
+  if(!rp || !rp.active) return;
+  rp.endTime += minutes*60000;
+  await setData('rpSession', rp);
+  toast(`${minutes} min ajoutées à la scène.`);
+  render();
+}
+
+async function adminEndRpSession(){
+  const rp = await getData('rpSession', null);
+  if(rp){ rp.active = false; await setData('rpSession', rp); }
+  toast('Scène de rôle-play terminée — le village est de nouveau accessible.');
+  render();
+}
+
 // ---------- Reward claiming ----------
 function tapChest(){
   S.chestTaps++;
@@ -861,7 +919,8 @@ function render(){
     auth: screenAuth, charCreate: screenCharCreate, village: screenVillage,
     personnage: screenPersonnage, guildes: screenGuildes, guildCreate: screenGuildCreate,
     donjons: screenDonjons, dungeonPlay: screenDungeonPlay, hotelVentes: screenHotelVentes,
-    rp: screenPlaceholder('Rôle-play','📜','Le scribe du village n’a encore rien à raconter.'),
+    rp: screenPlaceholder('Rôle-play','📜','Aucune scène en cours. Le meneu de jeu peut en lancer une à tout moment — tu y seras alors transporté automatiquement, et le village restera fermé jusqu’à la fin.'),
+    rpSession: screenRpSession,
     classements: screenClassements, adminPanel: screenAdmin
   };
   const fn = routes[v] || screenAuth;
@@ -946,13 +1005,19 @@ async function screenVillage(){
     S.view='dungeonPlay';
     return screenDungeonPlay();
   }
+  let rp = await getData('rpSession', null);
+  rp = await checkRpAutoResolve(rp);
+  if(rp && rp.active){
+    S.view='rpSession';
+    return screenRpSession();
+  }
 
   const cats = [
     {id:'personnage', icon:'🧙', label:'Personnage', sub:'Fiche & équipement'},
     {id:'guildes', icon:'🏰', label:'Guildes', sub:'Ta compagnie'},
     {id:'hotelVentes', icon:'🏛️', label:'Hôtel des ventes', sub:'Achète & vends'},
     {id:'donjons', icon:'💀', label:'Donjons', sub:'4 lieux périlleux'},
-    {id:'rp', icon:'📜', label:'Rôle-play', sub:'Bientôt'},
+    {id:'rp', icon:'📜', label:'Rôle-play', sub:'Animé par le meneu de jeu'},
     {id:'classements', icon:'🏆', label:'Classements', sub:'Gloire & renom'}
   ];
   const cards = cats.map(c=>`
@@ -1198,6 +1263,39 @@ async function screenDungeonPlay(){
   `;
 }
 
+async function screenRpSession(){
+  const users = await getData('users', {});
+  const u = users[S.currentUser];
+  let rp = await getData('rpSession', null);
+  rp = await checkRpAutoResolve(rp);
+  if(!rp || !rp.active){
+    S.view = 'village';
+    return screenVillage();
+  }
+  const remain = Math.max(0, rp.endTime - Date.now());
+  const m = Math.floor(remain/60000), s = Math.floor((remain%60000)/1000);
+  const objectivesHtml = (rp.objectives && rp.objectives.length) ? `
+    <div class="divider"></div>
+    <label>Objectif${rp.objectives.length>1?'s':''} de la scène</label>
+    <ul style="margin:8px 0 0; padding-left:22px;">
+      ${rp.objectives.map(o=>`<li style="margin-bottom:8px;">${o}</li>`).join('')}
+    </ul>
+  ` : '';
+  return `
+    ${topbarHTML(u)}
+    <div class="panel" style="margin-top:16px;">
+      <div class="eyebrow">Scène de rôle-play en cours</div>
+      <h2>${rp.title}</h2>
+      ${rp.description ? `<p class="muted" style="margin-top:12px; white-space:pre-wrap;">${rp.description}</p>` : ''}
+      ${objectivesHtml}
+      <div class="divider"></div>
+      <label>Temps restant</label>
+      <h3 style="font-size:32px; margin-top:6px;">${m}m ${s<10?'0':''}${s}s</h3>
+      <p class="muted" style="font-size:13px; margin-top:10px;">Le village — personnage, guildes, hôtel des ventes, donjons, classements — est inaccessible tant que cette scène est en cours.</p>
+    </div>
+  `;
+}
+
 async function screenHotelVentes(){
   const users = await getData('users', {});
   const u = users[S.currentUser];
@@ -1326,6 +1424,8 @@ async function screenAdmin(){
   const itemCatalog = await getData('itemCatalog', {});
   const market = await getData('market', {listings:[]});
   const botTimer = await getData('dungeonBotTimer', {enabled:false, deadline:null});
+  let rpSession = await getData('rpSession', null);
+  rpSession = await checkRpAutoResolve(rpSession);
 
   // rendu accessible à updateSubcatSelect() sans nouvel appel réseau
   S.categoriesCache = categories;
@@ -1444,6 +1544,34 @@ async function screenAdmin(){
       <label>Joueurs réels (${realPlayers.length}) — les bots ne sont pas listés ici</label>
       <table><thead><tr><th>Pseudo</th><th>Classe</th><th>Niv.</th><th>Or</th><th>Guilde</th></tr></thead>
       <tbody>${userRows || '<tr><td class="muted">Aucun joueur inscrit.</td></tr>'}</tbody></table>
+    </div>
+
+    <div class="panel" style="margin-top:20px;">
+      <div class="eyebrow">Rôle-play</div>
+      <h2>Scène en cours</h2>
+      ${rpSession && rpSession.active ? `
+        <div class="row" style="margin-bottom:12px;">
+          <span class="badge gold">${rpSession.title}</span>
+          <span class="badge">${Math.max(0,Math.ceil((rpSession.endTime-Date.now())/60000))} min restantes</span>
+          ${rpSession.objectives && rpSession.objectives.length ? `<span class="badge">${rpSession.objectives.length} objectif(s)</span>` : ''}
+        </div>
+        ${rpSession.description ? `<p class="muted" style="white-space:pre-wrap;">${rpSession.description}</p>` : ''}
+        ${rpSession.objectives && rpSession.objectives.length ? `<ul style="margin:8px 0; padding-left:20px;">${rpSession.objectives.map(o=>`<li class="muted">${o}</li>`).join('')}</ul>` : ''}
+        <div class="row" style="margin-top:10px;">
+          <button class="btn btn-small" onclick="adminExtendRpSession(10)">+10 min</button>
+          <button class="btn btn-small btn-danger" onclick="adminEndRpSession()">Terminer la scène maintenant</button>
+        </div>
+        <p class="muted" style="font-size:13px; margin-top:10px;">Le village est verrouillé pour tous les joueurs tant que cette scène est active.</p>
+      ` : `
+        <p class="muted">Aucune scène en cours. Pendant une scène, les joueurs n'ont accès à rien du village.</p>
+        <form onsubmit="adminCreateRpSession(event)">
+          <div class="field"><label>Titre de la scène</label><input id="rp-title" type="text" placeholder="L'arrivée des émissaires"></div>
+          <div class="field"><label>Description</label><textarea id="rp-desc" rows="3" placeholder="Décris le contexte, le lieu, l'ambiance..."></textarea></div>
+          <div class="field"><label>Objectif(s) — un par ligne</label><textarea id="rp-objectives" rows="3" placeholder="Convaincre l'émissaire d'accepter le traité&#10;Découvrir qui l'a envoyé"></textarea></div>
+          <div class="field" style="max-width:200px;"><label>Durée (minutes)</label><input id="rp-duration" type="number" min="1" placeholder="30"></div>
+          <button class="btn btn-primary" type="submit">Lancer la scène (verrouille le village)</button>
+        </form>
+      `}
     </div>
 
     <div class="panel" style="margin-top:20px;">
