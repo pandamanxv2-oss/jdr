@@ -1,3 +1,4 @@
+
 // server.js — Terres de Konne
 // Petit serveur Express qui sert le site et stocke l'état du monde
 // (comptes, guildes, saison, donjon en cours...) dans un fichier JSON
@@ -114,6 +115,29 @@ const GUILD_EMBLEMS = ['🐺','🦅','⚔️','🛡️','🔥','🌙','🐉','�
 // Bonus de puissance gagné en achetant un objet, selon sa rareté.
 const POWER_BY_RARITY = { commun: 1, rare: 3, tres_rare: 6, legendaire: 12 };
 
+// Fourchettes de valeur par rareté (mêmes règles que côté admin).
+const RARITY_RANGES = {
+  commun: [1, 10],
+  rare: [10, 30],
+  tres_rare: [30, 50],
+  legendaire: [50, 100]
+};
+const GENERIC_LOOT_NAMES = [
+  'Épée ébréchée','Dague rouillée','Amulette ternie','Bouclier de bois','Potion trouble',
+  'Cape élimée','Anneau simple','Heaume cabossé','Gantelet usé','Bâton noueux',
+  'Fiole scintillante','Médaillon gravé','Arc fendu','Hache émoussée','Collier de perles',
+  'Bottes de cuir','Parchemin ancien','Sceptre terni','Masque de bois','Pierre runique',
+  'Torche éternelle','Clochette d\'argent','Broche d\'émeraude','Lanterne fêlée','Vieux grimoire'
+];
+
+function pickWeightedRarity() {
+  const roll = Math.random();
+  if (roll > 0.98) return 'legendaire';
+  if (roll > 0.90) return 'tres_rare';
+  if (roll > 0.55) return 'rare';
+  return 'commun';
+}
+
 function xpNeeded(level) { return 10 * (level + 1); }
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 function randInt(min, max) { return min + Math.floor(Math.random() * (max - min + 1)); }
@@ -162,12 +186,12 @@ function ensureBots(db) {
 function levelUpBots(db) {
   const bots = Object.values(db.users || {}).filter(u => u.isBot);
   bots.forEach(bot => {
-    // rythme volontairement lent : un bot progresse à peu près comme
-    // un joueur qui ferait un donjon de temps en temps, pas plus vite.
-    if (Math.random() > 0.04) return;
+    // rythme modéré : plus rapide qu'avant, mais chaque niveau demande
+    // toujours un peu plus d'xp que le précédent (comme pour un joueur).
+    if (Math.random() > 0.25) return;
     const target = bot.botTargetLevel || 20;
     if (bot.level >= target) return;
-    let xp = bot.xp + randInt(1, 2);
+    let xp = bot.xp + randInt(2, 4);
     let level = bot.level;
     while (level < target && xp >= xpNeeded(level)) {
       xp -= xpNeeded(level);
@@ -272,7 +296,7 @@ function botsBuyItems(db) {
   const bots = Object.values(users).filter(u => u.isBot);
 
   bots.forEach(bot => {
-    if (Math.random() > 0.025) return; // rare, sinon le marché se viderait trop vite
+    if (Math.random() > 0.0012) return; // très rare : ~1 achat toutes les minutes environ, tous bots confondus
     if (!db.market.listings.length) return;
     const botKey = Object.keys(users).find(k => users[k] === bot);
     const affordable = db.market.listings.filter(l => l.sellerKey !== botKey && l.price <= (bot.gold || 0));
@@ -338,6 +362,41 @@ function processBotResales(db) {
   db.botPendingResale = stillPending;
 }
 
+// Le monde génère lui-même un peu de butin de temps en temps, mis en vente
+// par des bots — comme ça l'hôtel des ventes ne dépend pas uniquement des
+// objets créés à la main par l'admin et ne finit jamais par se vider.
+function autoGenerateWorldLoot(db) {
+  db.market = db.market || { listings: [] };
+  const users = db.users || {};
+  const bots = Object.values(users).filter(u => u.isBot);
+  if (!bots.length) return;
+  const activeCount = db.market.listings.length + (db.botPendingResale || []).length;
+  if (activeCount > 100) return; // stock déjà suffisant, on laisse la place se libérer
+  if (Math.random() > 0.4) return; // pas à chaque cycle
+
+  const count = randInt(1, 2);
+  for (let i = 0; i < count; i++) {
+    const rarity = pickWeightedRarity();
+    const [min, max] = RARITY_RANGES[rarity];
+    const value = randInt(min, max);
+    const seller = pick(bots);
+    const sellerKey = Object.keys(users).find(k => users[k] === seller);
+    db.market.listings.push({
+      id: 'lst_' + Date.now().toString(36) + randInt(1000, 9999),
+      itemId: null,
+      itemName: pick(GENERIC_LOOT_NAMES),
+      rarity,
+      price: value,
+      categoryTopId: null,
+      categorySubId: null,
+      categoryLabel: '',
+      sellerKey,
+      sellerPseudo: seller.pseudo,
+      createdAt: Date.now()
+    });
+  }
+}
+
 function checkBotDungeonTimer(db) {
   const timer = db.dungeonBotTimer;
   const dungeon = db.dungeon;
@@ -367,6 +426,7 @@ function botTick() {
     levelUpBots(dbCache);
     growBotGuilds(dbCache);
     autoListAssignedItems(dbCache);
+    autoGenerateWorldLoot(dbCache);
     botsBuyItems(dbCache);
     processBotResales(dbCache);
     checkBotDungeonTimer(dbCache);
