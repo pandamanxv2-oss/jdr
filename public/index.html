@@ -221,6 +221,8 @@ const RARITIES = {
   tres_rare:  {label:'Très rare',  min:30, max:50,  color:'#8a5fc9'},
   legendaire: {label:'Légendaire', min:50, max:100, color:'#e9c874'}
 };
+// Bonus de puissance gagné en achetant un objet, selon sa rareté.
+const POWER_BY_RARITY = { commun:1, rare:3, tres_rare:6, legendaire:12 };
 
 function xpNeeded(level){ return 10*(level+1); }
 
@@ -326,7 +328,7 @@ async function handleAuthSubmit(e){
     users[key] = {
       pseudo, password: pass, isAdmin,
       class: isAdmin ? 'admin' : null,
-      level: 0, xp: 0, gold: isAdmin ? 0 : 10,
+      level: 0, xp: 0, gold: isAdmin ? 0 : 10, power: 0,
       items: [], guildId: null
     };
     await setData('users', users);
@@ -522,11 +524,13 @@ async function buyMarketItem(listingId){
   if(u.gold < listing.price){ toast("Pas assez d'or."); return; }
   u.gold -= listing.price;
   u.items.push(listing.itemName);
+  const powerGain = POWER_BY_RARITY[listing.rarity] || 0;
+  if(powerGain) u.power = (u.power||0) + powerGain;
   if(users[listing.sellerKey]){ users[listing.sellerKey].gold = (users[listing.sellerKey].gold||0) + listing.price; }
   market.listings.splice(idx,1);
   await setData('users', users);
   await setData('market', market);
-  toast(`Tu as acheté ${listing.itemName} pour ${listing.price} or !`);
+  toast(powerGain ? `Tu as acheté ${listing.itemName} pour ${listing.price} or (+${powerGain} 💪 puissance) !` : `Tu as acheté ${listing.itemName} pour ${listing.price} or !`);
   render();
 }
 
@@ -999,6 +1003,7 @@ async function screenPersonnage(){
         <span class="badge gold">${CLASSES[u.class]?.label || u.class}</span>
         <span class="badge">Niveau ${u.level}${u.level>=MAX_LEVEL?' (Max)':''}</span>
         <span class="badge">${u.gold} 🪙 or</span>
+        <span class="badge gold">💪 Puissance ${u.power||0}</span>
         <span class="badge">${g? `Guilde: ${g.emblem} ${g.name}` : 'Sans guilde'}</span>
       </div>
       <div class="divider"></div>
@@ -1008,6 +1013,7 @@ async function screenPersonnage(){
       <div class="divider"></div>
       <label>Objets</label>
       <div>${u.items.length? u.items.map(i=>`<span class="item-pill">${i}</span>`).join('') : '<span class="muted">Aucun objet pour le moment.</span>'}</div>
+      <p class="muted" style="font-size:12px; margin-top:10px;">Chaque objet acheté à l'hôtel des ventes augmente ta puissance selon sa rareté : commun +1, rare +3, très rare +6, légendaire +12.</p>
     </div>
   `;
 }
@@ -1286,8 +1292,8 @@ async function screenClassements(){
     <div class="panel" style="margin-top:16px;">
       <div class="eyebrow">Classements</div>
       <h2>Joueurs</h2>
-      <table><thead><tr><th>#</th><th>Pseudo</th><th>Classe</th><th>Niveau</th></tr></thead>
-      <tbody>${uArr.map((p,i)=>`<tr><td>${i+1}</td><td>${p.pseudo}</td><td>${CLASSES[p.class]?.label||'-'}</td><td>${p.level}</td></tr>`).join('')}</tbody></table>
+      <table><thead><tr><th>#</th><th>Pseudo</th><th>Classe</th><th>Niveau</th><th>💪 Puissance</th></tr></thead>
+      <tbody>${uArr.map((p,i)=>`<tr><td>${i+1}</td><td>${p.pseudo}</td><td>${CLASSES[p.class]?.label||'-'}</td><td>${p.level}</td><td>${p.power||0}</td></tr>`).join('')}</tbody></table>
       <div class="divider"></div>
       <h2>Guildes</h2>
       <table><thead><tr><th>#</th><th>Guilde</th><th>Réputation</th></tr></thead>
