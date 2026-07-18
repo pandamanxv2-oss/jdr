@@ -1038,6 +1038,19 @@ async function adminResetDungeon(){
   render();
 }
 
+// Le meneu de jeu déclenche l'épilogue une fois le donjon final vaincu :
+// ni coffre ni récompense à taper, place au récit — et la saison se
+// termine automatiquement à ce moment-là.
+async function adminLaunchEpilogue(){
+  const dungeon = await getData('dungeon', null);
+  if(!dungeon || dungeon.status!=='won' || dungeon.type!=='impossible' || dungeon.finishedByBots) return;
+  dungeon.epilogueLaunched = true;
+  await setData('dungeon', dungeon);
+  await setData('season', {started:false});
+  toast("Épilogue lancé — la saison est terminée.");
+  render();
+}
+
 // ---------- Rôle-play (salon animé par le meneur de jeu) ----------
 // L'admin crée la scène (brouillon) : les invitations partent aussitôt.
 // Un joueur qui accepte est transporté dans le salon d'attente — la scène
@@ -1534,36 +1547,50 @@ async function screenDungeonPlay(){
 
   if(dungeon.status !== 'active'){
     // reward screen
-    const isGrandVictory = dungeon.type==='impossible' && dungeon.status==='won';
+    const isGrandVictory = dungeon.type==='impossible' && dungeon.status==='won' && !dungeon.finishedByBots;
     const already = dungeon.rewardsClaimed && dungeon.rewardsClaimed.includes(S.currentUser);
-    if(already){
-      return `
-        ${isGrandVictory? confettiHTML(50) : ''}
-        ${topbarHTML(u)}
-        <div class="panel center" style="flex-direction:column; margin-top:16px; padding:60px 20px;">
-          ${isGrandVictory? `
+
+    if(isGrandVictory){
+      if(!dungeon.epilogueLaunched){
+        return `
+          ${confettiHTML(50)}
+          ${topbarHTML(u)}
+          <div class="panel center" style="flex-direction:column; margin-top:16px; padding:60px 20px;">
             <div class="victory-banner">
               <div class="victory-title">🏆 VICTOIRE FINALE 🏆</div>
-              <p class="muted" style="margin-top:8px;">${cfg.name} est tombé. La saison est terminée !</p>
+              <p class="muted" style="margin-top:10px; max-width:460px; text-align:center;">${cfg.name} est vaincu ! Konne se souviendra de ${dungeon.participants.join(', ')} à jamais.</p>
             </div>
-          ` : `<div class="eyebrow">${cfg.name}</div><h2>${dungeon.status==='won'? 'Victoire !' : 'Défaite...'}</h2>`}
+            <p class="muted" style="margin-top:18px;">Le meneu de jeu prépare l'épilogue... reste ici, tu vas y être transporté.</p>
+          </div>`;
+      }
+      if(!already){
+        dungeon.rewardsClaimed = dungeon.rewardsClaimed || [];
+        dungeon.rewardsClaimed.push(S.currentUser);
+        await setData('dungeon', dungeon);
+        const heroNames = dungeon.participants.map(p=>users[p]?users[p].pseudo:p);
+        S.view = 'village';
+        const villageHtml = await screenVillage();
+        showEpilogueCinematic(heroNames);
+        return villageHtml;
+      }
+      S.view = 'village';
+      return screenVillage();
+    }
+
+    if(already){
+      return `
+        ${topbarHTML(u)}
+        <div class="panel center" style="flex-direction:column; margin-top:16px; padding:60px 20px;">
+          <div class="eyebrow">${cfg.name}</div><h2>${dungeon.status==='won'? 'Victoire !' : 'Défaite...'}</h2>
           <p class="muted">Récompense déjà réclamée.</p>
           <button class="btn btn-primary" style="margin-top:14px;" onclick="goVillage()">Retourner au village</button>
         </div>`;
     }
     return `
-      ${isGrandVictory? confettiHTML(60) : ''}
       ${topbarHTML(u)}
       <div class="panel center" style="flex-direction:column; margin-top:16px; padding:50px 20px;">
-        ${isGrandVictory ? `
-          <div class="victory-banner">
-            <div class="victory-title">🏆 VICTOIRE FINALE 🏆</div>
-            <p class="muted" style="margin-top:10px; max-width:460px; text-align:center;">${cfg.name} est vaincu ! Konne se souviendra de ${dungeon.participants.join(', ')} à jamais. La saison touche à sa fin.</p>
-          </div>
-        ` : `
-          <div class="eyebrow">${cfg.name}</div>
-          <h2 style="color:${dungeon.status==='won'?'var(--emerald-bright)':'var(--blood-bright)'};">${dungeon.status==='won'? 'Victoire !' : 'Défaite...'}</h2>
-        `}
+        <div class="eyebrow">${cfg.name}</div>
+        <h2 style="color:${dungeon.status==='won'?'var(--emerald-bright)':'var(--blood-bright)'};">${dungeon.status==='won'? 'Victoire !' : 'Défaite...'}</h2>
         <p class="muted">${dungeon.tiersCompleted} tier(s) réussi(s) sur ${dungeon.totalTiers}.</p>
         <p class="muted">Tape sur le coffre pour débloquer ta récompense.</p>
         <div id="chest-el" class="chest" onclick="tapChest()">🎁</div>
@@ -1836,6 +1863,7 @@ async function screenAdmin(){
     const totalDuration = dungeon.totalTiers * TIER_MS;
     const remain = Math.max(0, totalDuration - (Date.now()-dungeon.startTime));
     const rm = Math.floor(remain/60000), rs = Math.floor((remain%60000)/1000);
+    const isGrandVictory = dungeon.type==='impossible' && dungeon.status==='won' && !dungeon.finishedByBots;
     dungeonBlock = `
       <div class="row" style="margin-bottom:10px;">
         <span class="badge gold">${cfg.name}</span>
@@ -1845,15 +1873,19 @@ async function screenAdmin(){
         ${dungeon.status==='active'? `<span class="badge">Temps restant: ${rm}m ${rs<10?'0':''}${rs}s</span>` : ''}
         ${dungeon.onBreak? '<span class="badge">En pause</span>':''}
         ${dungeon.finishedByBots? '<span class="badge" style="border-color:var(--blood-bright); color:var(--blood-bright);">Terminé par les bots</span>':''}
+        ${isGrandVictory && dungeon.epilogueLaunched? '<span class="badge gold">Épilogue lancé</span>':''}
       </div>
       <p class="muted">Participants : ${dungeon.participants.join(', ')}</p>
-      <p class="muted">Récompenses réclamées : ${(dungeon.rewardsClaimed||[]).join(', ')||'aucune'}</p>
+      ${!isGrandVictory ? `<p class="muted">Récompenses réclamées : ${(dungeon.rewardsClaimed||[]).join(', ')||'aucune'}</p>` : ''}
       <div class="row" style="margin-top:12px;">
         ${dungeon.status==='active' ? `
           ${dungeon.onBreak? `<button class="btn" onclick="adminEndBreakNow()">Terminer la pause</button>` : `<button class="btn btn-primary" onclick="adminAdvanceTier()">Tier suivant</button>`}
           <button class="btn btn-danger" onclick="adminDeclare('lost')">Déclarer défaite</button>
+        ` : isGrandVictory && !dungeon.epilogueLaunched ? `
+          <button class="btn btn-primary" onclick="adminLaunchEpilogue()">Lancer l'épilogue (termine la saison)</button>
         ` : `<button class="btn" onclick="adminResetDungeon()">Réinitialiser (libérer le monde)</button>`}
       </div>
+      ${isGrandVictory && !dungeon.epilogueLaunched ? `<p class="muted" style="font-size:13px; margin-top:10px;">Le château est tombé. Les joueurs attendent que tu lances l'épilogue — aucune récompense à réclamer pour ce donjon, place au récit.</p>` : ''}
       <p class="muted" style="font-size:13px; margin-top:10px;">Victoire automatique dès que le dernier tier est validé. Si le temps global s'épuise avant, c'est une défaite automatique.</p>
       <div class="divider"></div>
       <label>Minuteur secret (invisible pour les joueurs)</label>
