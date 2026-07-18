@@ -186,6 +186,50 @@
   .item-pill{display:inline-block; background:var(--panel-2); border:1px solid var(--line); border-radius:20px; padding:4px 12px; font-size:14px; margin:3px 4px 0 0;}
   ::selection{background:var(--gold); color:#1a1622;}
   .footer-admin{position:fixed; bottom:10px; left:10px; font-size:11px; color:#4a4257;}
+
+  /* ---- Combat de boss ---- */
+  .boss-panel{
+    border-color:var(--blood-bright) !important;
+    background:linear-gradient(180deg, #2a1416, #1c0f12) !important;
+    animation:bossGlow 2.2s ease-in-out infinite;
+  }
+  @keyframes bossGlow{
+    0%,100%{ box-shadow:0 0 30px rgba(194,75,75,0.25), inset 0 0 40px rgba(138,47,47,0.15); }
+    50%{ box-shadow:0 0 75px rgba(194,75,75,0.6), inset 0 0 90px rgba(138,47,47,0.35); }
+  }
+  .boss-tier-display{
+    font-size:min(28vw,190px) !important;
+    color:var(--blood-bright) !important;
+    text-shadow:0 0 60px rgba(194,75,75,0.7), 0 0 130px rgba(194,75,75,0.4) !important;
+    animation:bossPulseText 1.5s ease-in-out infinite;
+  }
+  @keyframes bossPulseText{0%,100%{transform:scale(1);} 50%{transform:scale(1.06);}}
+  .boss-badge{
+    display:inline-block; font-family:'Cinzel',serif; font-size:16px; letter-spacing:0.12em;
+    padding:9px 22px; border-radius:24px; border:2px solid var(--blood-bright); color:#fff;
+    background:linear-gradient(180deg, var(--blood), #4a1a1a);
+    text-transform:uppercase; margin-top:16px;
+    animation:bossBadgePulse 1.3s ease-in-out infinite;
+  }
+  @keyframes bossBadgePulse{
+    0%,100%{ transform:scale(1); box-shadow:0 0 20px rgba(194,75,75,0.5); }
+    50%{ transform:scale(1.1); box-shadow:0 0 45px rgba(194,75,75,0.95); }
+  }
+  .boss-warn{color:var(--blood-bright); font-family:'Cinzel',serif; letter-spacing:0.06em; margin-top:10px;}
+
+  /* ---- Victoire finale ---- */
+  .confetti-wrap{position:fixed; inset:0; pointer-events:none; overflow:hidden; z-index:998;}
+  .confetti-piece{position:absolute; top:-24px; opacity:0.9; border-radius:2px; animation-name:confettiFall; animation-timing-function:linear; animation-iteration-count:infinite;}
+  @keyframes confettiFall{0%{transform:translateY(-10vh) rotate(0deg);} 100%{transform:translateY(112vh) rotate(360deg);}}
+  .victory-banner{text-align:center; margin:6px 0 18px; animation:victoryPop .7s cubic-bezier(.3,1.6,.5,1);}
+  .victory-title{
+    font-family:'Cinzel',serif; font-weight:900; font-size:min(12vw,58px);
+    background:linear-gradient(180deg, var(--gold-bright), var(--gold));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    filter:drop-shadow(0 0 30px rgba(201,162,75,0.6));
+    letter-spacing:0.04em;
+  }
+  @keyframes victoryPop{0%{transform:scale(0.3) rotate(-4deg); opacity:0;} 60%{transform:scale(1.08) rotate(2deg);} 100%{transform:scale(1) rotate(0); opacity:1;}}
 </style>
 </head>
 <body>
@@ -224,6 +268,21 @@ const RARITIES = {
 const POWER_BY_RARITY = { commun:1, rare:3, tres_rare:6, legendaire:12 };
 
 function xpNeeded(level){ return 10*(level+1); }
+
+function confettiHTML(count){
+  const colors = ['#c9a24b','#e9c874','#c24b4b','#8a2f2f','#5fae7a','#3f5f8a','#8a5fc9'];
+  let pieces = '';
+  for(let i=0;i<count;i++){
+    const left = (Math.random()*100).toFixed(2);
+    const delay = (Math.random()*2.2).toFixed(2);
+    const duration = (2.6 + Math.random()*2.2).toFixed(2);
+    const color = colors[Math.floor(Math.random()*colors.length)];
+    const w = (5 + Math.random()*8).toFixed(1);
+    const h = (w*0.45).toFixed(1);
+    pieces += `<div class="confetti-piece" style="left:${left}%; background:${color}; width:${w}px; height:${h}px; animation-delay:${delay}s; animation-duration:${duration}s;"></div>`;
+  }
+  return `<div class="confetti-wrap">${pieces}</div>`;
+}
 
 // ---------- Storage helpers ----------
 // Ces fonctions parlent au petit serveur (server.js) qui garde l'état
@@ -359,11 +418,26 @@ async function confirmCharCreate(){
 }
 
 // ---------- Village / navigation ----------
-async function goVillage(){ S.view='village'; render(); }
+// Renvoie true si le joueur courant est bloqué dans une scène de RP active
+// (il y a rejoint / a accepté l'invitation, et l'admin l'a lancée).
+async function getRpLock(){
+  if(!S.currentUser) return false;
+  const users = await getData('users', {});
+  const u = users[S.currentUser];
+  if(!u || u.isAdmin) return false;
+  const rp = await getData('rpSession', null);
+  return !!(rp && rp.status==='active' && (rp.participants||[]).includes(S.currentUser));
+}
+
+async function goVillage(){
+  if(await getRpLock()){ toast('Tu ne peux pas quitter la scène de rôle-play en cours.'); S.view='rp'; render(); return; }
+  S.view='village'; render();
+}
 
 async function tryNav(target){
   const season = await getData('season', {started:false});
   if(!season.started){ toast("La saison n'a pas encore commencé."); return; }
+  if(target!=='rp' && await getRpLock()){ toast('Tu ne peux pas quitter la scène de rôle-play en cours.'); S.view='rp'; render(); return; }
   const users = await getData('users', {});
   const u = users[S.currentUser];
   let dungeon = await getData('dungeon', null);
@@ -427,11 +501,11 @@ async function respondInvite(idx, accept){
   if(invite.type === 'rpInvite'){
     if(accept){
       const rp = await getData('rpSession', null);
-      if(rp && rp.status==='active' && rp.id===invite.rpId){
+      if(rp && (rp.status==='draft' || rp.status==='active') && rp.id===invite.rpId){
         rp.participants = rp.participants || [];
         if(!rp.participants.includes(S.currentUser)) rp.participants.push(S.currentUser);
         await setData('rpSession', rp);
-        toast('Tu es transporté dans la scène...');
+        toast(rp.status==='draft' ? 'Tu es transporté dans le salon — en attente du meneur de jeu...' : 'Tu es transporté dans la scène...');
         S.view = 'rp';
       } else {
         toast('Cette scène est déjà terminée.');
@@ -811,24 +885,23 @@ async function adminResetDungeon(){
   render();
 }
 
-// ---------- Rôle-play (salon animé par le meneu de jeu) ----------
-// La scène n'est plus imposée : l'admin la crée (brouillon), puis la
-// lance quand il est prêt. Une fois lancée, elle devient un salon que
-// les joueurs peuvent rejoindre depuis le village quand ils le veulent.
-// Si l'admin active les invitations automatiques, une notification est
-// envoyée à tous les joueurs toutes les 10 minutes pour leur proposer
-// d'y participer ; accepter les y transporte directement.
+// ---------- Rôle-play (salon animé par le meneur de jeu) ----------
+// L'admin crée la scène (brouillon) : les invitations partent aussitôt.
+// Un joueur qui accepte est transporté dans le salon d'attente — la scène
+// n'a pas encore commencé, il patiente avec les autres. Quand l'admin
+// juge que tout le monde est là, il lance : à cet instant précis, tous
+// les participants perdent l'accès au reste du village jusqu'à la fin.
 const RP_INVITE_INTERVAL_MS = 10*60000;
 
 async function checkRpAutoResolve(rp){
-  if(!rp || rp.status!=='active') return rp;
-  if(rp.endTime && Date.now() >= rp.endTime){
+  if(!rp) return rp;
+  if(rp.status==='active' && rp.endTime && Date.now() >= rp.endTime){
     rp.status = 'ended';
     await setData('rpSession', rp);
     return rp;
   }
-  if(rp.autoInviteEnabled){
-    const last = rp.lastInviteAt || rp.startTime || 0;
+  if((rp.status==='draft' || rp.status==='active') && rp.autoInviteEnabled){
+    const last = rp.lastInviteAt || rp.createdAt || 0;
     if(Date.now() - last >= RP_INVITE_INTERVAL_MS){
       rp.lastInviteAt = Date.now();
       await setData('rpSession', rp);
@@ -875,12 +948,13 @@ async function adminCreateRpSession(e){
     title, description: desc, objectives, duration,
     status: 'draft',
     autoInviteEnabled: autoInvite,
-    lastInviteAt: null,
+    lastInviteAt: Date.now(),
     createdAt: Date.now(), startTime: null, endTime: null,
     participants: []
   };
   await setData('rpSession', rp);
-  toast('Scène créée en brouillon — lance-la quand tu es prêt.');
+  await sendRpInvites(rp);
+  toast('Scène créée — les invitations sont parties. Lance-la quand tout le monde est dans le salon.');
   render();
 }
 
@@ -892,14 +966,13 @@ async function adminLaunchRpSession(){
   rp.endTime = Date.now() + rp.duration*60000;
   rp.lastInviteAt = Date.now();
   await setData('rpSession', rp);
-  if(rp.autoInviteEnabled) await sendRpInvites(rp);
-  toast('Scène lancée — les joueurs peuvent la rejoindre depuis le village.');
+  toast('Scène lancée ! Les participants n\'ont plus accès au reste du village.');
   render();
 }
 
 async function adminToggleRpAutoInvite(){
   const rp = await getData('rpSession', null);
-  if(!rp || rp.status!=='active') return;
+  if(!rp || rp.status==='ended') return;
   rp.autoInviteEnabled = !rp.autoInviteEnabled;
   if(rp.autoInviteEnabled) rp.lastInviteAt = Date.now();
   await setData('rpSession', rp);
@@ -908,7 +981,7 @@ async function adminToggleRpAutoInvite(){
 
 async function adminSendRpInviteNow(){
   const rp = await getData('rpSession', null);
-  if(!rp || rp.status!=='active') return;
+  if(!rp || rp.status==='ended') return;
   rp.lastInviteAt = Date.now();
   await setData('rpSession', rp);
   await sendRpInvites(rp);
@@ -928,15 +1001,16 @@ async function adminExtendRpSession(minutes){
 async function adminEndRpSession(){
   const rp = await getData('rpSession', null);
   if(rp){ rp.status = 'ended'; await setData('rpSession', rp); }
-  toast('Scène de rôle-play terminée.');
+  toast('Scène de rôle-play terminée — le village est de nouveau accessible.');
   render();
 }
 
-// Un joueur rejoint le salon volontairement (carte du village) ou parce
-// qu'il vient d'accepter une invitation.
+// Un joueur rejoint le salon (carte du village, ou parce qu'il vient
+// d'accepter une invitation). Possible pendant le brouillon (salle
+// d'attente) comme pendant la scène active (rejoindre en cours de route).
 async function joinRpScene(){
   const rp = await getData('rpSession', null);
-  if(!rp || rp.status!=='active'){ toast('Cette scène est terminée.'); S.view='village'; render(); return; }
+  if(!rp || (rp.status!=='draft' && rp.status!=='active')){ toast('Cette scène est terminée.'); S.view='village'; render(); return; }
   rp.participants = rp.participants || [];
   if(!rp.participants.includes(S.currentUser)){
     rp.participants.push(S.currentUser);
@@ -1009,16 +1083,23 @@ function showLevelUp(level){
 // ---------- Render dispatcher ----------
 function render(){
   const app = document.getElementById('app');
-  const v = S.view;
-  const routes = {
-    auth: screenAuth, charCreate: screenCharCreate, village: screenVillage,
-    personnage: screenPersonnage, guildes: screenGuildes, guildCreate: screenGuildCreate,
-    donjons: screenDonjons, dungeonPlay: screenDungeonPlay, hotelVentes: screenHotelVentes,
-    rp: screenRp,
-    classements: screenClassements, adminPanel: screenAdmin
-  };
-  const fn = routes[v] || screenAuth;
-  Promise.resolve(fn()).then(html=>{ app.innerHTML = html; renderToasts(); });
+  (async () => {
+    if(S.currentUser && S.view!=='auth' && S.view!=='charCreate' && (await getRpLock())){
+      S.view = 'rp';
+    }
+    const v = S.view;
+    const routes = {
+      auth: screenAuth, charCreate: screenCharCreate, village: screenVillage,
+      personnage: screenPersonnage, guildes: screenGuildes, guildCreate: screenGuildCreate,
+      donjons: screenDonjons, dungeonPlay: screenDungeonPlay, hotelVentes: screenHotelVentes,
+      rp: screenRp,
+      classements: screenClassements, adminPanel: screenAdmin
+    };
+    const fn = routes[v] || screenAuth;
+    const html = await fn();
+    app.innerHTML = html;
+    renderToasts();
+  })();
 }
 
 function topbarHTML(u, title){
@@ -1107,7 +1188,7 @@ async function screenVillage(){
     {id:'guildes', icon:'🏰', label:'Guildes', sub:'Ta compagnie'},
     {id:'hotelVentes', icon:'🏛️', label:'Hôtel des ventes', sub:'Achète & vends'},
     {id:'donjons', icon:'💀', label:'Donjons', sub:'4 lieux périlleux'},
-    {id:'rp', icon:'📜', label:'Rôle-play', sub: rp && rp.status==='active' ? `🟢 Salon ouvert : ${rp.title}` : 'Aucun salon ouvert'},
+    {id:'rp', icon:'📜', label:'Rôle-play', sub: rp && rp.status==='active' ? `🟢 Scène en cours : ${rp.title}` : (rp && rp.status==='draft' ? `🕯️ En préparation : ${rp.title}` : 'Aucun salon ouvert')},
     {id:'classements', icon:'🏆', label:'Classements', sub:'Gloire & renom'}
   ];
   const cards = cats.map(c=>`
@@ -1293,22 +1374,36 @@ async function screenDungeonPlay(){
 
   if(dungeon.status !== 'active'){
     // reward screen
+    const isGrandVictory = dungeon.type==='impossible' && dungeon.status==='won';
     const already = dungeon.rewardsClaimed && dungeon.rewardsClaimed.includes(S.currentUser);
     if(already){
       return `
+        ${isGrandVictory? confettiHTML(50) : ''}
         ${topbarHTML(u)}
         <div class="panel center" style="flex-direction:column; margin-top:16px; padding:60px 20px;">
-          <div class="eyebrow">${cfg.name}</div>
-          <h2>${dungeon.status==='won'? 'Victoire !' : 'Défaite...'}</h2>
+          ${isGrandVictory? `
+            <div class="victory-banner">
+              <div class="victory-title">🏆 VICTOIRE FINALE 🏆</div>
+              <p class="muted" style="margin-top:8px;">${cfg.name} est tombé. La saison est terminée !</p>
+            </div>
+          ` : `<div class="eyebrow">${cfg.name}</div><h2>${dungeon.status==='won'? 'Victoire !' : 'Défaite...'}</h2>`}
           <p class="muted">Récompense déjà réclamée.</p>
           <button class="btn btn-primary" style="margin-top:14px;" onclick="goVillage()">Retourner au village</button>
         </div>`;
     }
     return `
+      ${isGrandVictory? confettiHTML(60) : ''}
       ${topbarHTML(u)}
       <div class="panel center" style="flex-direction:column; margin-top:16px; padding:50px 20px;">
-        <div class="eyebrow">${cfg.name}</div>
-        <h2 style="color:${dungeon.status==='won'?'var(--emerald-bright)':'var(--blood-bright)'};">${dungeon.status==='won'? 'Victoire !' : 'Défaite...'}</h2>
+        ${isGrandVictory ? `
+          <div class="victory-banner">
+            <div class="victory-title">🏆 VICTOIRE FINALE 🏆</div>
+            <p class="muted" style="margin-top:10px; max-width:460px; text-align:center;">${cfg.name} est vaincu ! Konne se souviendra de ${dungeon.participants.join(', ')} à jamais. La saison touche à sa fin.</p>
+          </div>
+        ` : `
+          <div class="eyebrow">${cfg.name}</div>
+          <h2 style="color:${dungeon.status==='won'?'var(--emerald-bright)':'var(--blood-bright)'};">${dungeon.status==='won'? 'Victoire !' : 'Défaite...'}</h2>
+        `}
         <p class="muted">${dungeon.tiersCompleted} tier(s) réussi(s) sur ${dungeon.totalTiers}.</p>
         <p class="muted">Tape sur le coffre pour débloquer ta récompense.</p>
         <div id="chest-el" class="chest" onclick="tapChest()">🎁</div>
@@ -1341,14 +1436,15 @@ async function screenDungeonPlay(){
   const isBoss = dungeon.currentTier === dungeon.totalTiers;
   return `
     ${topbarHTML(u)}
-    <div class="panel" style="margin-top:16px; text-align:center;">
-      <div class="eyebrow">${cfg.name} — ${cfg.diff}</div>
-      <div class="tier-display">${dungeon.currentTier}</div>
+    <div class="panel ${isBoss?'boss-panel':''}" style="margin-top:16px; text-align:center;">
+      <div class="eyebrow" style="${isBoss?'color:var(--blood-bright);':''}">${cfg.name} — ${cfg.diff}</div>
+      ${isBoss? `<div class="boss-badge">⚔️ Combat de boss ⚔️</div>` : ''}
+      <div class="tier-display ${isBoss?'boss-tier-display':''}">${dungeon.currentTier}</div>
       <div class="muted" style="margin-top:6px;">sur ${dungeon.totalTiers} tiers</div>
-      ${isBoss? `<div class="badge gold" style="margin-top:14px;">⚔️ Combat de boss</div>` : ''}
+      ${isBoss? `<p class="boss-warn">Le donjon retient son souffle. C'est ici que tout se joue.</p>` : ''}
       <div class="divider"></div>
       <label>Temps restant pour vaincre le donjon</label>
-      <h3 style="font-size:32px; margin-top:6px;">${m}m ${s<10?'0':''}${s}s</h3>
+      <h3 style="font-size:32px; margin-top:6px; ${isBoss?'color:var(--blood-bright);':''}">${m}m ${s<10?'0':''}${s}s</h3>
       <p class="muted" style="font-size:13px; margin-top:4px;">Si le temps s'écoule avant la fin du donjon, c'est la défaite.</p>
       <p class="muted" style="margin-top:16px; font-size:14px;">Compagnons : ${dungeon.participants.join(', ')}</p>
     </div>
@@ -1361,20 +1457,18 @@ async function screenRp(){
   let rp = await getData('rpSession', null);
   rp = await checkRpAutoResolve(rp);
 
-  if(!rp || rp.status!=='active'){
+  if(!rp || rp.status==='ended'){
     return `
       ${topbarHTML(u)}
       <button class="btn btn-small" onclick="goVillage()">← Retour au village</button>
       <div class="panel center" style="flex-direction:column; margin-top:16px; padding:60px 20px;">
         <span style="font-size:44px;">📜</span>
         <h2 style="margin-top:10px;">Rôle-play</h2>
-        <p class="muted" style="text-align:center; max-width:420px;">Aucun salon n'est ouvert pour le moment. Le meneu de jeu peut en ouvrir un à tout moment — tu recevras alors une invitation si les notifications automatiques sont activées.</p>
+        <p class="muted" style="text-align:center; max-width:420px;">Aucun salon n'est ouvert pour le moment. Le meneur de jeu peut en ouvrir un à tout moment — tu recevras alors une invitation.</p>
       </div>`;
   }
 
   const isParticipant = (rp.participants||[]).includes(S.currentUser);
-  const remain = Math.max(0, rp.endTime - Date.now());
-  const m = Math.floor(remain/60000), s = Math.floor((remain%60000)/1000);
   const objectivesHtml = (rp.objectives && rp.objectives.length) ? `
     <div class="divider"></div>
     <label>Objectif${rp.objectives.length>1?'s':''} de la scène</label>
@@ -1388,11 +1482,39 @@ async function screenRp(){
     <p class="muted" style="margin-top:6px;">${rp.participants.map(p=>users[p]?users[p].pseudo:p).join(', ')}</p>
   ` : '';
 
+  // ---- Brouillon : salle d'attente, la scène n'a pas encore commencé ----
+  if(rp.status==='draft'){
+    return `
+      ${topbarHTML(u)}
+      ${!isParticipant ? `<button class="btn btn-small" onclick="goVillage()">← Retour au village</button>` : ''}
+      <div class="panel" style="margin-top:16px;">
+        <div class="eyebrow">Salle d'attente</div>
+        <h2>${rp.title}</h2>
+        ${rp.description ? `<p class="muted" style="margin-top:12px; white-space:pre-wrap;">${rp.description}</p>` : ''}
+        ${objectivesHtml}
+        ${participantsHtml}
+        <div class="divider"></div>
+        ${isParticipant ? `
+          <div class="row" style="align-items:center;">
+            <span class="badge gold">⏳ En attente du meneur de jeu</span>
+          </div>
+          <p class="muted" style="font-size:14px; margin-top:12px;">Tu es dans le salon. La scène n'a pas encore commencé — patiente avec les autres, elle démarrera dès que le meneur de jeu la lancera. Tu peux encore retourner au village en attendant si tu le souhaites.</p>
+        ` : `
+          <p class="muted" style="font-size:14px;">Cette scène n'a pas encore commencé.</p>
+          <button class="btn btn-primary" style="margin-top:14px;" onclick="joinRpScene()">Rejoindre le salon</button>
+        `}
+      </div>`;
+  }
+
+  // ---- Active : la scène a démarré, les participants sont verrouillés ----
+  const remain = Math.max(0, rp.endTime - Date.now());
+  const m = Math.floor(remain/60000), s = Math.floor((remain%60000)/1000);
+
   return `
     ${topbarHTML(u)}
-    <button class="btn btn-small" onclick="goVillage()">← Retour au village</button>
+    ${!isParticipant ? `<button class="btn btn-small" onclick="goVillage()">← Retour au village</button>` : ''}
     <div class="panel" style="margin-top:16px;">
-      <div class="eyebrow">Salon de rôle-play</div>
+      <div class="eyebrow">Salon de rôle-play — en cours</div>
       <h2>${rp.title}</h2>
       ${rp.description ? `<p class="muted" style="margin-top:12px; white-space:pre-wrap;">${rp.description}</p>` : ''}
       ${objectivesHtml}
@@ -1402,7 +1524,7 @@ async function screenRp(){
       <h3 style="font-size:32px; margin-top:6px;">${m}m ${s<10?'0':''}${s}s</h3>
       ${!isParticipant ? `
         <button class="btn btn-primary" style="margin-top:16px;" onclick="joinRpScene()">Rejoindre la scène</button>
-      ` : `<p class="muted" style="font-size:13px; margin-top:10px;">Tu es présent dans ce salon. Le reste du village reste accessible normalement.</p>`}
+      ` : `<p class="muted" style="font-size:13px; margin-top:10px;">La scène est en cours : tu n'as plus accès au reste du village tant qu'elle n'est pas terminée.</p>`}
     </div>
   `;
 }
@@ -1669,9 +1791,10 @@ async function screenAdmin(){
         </div>
         ${rpSession.description ? `<p class="muted" style="white-space:pre-wrap;">${rpSession.description}</p>` : ''}
         ${rpSession.objectives && rpSession.objectives.length ? `<ul style="margin:8px 0; padding-left:20px;">${rpSession.objectives.map(o=>`<li class="muted">${o}</li>`).join('')}</ul>` : ''}
+        ${(rpSession.participants||[]).length ? `<p class="muted" style="font-size:13px; margin-top:6px;">Présents : ${rpSession.participants.map(p=>users[p]?users[p].pseudo:p).join(', ')}</p>` : ''}
         <div class="divider"></div>
         <label>Invitations automatiques</label>
-        <p class="muted" style="font-size:13px;">${rpSession.autoInviteEnabled ? `Activées — une invitation est envoyée à tous les joueurs toutes les 10 minutes.` : `Désactivées — les joueurs doivent venir d'eux-mêmes depuis le village.`}</p>
+        <p class="muted" style="font-size:13px;">${rpSession.autoInviteEnabled ? `Activées — une invitation est envoyée à tous les joueurs toutes les 10 minutes.` : `Désactivées — les joueurs déjà invités ne seront pas relancés automatiquement.`}</p>
         <div class="row" style="margin-top:8px;">
           <button class="btn btn-small" onclick="adminToggleRpAutoInvite()">${rpSession.autoInviteEnabled ? 'Désactiver' : 'Activer'} les invitations auto</button>
           <button class="btn btn-small" onclick="adminSendRpInviteNow()">Envoyer une invitation maintenant</button>
@@ -1680,31 +1803,39 @@ async function screenAdmin(){
           <button class="btn btn-small" onclick="adminExtendRpSession(10)">+10 min</button>
           <button class="btn btn-small btn-danger" onclick="adminEndRpSession()">Terminer la scène maintenant</button>
         </div>
-        <p class="muted" style="font-size:13px; margin-top:10px;">Le salon est ouvert : les joueurs y entrent quand ils le souhaitent, le reste du village reste accessible.</p>
+        <p class="muted" style="font-size:13px; margin-top:10px;">La scène est lancée : les participants n'ont plus accès au reste du village tant qu'elle n'est pas terminée.</p>
       ` : rpSession && rpSession.status==='draft' ? `
         <div class="row" style="margin-bottom:12px;">
           <span class="badge gold">${rpSession.title}</span>
-          <span class="badge">Brouillon — pas encore visible des joueurs</span>
+          <span class="badge">Brouillon — en attente de lancement</span>
           <span class="badge">${rpSession.duration} min prévues</span>
           ${rpSession.autoInviteEnabled ? `<span class="badge">Invitations auto activées</span>` : ''}
         </div>
         ${rpSession.description ? `<p class="muted" style="white-space:pre-wrap;">${rpSession.description}</p>` : ''}
+        <div class="divider"></div>
+        <label>Joueurs dans le salon d'attente (${(rpSession.participants||[]).length})</label>
+        <p class="muted" style="margin-top:6px;">${(rpSession.participants||[]).length ? rpSession.participants.map(p=>users[p]?users[p].pseudo:p).join(', ') : "Personne pour l'instant — les invitations ont été envoyées."}</p>
         <div class="row" style="margin-top:12px;">
-          <button class="btn btn-primary btn-small" onclick="adminLaunchRpSession()">Lancer la scène</button>
+          <button class="btn btn-small" onclick="adminSendRpInviteNow()">Renvoyer les invitations</button>
+          <button class="btn btn-small" onclick="adminToggleRpAutoInvite()">${rpSession.autoInviteEnabled ? 'Désactiver' : 'Activer'} les relances auto (10 min)</button>
+        </div>
+        <div class="row" style="margin-top:14px;">
+          <button class="btn btn-primary btn-small" onclick="adminLaunchRpSession()">Lancer la scène maintenant</button>
           <button class="btn btn-small btn-danger" onclick="adminEndRpSession()">Annuler</button>
         </div>
+        <p class="muted" style="font-size:13px; margin-top:10px;">Tant que tu ne lances pas, les joueurs qui ont accepté attendent dans le salon et gardent accès au village. Une fois lancée, ils seront enfermés dans la scène jusqu'à la fin.</p>
       ` : `
-        <p class="muted">Aucune scène en préparation. Crée-la, puis lance-la quand tu es prêt — les joueurs ne sont jamais transportés de force.</p>
+        <p class="muted">Aucune scène en préparation. À la création, une invitation part aussitôt vers tous les joueurs ; ceux qui acceptent patientent dans le salon jusqu'à ce que tu lances.</p>
         <form onsubmit="adminCreateRpSession(event)">
           <div class="field"><label>Titre de la scène</label><input id="rp-title" type="text" placeholder="L'arrivée des émissaires"></div>
           <div class="field"><label>Description</label><textarea id="rp-desc" rows="3" placeholder="Décris le contexte, le lieu, l'ambiance..."></textarea></div>
           <div class="field"><label>Objectif(s) — un par ligne</label><textarea id="rp-objectives" rows="3" placeholder="Convaincre l'émissaire d'accepter le traité&#10;Découvrir qui l'a envoyé"></textarea></div>
-          <div class="field" style="max-width:200px;"><label>Durée (minutes)</label><input id="rp-duration" type="number" min="1" placeholder="30"></div>
+          <div class="field" style="max-width:200px;"><label>Durée une fois lancée (minutes)</label><input id="rp-duration" type="number" min="1" placeholder="30"></div>
           <div class="field" style="display:flex; align-items:center; gap:8px;">
             <input id="rp-auto-invite" type="checkbox" style="width:auto;">
-            <label style="margin:0;">Envoyer une invitation à tous les joueurs toutes les 10 minutes une fois lancée</label>
+            <label style="margin:0;">Relancer l'invitation à tous les 10 minutes tant que la scène n'est pas terminée</label>
           </div>
-          <button class="btn btn-primary" type="submit">Créer la scène (brouillon)</button>
+          <button class="btn btn-primary" type="submit">Créer la scène et inviter les joueurs</button>
         </form>
       `}
     </div>
