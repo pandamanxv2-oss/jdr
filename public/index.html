@@ -230,6 +230,48 @@
     letter-spacing:0.04em;
   }
   @keyframes victoryPop{0%{transform:scale(0.3) rotate(-4deg); opacity:0;} 60%{transform:scale(1.08) rotate(2deg);} 100%{transform:scale(1) rotate(0); opacity:1;}}
+
+  /* ---- Cinématique de fin (épilogue) ---- */
+  .cinematic-overlay{
+    position:fixed; inset:0; z-index:1200;
+    background:radial-gradient(ellipse at 50% 30%, #1c1622 0%, #08070c 75%);
+    display:flex; flex-direction:column; align-items:center;
+    padding:8vh 20px 40px;
+  }
+  .cinematic-skip{position:absolute; top:18px; right:18px; z-index:1201;}
+  .cinematic-crown{font-size:64px; text-align:center; filter:drop-shadow(0 0 25px rgba(233,200,116,0.7)); animation:pop .7s cubic-bezier(.3,1.6,.5,1);}
+  .cinematic-title{
+    font-family:'Cinzel',serif; font-weight:700; letter-spacing:0.3em; text-transform:uppercase;
+    color:var(--gold-bright); font-size:15px; text-align:center; margin-top:10px;
+  }
+  .cinematic-scroll{
+    width:min(640px,90vw); max-height:62vh; overflow-y:auto; margin-top:26px;
+    padding-right:8px;
+  }
+  .cinematic-scroll::-webkit-scrollbar{width:5px;}
+  .cinematic-scroll::-webkit-scrollbar-thumb{background:var(--line); border-radius:4px;}
+  .cinematic-line{
+    font-family:'EB Garamond',serif; font-size:19px; line-height:1.75; color:var(--parchment);
+    text-align:center; margin:0 0 26px;
+    opacity:0; transform:translateY(16px);
+    transition:opacity 1.3s ease, transform 1.3s ease;
+  }
+  .cinematic-line.show{opacity:1; transform:translateY(0);}
+  .cinematic-heroes-title{
+    font-family:'Cinzel',serif; text-align:center; color:var(--gold-bright); font-size:20px;
+    letter-spacing:0.12em; text-transform:uppercase; margin:18px 0 20px;
+    opacity:0; transition:opacity 1.1s ease;
+  }
+  .cinematic-heroes-title.show{opacity:1;}
+  .cinematic-hero-name{
+    font-family:'Cinzel',serif; text-align:center; font-size:27px; color:var(--gold-bright);
+    text-shadow:0 0 22px rgba(201,162,75,0.7); margin-bottom:12px;
+    opacity:0; transform:scale(0.8);
+    transition:opacity .6s ease, transform .6s cubic-bezier(.3,1.6,.5,1);
+  }
+  .cinematic-hero-name.show{opacity:1; transform:scale(1);}
+  .cinematic-continue{margin-top:30px; opacity:0; transition:opacity .6s ease;}
+  .cinematic-continue.show{opacity:1;}
 </style>
 </head>
 <body>
@@ -282,6 +324,117 @@ function confettiHTML(count){
     pieces += `<div class="confetti-piece" style="left:${left}%; background:${color}; width:${w}px; height:${h}px; animation-delay:${delay}s; animation-duration:${duration}s;"></div>`;
   }
   return `<div class="confetti-wrap">${pieces}</div>`;
+}
+
+// ---------- Cinématique de fin (épilogue) ----------
+const EPILOGUE_PARAGRAPHS = [
+  "Alors que le dernier écho de la bataille s'éteint, un profond silence retombe sur les terres. Le vent emporte la poussière du combat, et les ténèbres qui pesaient depuis si longtemps sur le royaume commencent enfin à se dissiper.",
+  "Konne est tombé. Celui dont le nom inspirait la peur n'est plus qu'un souvenir. Son ambition, sa colère et son pouvoir se sont éteints avec lui.",
+  "Mais cette victoire n'a pas été offerte par le destin. Elle a été forgée par le courage, la solidarité et les sacrifices de ceux qui ont refusé d'abandonner.",
+  "Aujourd'hui, le royaume retrouve enfin l'espoir. Les villages se relèveront. Les routes seront de nouveau parcourues par les marchands, les aventuriers et les voyageurs.",
+  "Les chants remplaceront les cris de guerre, et les enfants grandiront dans un monde où le nom de Konne ne sera plus qu'une vieille histoire racontée au coin du feu.",
+  "Pourtant, les plus anciens le savent... Aucune paix n'est éternelle. Un jour, d'autres héros devront peut-être se lever pour défendre ces terres. Mais ce jour n'est pas aujourd'hui.",
+  "Aujourd'hui, les armes peuvent être déposées. Aujourd'hui, les flammes des foyers brûlent à nouveau. Aujourd'hui... c'est votre victoire.",
+  "Que vos exploits soient gravés dans la pierre, chantés par les bardes et transmis de génération en génération.",
+  "Car tant que ces histoires seront racontées...",
+  "Vos noms ne tomberont jamais dans l'oubli."
+];
+
+// Affiche l'épilogue : le texte apparaît paragraphe par paragraphe en
+// fondu, le conteneur défile automatiquement, puis les noms des héros
+// se révèlent un par un. Un bouton "Passer" permet de tout afficher
+// d'un coup, et le bouton "Continuer" n'apparaît qu'à la toute fin.
+function showEpilogueCinematic(heroNames){
+  const names = (heroNames && heroNames.length) ? heroNames : ['Un héros sans nom'];
+  const el = document.getElementById('overlays');
+  const div = document.createElement('div');
+  div.className = 'cinematic-overlay';
+  div.innerHTML = `
+    <div class="cinematic-skip"><button class="btn btn-small" id="cinematic-skip-btn">Passer ▶</button></div>
+    <div class="cinematic-crown">👑</div>
+    <div class="cinematic-title">Épilogue</div>
+    <div class="cinematic-scroll" id="cinematic-scroll"></div>
+    <div class="cinematic-continue" id="cinematic-continue">
+      <button class="btn btn-primary" id="cinematic-continue-btn">Continuer</button>
+    </div>
+  `;
+  el.appendChild(div);
+
+  const scrollEl = div.querySelector('#cinematic-scroll');
+  const continueWrap = div.querySelector('#cinematic-continue');
+  let timers = [];
+  let finished = false;
+
+  function scrollDown(){ scrollEl.scrollTop = scrollEl.scrollHeight; }
+
+  function revealAll(){
+    timers.forEach(t=>clearTimeout(t));
+    timers = [];
+    if(finished) return;
+    finished = true;
+    scrollEl.innerHTML = '';
+    EPILOGUE_PARAGRAPHS.forEach(txt=>{
+      const p = document.createElement('p');
+      p.className = 'cinematic-line show';
+      p.textContent = txt;
+      scrollEl.appendChild(p);
+    });
+    const h = document.createElement('div');
+    h.className = 'cinematic-heroes-title show';
+    h.textContent = 'Les héros de cette victoire';
+    scrollEl.appendChild(h);
+    names.forEach(name=>{
+      const n = document.createElement('div');
+      n.className = 'cinematic-hero-name show';
+      n.textContent = name;
+      scrollEl.appendChild(n);
+    });
+    scrollDown();
+    continueWrap.classList.add('show');
+  }
+
+  function addHeroNames(i){
+    if(i >= names.length){
+      finished = true;
+      continueWrap.classList.add('show');
+      return;
+    }
+    const n = document.createElement('div');
+    n.className = 'cinematic-hero-name';
+    n.textContent = names[i];
+    scrollEl.appendChild(n);
+    requestAnimationFrame(()=>n.classList.add('show'));
+    scrollDown();
+    timers.push(setTimeout(()=>addHeroNames(i+1), 750));
+  }
+
+  function addHeroesTitle(){
+    const h = document.createElement('div');
+    h.className = 'cinematic-heroes-title';
+    h.textContent = 'Les héros de cette victoire';
+    scrollEl.appendChild(h);
+    requestAnimationFrame(()=>h.classList.add('show'));
+    scrollDown();
+    timers.push(setTimeout(()=>addHeroNames(0), 1400));
+  }
+
+  function addParagraph(i){
+    if(i >= EPILOGUE_PARAGRAPHS.length){
+      timers.push(setTimeout(addHeroesTitle, 900));
+      return;
+    }
+    const p = document.createElement('p');
+    p.className = 'cinematic-line';
+    p.textContent = EPILOGUE_PARAGRAPHS[i];
+    scrollEl.appendChild(p);
+    requestAnimationFrame(()=>p.classList.add('show'));
+    scrollDown();
+    timers.push(setTimeout(()=>addParagraph(i+1), 3400));
+  }
+
+  div.querySelector('#cinematic-skip-btn').addEventListener('click', revealAll);
+  div.querySelector('#cinematic-continue-btn').addEventListener('click', ()=>div.remove());
+  addParagraph(0);
 }
 
 // ---------- Storage helpers ----------
@@ -1059,11 +1212,18 @@ async function claimReward(){
   if(!dungeon.rewardsClaimed.includes(S.currentUser)) dungeon.rewardsClaimed.push(S.currentUser);
   await setData('dungeon', dungeon);
 
+  const isGrandVictory = dungeon.type==='impossible' && dungeon.status==='won' && !dungeon.finishedByBots;
+
   S.view='village';
   S.chestTaps=0;
   render();
 
-  if(level>beforeLevel){ showLevelUp(level); }
+  if(isGrandVictory){
+    const heroNames = (dungeon.participants||[]).map(p=>users[p]?users[p].pseudo:p);
+    showEpilogueCinematic(heroNames);
+  } else if(level>beforeLevel){
+    showLevelUp(level);
+  }
   toast(`+${goldGain} or, +${xpGain} xp`);
 }
 
