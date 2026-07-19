@@ -277,6 +277,7 @@
 <body>
 <div id="app"></div>
 <div id="overlays"></div>
+<div id="yt-music-mount" style="position:fixed; bottom:0; right:0; width:1px; height:1px; overflow:hidden; opacity:0;"></div>
 
 <script>
 /* =========================================================
@@ -423,6 +424,141 @@ function enchantTypeForSlot(slot){
 
 function xpNeeded(level){ return 10*(level+1); }
 
+// =========================================================
+// MUSIQUE D'AMBIANCE — un lecteur YouTube caché, embarqué dans le site,
+// qui change de piste selon l'endroit où se trouve le joueur.
+// =========================================================
+const MUSIC_TRACKS = {
+  prologue:     { id:'Pk0hJvyJlQI', label:'Prologue' },
+  village:      { id:'o-b5nMCj5hI', label:'Ambiance du village' },
+  boss:         { id:'rJ8sLgHxa88', label:'Combat de boss' },
+  konne_tier1:  { id:'vEP3sGEjxhY', label:'Konne — Phase 1' },
+  konne_tier2:  { id:'v8jOB5gh7_E', label:'Konne — Phase 2' },
+  konne_final:  { id:'6U8K6SPPNLA', label:'Konne — Phase finale' },
+  epilogue:     { id:'K9tLAH0Z0pA', label:'Épilogue' }
+};
+
+let MUSIC = {
+  enabled: false,     // les navigateurs bloquent l'autoplay avec son : il faut un premier clic
+  apiReady: false,
+  player: null,
+  currentKey: null,   // piste voulue pour l'écran actuel (peut changer avant que le lecteur soit prêt)
+  playingKey: null,   // piste réellement en cours de lecture
+  volume: 25
+};
+
+function loadYouTubeMusicApi(){
+  if(window.YT && window.YT.Player){ onYouTubeIframeAPIReady(); return; }
+  if(document.getElementById('yt-iframe-api-script')) return;
+  const tag = document.createElement('script');
+  tag.id = 'yt-iframe-api-script';
+  tag.src = 'https://www.youtube.com/iframe_api';
+  document.body.appendChild(tag);
+}
+// Appelé automatiquement par le script YouTube une fois chargé.
+window.onYouTubeIframeAPIReady = function(){
+  MUSIC.apiReady = true;
+  MUSIC.player = new YT.Player('yt-music-mount', {
+    height:'1', width:'1',
+    playerVars:{ autoplay:0, controls:0, disablekb:1, fs:0, modestbranding:1, playsinline:1 },
+    events:{
+      onReady: function(e){
+        e.target.setVolume(MUSIC.volume);
+        if(MUSIC.enabled && MUSIC.currentKey) playMusicTrack(MUSIC.currentKey);
+      },
+      onStateChange: function(e){
+        // Le paramètre "loop" de l'API ne fonctionne pas sur une vidéo
+        // seule : on relance donc manuellement à la fin de la piste.
+        if(e.data === YT.PlayerState.ENDED) e.target.playVideo();
+      }
+    }
+  });
+};
+
+function playMusicTrack(key){
+  const track = MUSIC_TRACKS[key];
+  if(!track || !MUSIC.player || !MUSIC.player.loadVideoById) return;
+  MUSIC.playingKey = key;
+  MUSIC.player.loadVideoById(track.id);
+  MUSIC.player.setVolume(MUSIC.volume);
+}
+
+// Change la piste voulue pour l'écran courant ; ne relance rien si c'est
+// déjà celle qui joue (évite les coupures au moindre re-rendu).
+function setMusicForKey(key){
+  if(MUSIC.currentKey === key) return;
+  MUSIC.currentKey = key;
+  if(MUSIC.enabled && MUSIC.apiReady) playMusicTrack(key);
+  updateMusicWidget();
+}
+
+function enableMusic(){
+  MUSIC.enabled = true;
+  if(!MUSIC.apiReady) loadYouTubeMusicApi();
+  else if(MUSIC.currentKey) playMusicTrack(MUSIC.currentKey);
+  updateMusicWidget();
+}
+function toggleMusicMute(){
+  if(MUSIC.enabled){
+    MUSIC.enabled = false;
+    if(MUSIC.player && MUSIC.player.pauseVideo) MUSIC.player.pauseVideo();
+  } else {
+    enableMusic();
+  }
+  updateMusicWidget();
+}
+function setMusicVolume(v){
+  MUSIC.volume = parseInt(v,10) || 0;
+  if(MUSIC.player && MUSIC.player.setVolume) MUSIC.player.setVolume(MUSIC.volume);
+}
+
+// Détermine la piste à jouer selon l'écran actuel — et, pendant un donjon,
+// selon le tier/la phase de boss en cours. Appelé après chaque rendu.
+async function resolveAndSetMusic(){
+  // Ne pas couper la musique d'épilogue tant que la cinématique est affichée.
+  if(document.querySelector('.cinematic-overlay')) return;
+  if(S.view === 'dungeonPlay'){
+    const dungeon = await getData('dungeon', null);
+    if(dungeon && dungeon.status === 'active'){
+      const KONNE_BOSS_PHASES = 3;
+      const isKonneDungeon = dungeon.type === 'impossible';
+      const bossStartTier = isKonneDungeon ? Math.max(1, dungeon.totalTiers - KONNE_BOSS_PHASES + 1) : dungeon.totalTiers;
+      const isBoss = dungeon.currentTier >= bossStartTier;
+      if(isKonneDungeon && isBoss){
+        const phase = dungeon.currentTier - bossStartTier + 1;
+        setMusicForKey(phase>=3 ? 'konne_final' : phase===2 ? 'konne_tier2' : 'konne_tier1');
+      } else if(isBoss){
+        setMusicForKey('boss');
+      } else {
+        setMusicForKey('village');
+      }
+      return;
+    }
+  }
+  setMusicForKey('village');
+}
+
+// Construit (une seule fois) le petit widget de contrôle musique, en dehors
+// de #app puisqu'il ne doit pas être réinitialisé à chaque rendu de vue.
+function ensureMusicWidget(){
+  if(document.getElementById('music-widget')) return;
+  const div = document.createElement('div');
+  div.id = 'music-widget';
+  div.style.cssText = 'position:fixed; bottom:14px; right:14px; z-index:500; background:linear-gradient(180deg,#1e1a29,#25202f); border:1px solid #3a3247; border-radius:8px; padding:10px 12px; font-family:"EB Garamond",serif; color:#e8e1cf; font-size:13px; box-shadow:0 4px 18px rgba(0,0,0,0.4); display:flex; align-items:center; gap:8px;';
+  document.body.appendChild(div);
+  updateMusicWidget();
+}
+function updateMusicWidget(){
+  const div = document.getElementById('music-widget');
+  if(!div) return;
+  const track = MUSIC.currentKey ? MUSIC_TRACKS[MUSIC.currentKey] : null;
+  div.innerHTML = `
+    <span style="cursor:pointer; font-size:18px;" onclick="toggleMusicMute()" title="${MUSIC.enabled?'Couper la musique':'Activer la musique'}">${MUSIC.enabled? '🎵':'🔇'}</span>
+    <span class="muted" style="max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${MUSIC.enabled && track? track.label : (track? 'Musique coupée' : '')}</span>
+    <input type="range" min="0" max="100" value="${MUSIC.volume}" style="width:70px;" oninput="setMusicVolume(this.value)" title="Volume">
+  `;
+}
+
 function confettiHTML(count){
   const colors = ['#c9a24b','#e9c874','#c24b4b','#8a2f2f','#5fae7a','#3f5f8a','#8a5fc9'];
   let pieces = '';
@@ -438,7 +574,81 @@ function confettiHTML(count){
   return `<div class="confetti-wrap">${pieces}</div>`;
 }
 
-// ---------- Cinématique de fin (épilogue) ----------
+// ---------- Cinématique d'introduction (prologue) ----------
+const PROLOGUE_PARAGRAPHS = [
+  "Depuis plusieurs années, le royaume est plongé dans le chaos.",
+  "Le seigneur noir Konne cherche à conquérir toutes les terres. Pour y parvenir, plusieurs factions ont choisi de rejoindre son armée, tandis que d'autres résistent encore.",
+  "Vous faites partie des aventuriers qui ont répondu à l'appel. Votre mission est simple : explorer ces terres, aider ceux qui en ont besoin, retrouver les anciens artefacts... et mettre un terme au règne de Konne avant qu'il ne soit trop tard.",
+  "L'avenir du royaume est désormais entre vos mains.",
+  "Bonne chance, aventuriers."
+];
+
+// Affiche le prologue à la toute première connexion d'un joueur (une seule
+// fois, juste avant son entrée dans le village). Même mécanique de défilement
+// que l'épilogue, mais sans révélation de noms de héros à la fin.
+function showPrologueCinematic(onDone){
+  const el = document.getElementById('overlays');
+  const div = document.createElement('div');
+  div.className = 'cinematic-overlay';
+  div.innerHTML = `
+    <div class="cinematic-skip"><button class="btn btn-small" id="prologue-skip-btn">Passer ▶</button></div>
+    <div class="cinematic-crown">⚔️</div>
+    <div class="cinematic-title">Prologue</div>
+    <div class="cinematic-scroll" id="prologue-scroll"></div>
+    <div class="cinematic-continue" id="prologue-continue">
+      <button class="btn btn-primary" id="prologue-continue-btn">Entrer dans le village</button>
+    </div>
+  `;
+  el.appendChild(div);
+  setMusicForKey('prologue');
+  const scrollEl = div.querySelector('#prologue-scroll');
+  const continueWrap = div.querySelector('#prologue-continue');
+  let timers = [];
+  let finished = false;
+
+  function scrollDown(){ scrollEl.scrollTop = scrollEl.scrollHeight; }
+
+  function revealAll(){
+    timers.forEach(t=>clearTimeout(t));
+    timers = [];
+    if(finished) return;
+    finished = true;
+    scrollEl.innerHTML = '';
+    PROLOGUE_PARAGRAPHS.forEach(txt=>{
+      const p = document.createElement('p');
+      p.className = 'cinematic-line show';
+      p.textContent = txt;
+      scrollEl.appendChild(p);
+    });
+    scrollDown();
+    continueWrap.classList.add('show');
+  }
+
+  function addParagraph(i){
+    if(i >= PROLOGUE_PARAGRAPHS.length){
+      finished = true;
+      continueWrap.classList.add('show');
+      return;
+    }
+    const p = document.createElement('p');
+    p.className = 'cinematic-line';
+    p.textContent = PROLOGUE_PARAGRAPHS[i];
+    scrollEl.appendChild(p);
+    requestAnimationFrame(()=>p.classList.add('show'));
+    scrollDown();
+    timers.push(setTimeout(()=>addParagraph(i+1), 3400));
+  }
+
+  div.querySelector('#prologue-skip-btn').addEventListener('click', revealAll);
+  div.querySelector('#prologue-continue-btn').addEventListener('click', ()=>{
+    div.remove();
+    setMusicForKey('village');
+    if(onDone) onDone();
+  });
+  addParagraph(0);
+}
+
+
 const EPILOGUE_PARAGRAPHS = [
   "Alors que le dernier écho de la bataille s'éteint, un profond silence retombe sur les terres. Le vent emporte la poussière du combat, et les ténèbres qui pesaient depuis si longtemps sur le royaume commencent enfin à se dissiper.",
   "Konne est tombé. Celui dont le nom inspirait la peur n'est plus qu'un souvenir. Son ambition, sa colère et son pouvoir se sont éteints avec lui.",
@@ -471,7 +681,7 @@ function showEpilogueCinematic(heroNames){
     </div>
   `;
   el.appendChild(div);
-
+  setMusicForKey('epilogue');
   const scrollEl = div.querySelector('#cinematic-scroll');
   const continueWrap = div.querySelector('#cinematic-continue');
   let timers = [];
@@ -545,7 +755,7 @@ function showEpilogueCinematic(heroNames){
   }
 
   div.querySelector('#cinematic-skip-btn').addEventListener('click', revealAll);
-  div.querySelector('#cinematic-continue-btn').addEventListener('click', ()=>div.remove());
+  div.querySelector('#cinematic-continue-btn').addEventListener('click', ()=>{ div.remove(); setMusicForKey('village'); });
   addParagraph(0);
 }
 
@@ -690,9 +900,12 @@ async function confirmCharCreate(){
   const users = await getData('users', {});
   const u = users[S.currentUser];
   u.class = S.charClass;
+  const isFirstTime = !u.prologueSeen;
+  u.prologueSeen = true;
   await setData('users', users);
   S.view = 'village';
   render();
+  if(isFirstTime) showPrologueCinematic();
 }
 
 // ---------- Village / navigation ----------
@@ -1484,6 +1697,8 @@ function render(){
     const html = await fn();
     app.innerHTML = html;
     renderToasts();
+    ensureMusicWidget();
+    resolveAndSetMusic();
   })();
 }
 
