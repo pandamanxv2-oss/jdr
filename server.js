@@ -75,6 +75,77 @@ app.delete('/api/kv/:key', (req, res) => {
   res.json({ key, deleted: true });
 });
 
+// ---------- Hôtel des ventes : opérations atomiques ----------
+// Ces deux routes existent en plus de l'API clé/valeur générique parce
+// qu'un achat ou une vente touche à la fois "users" et "market". Faits
+// en deux appels séparés depuis le client (get puis set), deux joueurs
+// agissant presque en même temps pouvaient s'écraser mutuellement (l'or
+// gagné en vendant pouvait disparaître si un achat était passé juste
+// avant que ce gain soit sauvegardé). Ici, tout se fait en une seule
+// requête traitée de façon synchrone par le serveur, donc sans course.
+app.post('/api/market/buy', (req, res) => {
+  const { buyerKey, listingId } = req.body || {};
+  const db = dbCache;
+  db.users = db.users || {};
+  db.market = db.market || { listings: [] };
+  const buyer = db.users[buyerKey];
+  if (!buyer) return res.status(400).json({ ok: false, error: 'buyer_not_found' });
+  const idx = (db.market.listings || []).findIndex(l => l.id === listingId);
+  if (idx === -1) return res.status(409).json({ ok: false, error: 'listing_gone' });
+  const listing = db.market.listings[idx];
+  if (listing.sellerKey === buyerKey) return res.status(400).json({ ok: false, error: 'own_listing' });
+  if ((buyer.gold || 0) < listing.price) return res.status(400).json({ ok: false, error: 'not_enough_gold' });
+
+  db.market.listings.splice(idx, 1);
+  buyer.gold = (buyer.gold || 0) - listing.price;
+  buyer.items = buyer.items || [];
+  buyer.items.push(listing.itemName);
+  const powerGain = POWER_BY_RARITY[listing.rarity] || 0;
+  if (powerGain) buyer.power = (buyer.power || 0) + powerGain;
+  const seller = db.users[listing.sellerKey];
+  if (seller) seller.gold = (seller.gold || 0) + listing.price;
+
+  writeDb(db);
+  res.json({ ok: true, listing, gold: buyer.gold, items: buyer.items });
+});
+
+app.post('/api/market/sell', (req, res) => {
+  const { sellerKey, itemName, price } = req.body || {};
+  const db = dbCache;
+  db.users = db.users || {};
+  db.market = db.market || { listings: [] };
+  db.itemCatalog = db.itemCatalog || {};
+  const seller = db.users[sellerKey];
+  if (!seller) return res.status(400).json({ ok: false, error: 'seller_not_found' });
+  const idx = (seller.items || []).indexOf(itemName);
+  if (idx === -1) return res.status(400).json({ ok: false, error: 'item_not_owned' });
+  const numericPrice = parseInt(price, 10);
+  if (!numericPrice || numericPrice <= 0) return res.status(400).json({ ok: false, error: 'invalid_price' });
+
+  seller.items.splice(idx, 1);
+
+  // On retrouve la rareté (et la catégorie) d'origine de l'objet dans le
+  // catalogue de l'admin, pour que la revente affiche toujours sa rareté
+  // au lieu de rien du tout.
+  const catalogMatch = Object.values(db.itemCatalog).find(it => it.name === itemName);
+
+  const listing = {
+    id: 'lst_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    itemId: null,
+    itemName,
+    rarity: catalogMatch ? catalogMatch.rarity : null,
+    price: numericPrice,
+    categoryTopId: catalogMatch ? catalogMatch.categoryTopId : null,
+    categorySubId: catalogMatch ? catalogMatch.categorySubId : null,
+    categoryLabel: catalogMatch ? catalogMatch.categoryLabel : '',
+    sellerKey, sellerPseudo: seller.pseudo, createdAt: Date.now()
+  };
+  db.market.listings.push(listing);
+
+  writeDb(db);
+  res.json({ ok: true, listing, items: seller.items });
+});
+
 // Route de secours : toute autre route sert index.html (site mono-page)
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -184,6 +255,7 @@ function growBotGuilds(db) {
   db.guilds = db.guilds || {};
   const users = db.users || {};
   let ungrouped = Object.keys(users).filter(k => users[k].isBot && !users[k].guildId);
+  const usedNames = new Set(Object.values(db.guilds).map(g => g.name));
 
   // Formation de guildes de bots : par lots de 3 à 5, avec une probabilité
   // assez haute pour que ça se voie rapidement plutôt que de dépendre d'un
@@ -196,9 +268,17 @@ function growBotGuilds(db) {
       founders.push(ungrouped.splice(idx, 1)[0]);
     }
     const id = 'g_bot_' + Date.now().toString(36) + randInt(1000, 9999);
-    const usedNames = new Set(Object.values(db.guilds).map(g => g.name));
+    // usedNames doit être mise à jour à CHAQUE guilde créée dans cette
+    // boucle, sinon deux guildes formées lors du même cycle peuvent
+    // recevoir le même nom (le Set n'était calculé qu'une fois avant
+    // la boucle).
     let name = pick(BOT_GUILD_NAMES);
-    if (usedNames.has(name)) name = name + ' ' + randInt(2, 99);
+    let attempts = 0;
+    while (usedNames.has(name) && attempts < 40) {
+      name = pick(BOT_GUILD_NAMES) + ' ' + randInt(2, 999);
+      attempts++;
+    }
+    usedNames.add(name);
     const guild = {
       id, name, emblem: pick(GUILD_EMBLEMS),
       founder: founders[0],
