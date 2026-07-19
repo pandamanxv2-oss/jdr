@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -459,6 +460,19 @@ async function setData(key, value){
     });
   }catch(e){ console.error('setData failed', key, e); }
 }
+// Pour les opérations qui doivent être atomiques côté serveur (achat/vente
+// à l'hôtel des ventes) plutôt qu'un get+set séparé côté client.
+async function apiPost(url, body){
+  try{
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body || {})
+    });
+    const data = await r.json().catch(()=>({}));
+    return { ok: r.ok && data.ok !== false, status: r.status, data };
+  }catch(e){ console.error('apiPost failed', url, e); return { ok:false, data:{error:'network'} }; }
+}
 
 // ---------- Global in-memory state ----------
 let S = {
@@ -654,14 +668,15 @@ async function respondInvite(idx, accept){
   if(invite.type === 'rpInvite'){
     if(accept){
       const rp = await getData('rpSession', null);
-      if(rp && (rp.status==='draft' || rp.status==='active') && rp.id===invite.rpId){
+      if(rp && (rp.status==='draft' || rp.status==='active')){
         rp.participants = rp.participants || [];
         if(!rp.participants.includes(S.currentUser)) rp.participants.push(S.currentUser);
+        if(rp.status==='draft' && !rp.waitingSince) rp.waitingSince = Date.now();
         await setData('rpSession', rp);
-        toast(rp.status==='draft' ? 'Tu es transporté dans le salon — en attente du meneur de jeu...' : 'Tu es transporté dans la scène...');
+        toast(rp.status==='draft' ? 'Tu es transporté dans le salon — la scène démarre sous peu...' : 'Tu es transporté dans la scène...');
         S.view = 'rp';
       } else {
-        toast('Cette scène est déjà terminée.');
+        toast('Ce salon est fermé pour le moment.');
       }
     } else {
       toast('Invitation refusée.');
@@ -760,22 +775,19 @@ function setMarketFilter(topId, subId){
 }
 
 async function buyMarketItem(listingId){
-  const market = await getData('market', {listings:[]});
-  const idx = (market.listings||[]).findIndex(l=>l.id===listingId);
-  if(idx===-1){ toast('Cet objet a déjà été vendu.'); render(); return; }
-  const listing = market.listings[idx];
-  const users = await getData('users', {});
-  const u = users[S.currentUser];
-  if(u.gold < listing.price){ toast("Pas assez d'or."); return; }
-  u.gold -= listing.price;
-  u.items.push(listing.itemName);
-  const powerGain = POWER_BY_RARITY[listing.rarity] || 0;
-  if(powerGain) u.power = (u.power||0) + powerGain;
-  if(users[listing.sellerKey]){ users[listing.sellerKey].gold = (users[listing.sellerKey].gold||0) + listing.price; }
-  market.listings.splice(idx,1);
-  await setData('users', users);
-  await setData('market', market);
-  toast(`Tu as acheté ${listing.itemName} pour ${listing.price} or !`);
+  const res = await apiPost('/api/market/buy', { buyerKey: S.currentUser, listingId });
+  if(!res.ok){
+    const messages = {
+      not_enough_gold: "Pas assez d'or.",
+      listing_gone: 'Cet objet a déjà été vendu.',
+      own_listing: 'Tu ne peux pas acheter ton propre objet.',
+      buyer_not_found: 'Compte introuvable.'
+    };
+    toast(messages[res.data && res.data.error] || 'Achat impossible.');
+    render();
+    return;
+  }
+  toast(`Tu as acheté ${res.data.listing.itemName} pour ${res.data.listing.price} or !`);
   render();
 }
 
@@ -787,21 +799,17 @@ async function sellMyItem(e){
   const name = nameSel.value;
   const price = parseInt(priceEl.value, 10);
   if(!price || price<=0){ toast('Prix invalide.'); return; }
-  const users = await getData('users', {});
-  const u = users[S.currentUser];
-  const idx = u.items.indexOf(name);
-  if(idx===-1){ toast('Tu ne possèdes plus cet objet.'); return; }
-  u.items.splice(idx,1);
-  await setData('users', users);
-  const market = await getData('market', {listings:[]});
-  market.listings = market.listings || [];
-  market.listings.push({
-    id: 'lst_'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
-    itemId: null, itemName: name, rarity: null, price,
-    categoryTopId: null, categorySubId: null, categoryLabel: '',
-    sellerKey: S.currentUser, sellerPseudo: u.pseudo, createdAt: Date.now()
-  });
-  await setData('market', market);
+  const res = await apiPost('/api/market/sell', { sellerKey: S.currentUser, itemName: name, price });
+  if(!res.ok){
+    const messages = {
+      item_not_owned: 'Tu ne possèdes plus cet objet.',
+      invalid_price: 'Prix invalide.',
+      seller_not_found: 'Compte introuvable.'
+    };
+    toast(messages[res.data && res.data.error] || 'Mise en vente impossible.');
+    render();
+    return;
+  }
   priceEl.value = '';
   toast(`${name} mis en vente pour ${price} or.`);
   render();
@@ -931,6 +939,10 @@ async function adminCancelBotTimer(){
 
 // ---------- Dungeons ----------
 async function launchDungeon(key){
+  if(key==='impossible'){
+    const unlocked = await getData('konneUnlocked', false);
+    if(!unlocked){ toast("Ce donjon est scellé — il faut d'abord réussir la quête de l'Anneau de Konne (rôle-play)."); return; }
+  }
   let dungeon = await getData('dungeon', null);
   dungeon = await checkAutoResolve(dungeon);
   if(dungeon && dungeon.status==='active'){ toast('Un donjon est déjà en cours dans le monde.'); return; }
@@ -1051,23 +1063,54 @@ async function adminLaunchEpilogue(){
   render();
 }
 
-// ---------- Rôle-play (salon animé par le meneur de jeu) ----------
-// L'admin crée la scène (brouillon) : les invitations partent aussitôt.
-// Un joueur qui accepte est transporté dans le salon d'attente — la scène
-// n'a pas encore commencé, il patiente avec les autres. Quand l'admin
-// juge que tout le monde est là, il lance : à cet instant précis, tous
-// les participants perdent l'accès au reste du village jusqu'à la fin.
-const RP_INVITE_INTERVAL_MS = 10*60000;
+// ---------- Rôle-play (salon unique : « L'Anneau de Konne ») ----------
+// Il n'existe qu'une seule scène de rôle-play, fixée à l'avance par le jeu.
+// L'admin ouvre le salon (bouton dans le panneau admin) : une invitation
+// part aussitôt vers tous les joueurs, puis se répète toutes les 10
+// minutes tant que personne n'a rejoint. Dès qu'un premier joueur rejoint
+// le salon d'attente, un compte à rebours de 5 minutes démarre — une fois
+// écoulé, la scène se lance automatiquement (aucune action de l'admin
+// n'est nécessaire) et dure 1h. À la fin (ou pendant), l'admin déclare la
+// réussite ou l'échec de la quête ; la réussite déverrouille le donjon
+// final, le Château de l'Empereur Konne.
+const KONNE_RP = {
+  title: "L'Anneau de Konne",
+  description: "Un émissaire vous approche discrètement : l'Anneau de Konne, artefact d'un pouvoir immense, aurait été localisé. Il faut le retrouver avant que d'autres ne s'en emparent — et convaincre un maximum de factions de rallier votre cause avant l'assaut final sur le château.",
+  objectives: [
+    "Trouver l'Anneau de Konne",
+    "Rallier un maximum de factions alliées à votre cause"
+  ],
+  durationMin: 60,
+  waitMin: 5,
+  inviteIntervalMin: 10
+};
+const RP_WAIT_MS = KONNE_RP.waitMin*60000;
+const RP_DURATION_MS = KONNE_RP.durationMin*60000;
+const RP_INVITE_INTERVAL_MS = KONNE_RP.inviteIntervalMin*60000;
 
+// Fait avancer l'état du salon si besoin : lancement automatique 5 min
+// après l'arrivée du premier joueur, fin automatique après 1h de scène
+// active, et relance des invitations toutes les 10 min tant que ce n'est
+// pas terminé. Appelée à chaque affichage pertinent pour rester synchrone
+// entre tous les joueurs (comme pour les donjons).
 async function checkRpAutoResolve(rp){
-  if(!rp) return rp;
+  if(!rp || rp.status==='ended') return rp;
+
+  if(rp.status==='draft' && rp.waitingSince && (rp.participants||[]).length && Date.now()-rp.waitingSince >= RP_WAIT_MS){
+    rp.status = 'active';
+    rp.startTime = Date.now();
+    rp.endTime = Date.now() + RP_DURATION_MS;
+    await setData('rpSession', rp);
+  }
+
   if(rp.status==='active' && rp.endTime && Date.now() >= rp.endTime){
     rp.status = 'ended';
     await setData('rpSession', rp);
     return rp;
   }
+
   if((rp.status==='draft' || rp.status==='active') && rp.autoInviteEnabled){
-    const last = rp.lastInviteAt || rp.createdAt || 0;
+    const last = rp.lastInviteAt || 0;
     if(Date.now() - last >= RP_INVITE_INTERVAL_MS){
       rp.lastInviteAt = Date.now();
       await setData('rpSession', rp);
@@ -1077,62 +1120,39 @@ async function checkRpAutoResolve(rp){
   return rp;
 }
 
-// Envoie une invitation à tous les joueurs réels qui n'en ont pas déjà
-// une en attente pour cette scène, et qui n'y sont pas déjà présents.
+// Envoie/renouvelle une invitation à tous les joueurs réels qui ne sont
+// pas déjà dans le salon. On retire une éventuelle ancienne invitation
+// avant d'en repousser une, pour que ça agisse comme un rappel plutôt
+// que de s'empiler.
 async function sendRpInvites(rp){
   const users = await getData('users', {});
   const notifs = await getData('notifications', {});
   const participants = rp.participants || [];
   let changed = false;
   Object.keys(users).forEach(key=>{
-    const u = users[key];
-    if(!u || u.isAdmin || u.isBot) return;
+    const usr = users[key];
+    if(!usr || usr.isAdmin || usr.isBot) return;
     if(participants.includes(key)) return;
-    const mine = notifs[key] || [];
-    if(mine.some(n=>n.type==='rpInvite' && n.rpId===rp.id)) return;
-    mine.push({type:'rpInvite', rpId:rp.id, title:rp.title, ts:Date.now()});
+    const mine = (notifs[key] || []).filter(n=>n.type!=='rpInvite');
+    mine.push({type:'rpInvite', title:KONNE_RP.title, ts:Date.now()});
     notifs[key] = mine;
     changed = true;
   });
   if(changed) await setData('notifications', notifs);
 }
 
-async function adminCreateRpSession(e){
-  e.preventDefault();
-  const title = document.getElementById('rp-title').value.trim();
-  const desc = document.getElementById('rp-desc').value.trim();
-  const objRaw = document.getElementById('rp-objectives').value;
-  const objectives = objRaw.split('\n').map(s=>s.trim()).filter(Boolean);
-  const duration = parseInt(document.getElementById('rp-duration').value, 10);
-  const autoInvite = document.getElementById('rp-auto-invite').checked;
-  if(!title){ toast('Un titre est requis.'); return; }
-  if(!duration || duration<=0){ toast('Durée invalide.'); return; }
+// Ouvre le salon (bouton admin) : envoie la première invitation.
+async function adminActivateRp(){
   const existing = await getData('rpSession', null);
-  if(existing && (existing.status==='draft' || existing.status==='active')){ toast('Une scène existe déjà.'); return; }
+  if(existing && existing.status!=='ended'){ toast('Le salon est déjà ouvert.'); return; }
   const rp = {
-    id: 'rp_'+Date.now().toString(36),
-    title, description: desc, objectives, duration,
-    status: 'draft',
-    autoInviteEnabled: autoInvite,
-    lastInviteAt: Date.now(),
-    createdAt: Date.now(), startTime: null, endTime: null,
-    participants: []
+    status:'draft', autoInviteEnabled:true, lastInviteAt:Date.now(),
+    waitingSince:null, startTime:null, endTime:null,
+    participants:[], outcome:null
   };
   await setData('rpSession', rp);
   await sendRpInvites(rp);
-  toast('Scène créée — les invitations sont parties. Lance-la quand tout le monde est dans le salon.');
-  render();
-}
-
-async function adminLaunchRpSession(){
-  const rp = await getData('rpSession', null);
-  if(!rp || rp.status!=='draft') return;
-  rp.status = 'active';
-  rp.startTime = Date.now();
-  rp.endTime = Date.now() + rp.duration*60000;
-  rp.lastInviteAt = Date.now();
-  await setData('rpSession', rp);
-  toast('Scène lancée ! Les participants n\'ont plus accès au reste du village.');
+  toast(`Invitations envoyées — le salon « ${KONNE_RP.title} » est ouvert.`);
   render();
 }
 
@@ -1155,6 +1175,18 @@ async function adminSendRpInviteNow(){
   render();
 }
 
+// Ignore le délai de 5 minutes et lance la scène immédiatement.
+async function adminForceLaunchNow(){
+  const rp = await getData('rpSession', null);
+  if(!rp || rp.status!=='draft'){ toast('Le salon doit être ouvert et en attente.'); return; }
+  rp.status = 'active';
+  rp.startTime = Date.now();
+  rp.endTime = Date.now() + RP_DURATION_MS;
+  await setData('rpSession', rp);
+  toast('Scène lancée immédiatement !');
+  render();
+}
+
 async function adminExtendRpSession(minutes){
   const rp = await getData('rpSession', null);
   if(!rp || rp.status!=='active') return;
@@ -1164,22 +1196,49 @@ async function adminExtendRpSession(minutes){
   render();
 }
 
+// Termine le salon sans se prononcer sur la réussite de la quête.
 async function adminEndRpSession(){
   const rp = await getData('rpSession', null);
   if(rp){ rp.status = 'ended'; await setData('rpSession', rp); }
-  toast('Scène de rôle-play terminée — le village est de nouveau accessible.');
+  toast('Scène terminée — le village est de nouveau accessible pour tous.');
   render();
 }
 
-// Un joueur rejoint le salon (carte du village, ou parce qu'il vient
-// d'accepter une invitation). Possible pendant le brouillon (salle
-// d'attente) comme pendant la scène active (rejoindre en cours de route).
+// L'admin tranche : la quête est réussie (déverrouille le donjon final
+// de Konne) ou échouée. Termine le salon dans les deux cas.
+async function adminDeclareRpOutcome(outcome){
+  const rp = await getData('rpSession', null);
+  if(!rp){ toast("Aucun salon n'a encore été ouvert."); return; }
+  rp.outcome = outcome;
+  rp.status = 'ended';
+  await setData('rpSession', rp);
+  if(outcome==='success'){
+    await setData('konneUnlocked', true);
+    toast("Quête réussie ! Le Château de l'Empereur Konne est désormais déverrouillé.");
+  } else {
+    toast('Quête déclarée en échec — le donjon de Konne reste scellé.');
+  }
+  render();
+}
+
+// Réinitialise complètement le salon (pour une nouvelle tentative sans
+// déclarer d'issue), sans toucher au verrou du donjon de Konne.
+async function adminResetRp(){
+  await setData('rpSession', null);
+  toast('Le salon a été réinitialisé.');
+  render();
+}
+
+// Un joueur rejoint le salon (après avoir accepté une invitation, ou
+// depuis la carte du village). Démarre le compte à rebours de 5 minutes
+// s'il est le premier à arriver.
 async function joinRpScene(){
   const rp = await getData('rpSession', null);
-  if(!rp || (rp.status!=='draft' && rp.status!=='active')){ toast('Cette scène est terminée.'); S.view='village'; render(); return; }
+  if(!rp || rp.status==='ended'){ toast('Ce salon est fermé pour le moment.'); S.view='village'; render(); return; }
   rp.participants = rp.participants || [];
   if(!rp.participants.includes(S.currentUser)){
     rp.participants.push(S.currentUser);
+    if(rp.status==='draft' && !rp.waitingSince) rp.waitingSince = Date.now();
     await setData('rpSession', rp);
   }
   S.view = 'rp';
@@ -1361,7 +1420,7 @@ async function screenVillage(){
     {id:'guildes', icon:'🏰', label:'Guildes', sub:'Ta compagnie'},
     {id:'hotelVentes', icon:'🏛️', label:'Hôtel des ventes', sub:'Achète & vends'},
     {id:'donjons', icon:'💀', label:'Donjons', sub:'4 lieux périlleux'},
-    {id:'rp', icon:'📜', label:'Rôle-play', sub: rp && rp.status==='active' ? `🟢 Scène en cours : ${rp.title}` : (rp && rp.status==='draft' ? `🕯️ En préparation : ${rp.title}` : 'Aucun salon ouvert')},
+    {id:'rp', icon:'📜', label:'Rôle-play', sub: rp && rp.status==='active' ? `🟢 Scène en cours` : (rp && rp.status==='draft' ? `🕯️ Salon ouvert — rejoins-le` : 'Aucun salon ouvert')},
     {id:'classements', icon:'🏆', label:'Classements', sub:'Gloire & renom'}
   ];
   const cards = cats.map(c=>`
@@ -1512,16 +1571,20 @@ async function screenDonjons(){
   let dungeon = await getData('dungeon', null);
   dungeon = await checkAutoResolve(dungeon);
   const busy = dungeon && dungeon.status==='active';
-  const cards = Object.values(DUNGEONS).map(d=>`
+  const konneUnlocked = await getData('konneUnlocked', false);
+  const cards = Object.values(DUNGEONS).map(d=>{
+    const locked = d.key==='impossible' && !konneUnlocked;
+    return `
     <div class="dungeon-card">
       <div>
         <div class="display" style="font-size:18px;">${d.name}</div>
         <div class="diff-${d.diff}" style="font-family:'Cinzel',serif; font-size:13px; margin-top:4px;">${d.diff} — ${d.tiers} tiers</div>
         <div class="muted" style="font-size:13px; margin-top:4px;">${d.gold} or & ${d.xp} xp par tier réussi</div>
+        ${locked ? `<div style="font-size:12px; margin-top:6px; color:var(--blood-bright);">🔒 Scellé — retrouve d'abord l'Anneau de Konne (rôle-play)</div>` : ''}
       </div>
-      <button class="btn ${busy?'':'btn-primary'}" ${busy?'disabled':''} onclick="launchDungeon('${d.key}')">Lancer</button>
-    </div>
-  `).join('');
+      <button class="btn ${(busy||locked)?'':'btn-primary'}" ${(busy||locked)?'disabled':''} onclick="launchDungeon('${d.key}')">${locked?'Verrouillé':'Lancer'}</button>
+    </div>`;
+  }).join('');
   return `
     ${topbarHTML(u)}
     <button class="btn btn-small" onclick="goVillage()">← Retour au village</button>
@@ -1620,15 +1683,22 @@ async function screenDungeonPlay(){
   const totalDuration = dungeon.totalTiers * TIER_MS;
   const remain = Math.max(0, totalDuration - (Date.now()-dungeon.startTime));
   const m = Math.floor(remain/60000), s = Math.floor((remain%60000)/1000);
-  const isBoss = dungeon.currentTier === dungeon.totalTiers;
+  // Pour le donjon final (Château de l'Empereur Konne), les 3 derniers
+  // tiers sont présentés comme trois phases de boss nommées plutôt que
+  // comme de simples numéros de tier.
+  const KONNE_BOSS_PHASES = 3;
+  const isKonneDungeon = dungeon.type === 'impossible';
+  const bossStartTier = isKonneDungeon ? Math.max(1, dungeon.totalTiers - KONNE_BOSS_PHASES + 1) : dungeon.totalTiers;
+  const isBoss = dungeon.currentTier >= bossStartTier;
+  const konnePhase = isKonneDungeon && isBoss ? (dungeon.currentTier - bossStartTier + 1) : null;
   return `
     ${topbarHTML(u)}
     <div class="panel ${isBoss?'boss-panel':''}" style="margin-top:16px; text-align:center;">
       <div class="eyebrow" style="${isBoss?'color:var(--blood-bright);':''}">${cfg.name} — ${cfg.diff}</div>
-      ${isBoss? `<div class="boss-badge">⚔️ Combat de boss ⚔️</div>` : ''}
-      <div class="tier-display ${isBoss?'boss-tier-display':''}">${dungeon.currentTier}</div>
-      <div class="muted" style="margin-top:6px;">sur ${dungeon.totalTiers} tiers</div>
-      ${isBoss? `<p class="boss-warn">Le donjon retient son souffle. C'est ici que tout se joue.</p>` : ''}
+      ${isBoss? `<div class="boss-badge">⚔️ ${konnePhase ? `Konne — Phase ${konnePhase}` : 'Combat de boss'} ⚔️</div>` : ''}
+      <div class="tier-display ${isBoss?'boss-tier-display':''}">${konnePhase ? konnePhase : dungeon.currentTier}</div>
+      <div class="muted" style="margin-top:6px;">${konnePhase ? `Konne — Phase ${konnePhase} / ${KONNE_BOSS_PHASES}` : `sur ${dungeon.totalTiers} tiers`}</div>
+      ${isBoss? `<p class="boss-warn">${konnePhase ? `L'Empereur Konne déchaîne sa puissance — phase ${konnePhase} sur ${KONNE_BOSS_PHASES}.` : 'Le donjon retient son souffle. C\'est ici que tout se joue.'}</p>` : ''}
       <div class="divider"></div>
       <label>Temps restant pour vaincre le donjon</label>
       <h3 style="font-size:32px; margin-top:6px; ${isBoss?'color:var(--blood-bright);':''}">${m}m ${s<10?'0':''}${s}s</h3>
@@ -1644,48 +1714,59 @@ async function screenRp(){
   let rp = await getData('rpSession', null);
   rp = await checkRpAutoResolve(rp);
 
+  const objectivesHtml = `
+    <div class="divider"></div>
+    <label>Objectifs de la quête</label>
+    <ul style="margin:8px 0 0; padding-left:22px;">
+      ${KONNE_RP.objectives.map(o=>`<li style="margin-bottom:8px;">${o}</li>`).join('')}
+    </ul>
+  `;
+
   if(!rp || rp.status==='ended'){
+    const konneUnlocked = await getData('konneUnlocked', false);
     return `
       ${topbarHTML(u)}
       <button class="btn btn-small" onclick="goVillage()">← Retour au village</button>
       <div class="panel center" style="flex-direction:column; margin-top:16px; padding:60px 20px;">
         <span style="font-size:44px;">📜</span>
-        <h2 style="margin-top:10px;">Rôle-play</h2>
-        <p class="muted" style="text-align:center; max-width:420px;">Aucun salon n'est ouvert pour le moment. Le meneur de jeu peut en ouvrir un à tout moment — tu recevras alors une invitation.</p>
+        <h2 style="margin-top:10px; text-align:center;">${KONNE_RP.title}</h2>
+        ${rp && rp.outcome ? `
+          <p class="muted" style="text-align:center; max-width:460px; margin-top:10px;">
+            ${rp.outcome==='success'
+              ? "Le meneur de jeu a déclaré la quête réussie. L'Anneau de Konne a été retrouvé, et suffisamment de factions se sont ralliées à votre cause."
+              : "Le meneur de jeu a déclaré la quête en échec."}
+          </p>
+          ${rp.outcome==='success' && konneUnlocked ? `<span class="badge gold" style="margin-top:10px;">⚔️ Le Château de l'Empereur Konne est désormais accessible</span>` : ''}
+        ` : `<p class="muted" style="text-align:center; max-width:420px;">Aucun salon n'est ouvert pour le moment. Le meneur de jeu peut en ouvrir un à tout moment — tu recevras alors une invitation.</p>`}
       </div>`;
   }
 
   const isParticipant = (rp.participants||[]).includes(S.currentUser);
-  const objectivesHtml = (rp.objectives && rp.objectives.length) ? `
-    <div class="divider"></div>
-    <label>Objectif${rp.objectives.length>1?'s':''} de la scène</label>
-    <ul style="margin:8px 0 0; padding-left:22px;">
-      ${rp.objectives.map(o=>`<li style="margin-bottom:8px;">${o}</li>`).join('')}
-    </ul>
-  ` : '';
   const participantsHtml = (rp.participants||[]).length ? `
     <div class="divider"></div>
     <label>Présents dans le salon</label>
     <p class="muted" style="margin-top:6px;">${rp.participants.map(p=>users[p]?users[p].pseudo:p).join(', ')}</p>
   ` : '';
 
-  // ---- Brouillon : salle d'attente, la scène n'a pas encore commencé ----
   if(rp.status==='draft'){
+    const startsIn = rp.waitingSince ? Math.max(0, RP_WAIT_MS - (Date.now()-rp.waitingSince)) : null;
+    const sm = startsIn!==null ? Math.floor(startsIn/60000) : null;
+    const ss = startsIn!==null ? Math.floor((startsIn%60000)/1000) : null;
     return `
       ${topbarHTML(u)}
       ${!isParticipant ? `<button class="btn btn-small" onclick="goVillage()">← Retour au village</button>` : ''}
       <div class="panel" style="margin-top:16px;">
         <div class="eyebrow">Salle d'attente</div>
-        <h2>${rp.title}</h2>
-        ${rp.description ? `<p class="muted" style="margin-top:12px; white-space:pre-wrap;">${rp.description}</p>` : ''}
+        <h2>${KONNE_RP.title}</h2>
+        <p class="muted" style="margin-top:12px; white-space:pre-wrap;">${KONNE_RP.description}</p>
         ${objectivesHtml}
         ${participantsHtml}
         <div class="divider"></div>
         ${isParticipant ? `
-          <div class="row" style="align-items:center;">
-            <span class="badge gold">⏳ En attente du meneur de jeu</span>
-          </div>
-          <p class="muted" style="font-size:14px; margin-top:12px;">Tu es dans le salon. La scène n'a pas encore commencé — patiente avec les autres, elle démarrera dès que le meneur de jeu la lancera. Tu peux encore retourner au village en attendant si tu le souhaites.</p>
+          ${startsIn!==null ? `
+            <span class="badge gold">⏳ La scène démarre dans ${sm}m ${ss<10?'0':''}${ss}s</span>
+            <p class="muted" style="font-size:14px; margin-top:12px;">Tu es dans le salon. La scène démarrera automatiquement dès que ce délai sera écoulé — aucune action nécessaire. Tu peux encore retourner au village en attendant si tu le souhaites.</p>
+          ` : `<p class="muted">Tu es dans le salon, en attente que la scène démarre.</p>`}
         ` : `
           <p class="muted" style="font-size:14px;">Cette scène n'a pas encore commencé.</p>
           <button class="btn btn-primary" style="margin-top:14px;" onclick="joinRpScene()">Rejoindre le salon</button>
@@ -1693,7 +1774,7 @@ async function screenRp(){
       </div>`;
   }
 
-  // ---- Active : la scène a démarré, les participants sont verrouillés ----
+  // ---- Active : la scène est lancée ----
   const remain = Math.max(0, rp.endTime - Date.now());
   const m = Math.floor(remain/60000), s = Math.floor((remain%60000)/1000);
 
@@ -1701,13 +1782,13 @@ async function screenRp(){
     ${topbarHTML(u)}
     ${!isParticipant ? `<button class="btn btn-small" onclick="goVillage()">← Retour au village</button>` : ''}
     <div class="panel" style="margin-top:16px;">
-      <div class="eyebrow">Salon de rôle-play — en cours</div>
-      <h2>${rp.title}</h2>
-      ${rp.description ? `<p class="muted" style="margin-top:12px; white-space:pre-wrap;">${rp.description}</p>` : ''}
+      <div class="eyebrow">Scène en cours</div>
+      <h2>${KONNE_RP.title}</h2>
+      <p class="muted" style="margin-top:12px; white-space:pre-wrap;">${KONNE_RP.description}</p>
       ${objectivesHtml}
       ${participantsHtml}
       <div class="divider"></div>
-      <label>Temps restant du salon</label>
+      <label>Temps restant</label>
       <h3 style="font-size:32px; margin-top:6px;">${m}m ${s<10?'0':''}${s}s</h3>
       ${!isParticipant ? `
         <button class="btn btn-primary" style="margin-top:16px;" onclick="joinRpScene()">Rejoindre la scène</button>
@@ -1973,62 +2054,55 @@ async function screenAdmin(){
 
     <div class="panel" style="margin-top:20px;">
       <div class="eyebrow">Rôle-play</div>
-      <h2>Salon de la scène</h2>
+      <h2>${KONNE_RP.title}</h2>
       ${rpSession && rpSession.status==='active' ? `
         <div class="row" style="margin-bottom:12px;">
-          <span class="badge gold">${rpSession.title}</span>
+          <span class="badge gold">Scène en cours</span>
           <span class="badge">${Math.max(0,Math.ceil((rpSession.endTime-Date.now())/60000))} min restantes</span>
           <span class="badge">${(rpSession.participants||[]).length} présent(s)</span>
-          ${rpSession.objectives && rpSession.objectives.length ? `<span class="badge">${rpSession.objectives.length} objectif(s)</span>` : ''}
         </div>
-        ${rpSession.description ? `<p class="muted" style="white-space:pre-wrap;">${rpSession.description}</p>` : ''}
-        ${rpSession.objectives && rpSession.objectives.length ? `<ul style="margin:8px 0; padding-left:20px;">${rpSession.objectives.map(o=>`<li class="muted">${o}</li>`).join('')}</ul>` : ''}
+        <p class="muted" style="font-size:13px;">Objectifs : ${KONNE_RP.objectives.join(' · ')}</p>
         ${(rpSession.participants||[]).length ? `<p class="muted" style="font-size:13px; margin-top:6px;">Présents : ${rpSession.participants.map(p=>users[p]?users[p].pseudo:p).join(', ')}</p>` : ''}
         <div class="divider"></div>
         <label>Invitations automatiques</label>
-        <p class="muted" style="font-size:13px;">${rpSession.autoInviteEnabled ? `Activées — une invitation est envoyée à tous les joueurs toutes les 10 minutes.` : `Désactivées — les joueurs déjà invités ne seront pas relancés automatiquement.`}</p>
+        <p class="muted" style="font-size:13px;">${rpSession.autoInviteEnabled ? `Activées — une invitation est renvoyée toutes les 10 minutes à ceux qui ne sont pas encore dans le salon.` : `Désactivées.`}</p>
         <div class="row" style="margin-top:8px;">
           <button class="btn btn-small" onclick="adminToggleRpAutoInvite()">${rpSession.autoInviteEnabled ? 'Désactiver' : 'Activer'} les invitations auto</button>
           <button class="btn btn-small" onclick="adminSendRpInviteNow()">Envoyer une invitation maintenant</button>
         </div>
-        <div class="row" style="margin-top:14px;">
+        <div class="divider"></div>
+        <label>Résolution de la quête</label>
+        <p class="muted" style="font-size:13px;">Déclare l'issue quand tu juges que la scène est arrivée à son terme — cela ferme aussitôt le salon.</p>
+        <div class="row" style="margin-top:8px;">
           <button class="btn btn-small" onclick="adminExtendRpSession(10)">+10 min</button>
-          <button class="btn btn-small btn-danger" onclick="adminEndRpSession()">Terminer la scène maintenant</button>
+          <button class="btn btn-primary btn-small" onclick="adminDeclareRpOutcome('success')">✅ Réussite (déverrouille Konne)</button>
+          <button class="btn btn-danger btn-small" onclick="adminDeclareRpOutcome('failure')">❌ Échec</button>
+          <button class="btn btn-small" onclick="adminEndRpSession()">Terminer sans trancher</button>
         </div>
         <p class="muted" style="font-size:13px; margin-top:10px;">La scène est lancée : les participants n'ont plus accès au reste du village tant qu'elle n'est pas terminée.</p>
       ` : rpSession && rpSession.status==='draft' ? `
         <div class="row" style="margin-bottom:12px;">
-          <span class="badge gold">${rpSession.title}</span>
-          <span class="badge">Brouillon — en attente de lancement</span>
-          <span class="badge">${rpSession.duration} min prévues</span>
-          ${rpSession.autoInviteEnabled ? `<span class="badge">Invitations auto activées</span>` : ''}
+          <span class="badge gold">Salle d'attente ouverte</span>
+          ${rpSession.waitingSince ? `<span class="badge">Lancement auto dans ${Math.max(0,Math.ceil((RP_WAIT_MS-(Date.now()-rpSession.waitingSince))/60000))} min</span>` : `<span class="badge">En attente du premier joueur</span>`}
+          <span class="badge">${(rpSession.participants||[]).length} dans le salon</span>
         </div>
-        ${rpSession.description ? `<p class="muted" style="white-space:pre-wrap;">${rpSession.description}</p>` : ''}
+        <p class="muted" style="font-size:13px;">Dès qu'un premier joueur rejoint, la scène se lance automatiquement 5 minutes plus tard.</p>
         <div class="divider"></div>
-        <label>Joueurs dans le salon d'attente (${(rpSession.participants||[]).length})</label>
+        <label>Joueurs dans le salon d'attente</label>
         <p class="muted" style="margin-top:6px;">${(rpSession.participants||[]).length ? rpSession.participants.map(p=>users[p]?users[p].pseudo:p).join(', ') : "Personne pour l'instant — les invitations ont été envoyées."}</p>
         <div class="row" style="margin-top:12px;">
           <button class="btn btn-small" onclick="adminSendRpInviteNow()">Renvoyer les invitations</button>
           <button class="btn btn-small" onclick="adminToggleRpAutoInvite()">${rpSession.autoInviteEnabled ? 'Désactiver' : 'Activer'} les relances auto (10 min)</button>
         </div>
         <div class="row" style="margin-top:14px;">
-          <button class="btn btn-primary btn-small" onclick="adminLaunchRpSession()">Lancer la scène maintenant</button>
-          <button class="btn btn-small btn-danger" onclick="adminEndRpSession()">Annuler</button>
+          ${(rpSession.participants||[]).length ? `<button class="btn btn-primary btn-small" onclick="adminForceLaunchNow()">Lancer immédiatement (ignorer le délai)</button>` : ''}
+          <button class="btn btn-small btn-danger" onclick="adminResetRp()">Fermer le salon</button>
         </div>
-        <p class="muted" style="font-size:13px; margin-top:10px;">Tant que tu ne lances pas, les joueurs qui ont accepté attendent dans le salon et gardent accès au village. Une fois lancée, ils seront enfermés dans la scène jusqu'à la fin.</p>
+        <p class="muted" style="font-size:13px; margin-top:10px;">Tant que la scène n'a pas démarré, les joueurs présents gardent un accès au village s'ils le souhaitent.</p>
       ` : `
-        <p class="muted">Aucune scène en préparation. À la création, une invitation part aussitôt vers tous les joueurs ; ceux qui acceptent patientent dans le salon jusqu'à ce que tu lances.</p>
-        <form onsubmit="adminCreateRpSession(event)">
-          <div class="field"><label>Titre de la scène</label><input id="rp-title" type="text" placeholder="L'arrivée des émissaires"></div>
-          <div class="field"><label>Description</label><textarea id="rp-desc" rows="3" placeholder="Décris le contexte, le lieu, l'ambiance..."></textarea></div>
-          <div class="field"><label>Objectif(s) — un par ligne</label><textarea id="rp-objectives" rows="3" placeholder="Convaincre l'émissaire d'accepter le traité&#10;Découvrir qui l'a envoyé"></textarea></div>
-          <div class="field" style="max-width:200px;"><label>Durée une fois lancée (minutes)</label><input id="rp-duration" type="number" min="1" placeholder="30"></div>
-          <div class="field" style="display:flex; align-items:center; gap:8px;">
-            <input id="rp-auto-invite" type="checkbox" style="width:auto;">
-            <label style="margin:0;">Relancer l'invitation à tous les 10 minutes tant que la scène n'est pas terminée</label>
-          </div>
-          <button class="btn btn-primary" type="submit">Créer la scène et inviter les joueurs</button>
-        </form>
+        <p class="muted">${rpSession && rpSession.outcome ? `Dernière issue déclarée : ${rpSession.outcome==='success'?'✅ réussite':'❌ échec'}.` : 'Aucun salon en préparation.'}</p>
+        <p class="muted" style="font-size:13px; margin-top:6px;">Objectifs : ${KONNE_RP.objectives.join(' · ')} — durée de la scène une fois lancée : ${KONNE_RP.durationMin} min.</p>
+        <button class="btn btn-primary" style="margin-top:12px;" onclick="adminActivateRp()">Ouvrir le salon et envoyer les invitations</button>
       `}
     </div>
 
