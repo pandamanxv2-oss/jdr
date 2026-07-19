@@ -339,6 +339,88 @@ function findCategorySub(topId, subId){
   return top.subs.find(s=>s.id===subId) || null;
 }
 
+// Catalogue prédéfini complet — l'admin peut piocher dedans pour créer un
+// objet en un clic (nom, rareté, catégorie, prix et description déjà
+// remplis), ou tout créer d'un coup avec adminCreateAllPresetItems().
+// requiresStaff = true pour les sorts qui ne peuvent être lancés que par un
+// porteur de baguette ou de bâton (arme de catégorie "arme_magie").
+const ITEM_PRESETS = [
+  // --- Armes une main ---
+  { name:"Épée en acier", price:5, rarity:'commun', categoryTopId:'arme', categorySubId:'arme_une_main', description:"Une épée basique." },
+  { name:"Dague du voleur", price:4, rarity:'commun', categoryTopId:'arme', categorySubId:'arme_une_main', description:"Bonus si vous attaquez par surprise." },
+  { name:"Épée rouillée", price:2, rarity:'commun', categoryTopId:'arme', categorySubId:'arme_une_main', description:"Une vieille épée." },
+  { name:"Épée du feu du destin", price:14, rarity:'rare', categoryTopId:'arme', categorySubId:'arme_une_main', description:"Une épée forgée il y a bien longtemps." },
+  { name:"Courte épée en obsidienne", price:16, rarity:'rare', categoryTopId:'arme', categorySubId:'arme_une_main', description:"Une épée très solide." },
+  { name:"Sabre du temps", price:35, rarity:'tres_rare', categoryTopId:'arme', categorySubId:'arme_une_main', description:"Permet d'arrêter le temps un court instant." },
+  { name:"Excalibur", price:50, rarity:'legendaire', categoryTopId:'arme', categorySubId:'arme_une_main', description:"La plus puissante." },
+  // --- Armes deux mains ---
+  { name:"Lance en acier", price:8, rarity:'commun', categoryTopId:'arme', categorySubId:'arme_deux_mains', description:"Une lance basique." },
+  { name:"Gant de feu", price:11, rarity:'rare', categoryTopId:'arme', categorySubId:'arme_deux_mains', description:"Un gant enflammé." },
+  { name:"Marteau du tonnerre", price:20, rarity:'tres_rare', categoryTopId:'arme', categorySubId:'arme_deux_mains', description:"Un marteau qui fait beaucoup de bruit." },
+  // --- Armes à distance ---
+  { name:"Arc de chasseur", price:6, rarity:'commun', categoryTopId:'arme', categorySubId:'arme_distance', description:"Un arc basique." },
+  { name:"Arc à double flèche", price:11, rarity:'rare', categoryTopId:'arme', categorySubId:'arme_distance', description:"Permet de tirer 2 flèches en même temps." },
+  // --- Armes magie (baguettes / bâtons) ---
+  { name:"Baguette basique", price:9, rarity:'commun', categoryTopId:'arme', categorySubId:'arme_magie', description:"Une baguette commune." },
+  { name:"Baguette démoniaque", price:12, rarity:'rare', categoryTopId:'arme', categorySubId:'arme_magie', description:"Privilégie les sorts de destruction." },
+  { name:"Bâton de paladin", price:6, rarity:'commun', categoryTopId:'arme', categorySubId:'arme_magie', description:"Privilégie les sorts de soin." },
+  { name:"Baguette naturelle", price:12, rarity:'rare', categoryTopId:'arme', categorySubId:'arme_magie', description:"Privilégie les pouvoirs de la nature." },
+  // --- Armes spéciales ---
+  { name:"Bouclier en bois", price:6, rarity:'commun', categoryTopId:'arme', categorySubId:'arme_autre', description:"Un bouclier commun." },
+  { name:"Filet de pêcheur", price:3, rarity:'commun', categoryTopId:'arme', categorySubId:'arme_autre', description:"Immobilise un adversaire pendant 3s (n'est pas considéré comme une arme principale)." },
+  // --- Sorts de destruction ---
+  { name:"Boule de Feu", price:4, rarity:'commun', categoryTopId:'sort', categorySubId:'sort_destruction', description:"Lance une boule de feu.", requiresStaff:false },
+  { name:"Éclair", price:5, rarity:'commun', categoryTopId:'sort', categorySubId:'sort_destruction', description:"Lance un éclair.", requiresStaff:true },
+  { name:"Lance de Glace", price:5, rarity:'commun', categoryTopId:'sort', categorySubId:'sort_destruction', description:"Lance trois pics de glace.", requiresStaff:true },
+  { name:"Explosion Arcanique", price:6, rarity:'commun', categoryTopId:'sort', categorySubId:'sort_destruction', description:"Fait une explosion sur l'ennemi visé.", requiresStaff:true },
+  { name:"Rayon Solaire", price:7, rarity:'commun', categoryTopId:'sort', categorySubId:'sort_destruction', description:"Lance un rayon solaire sur l'ennemi (efficace contre les morts-vivants).", requiresStaff:true },
+  // --- Sorts de soin ---
+  { name:"Soin Mineur", price:3, rarity:'commun', categoryTopId:'sort', categorySubId:'sort_soin', description:"Soigne faiblement un allié ou soi-même.", requiresStaff:false },
+  { name:"Guérison", price:4, rarity:'commun', categoryTopId:'sort', categorySubId:'sort_soin', description:"Soigne partiellement un allié ou soi-même.", requiresStaff:true },
+  { name:"Purification", price:5, rarity:'commun', categoryTopId:'sort', categorySubId:'sort_soin', description:"Retire le poison, les maladies et les malédictions.", requiresStaff:true },
+  { name:"Miracle", price:11, rarity:'rare', categoryTopId:'sort', categorySubId:'sort_soin', description:"Soigne entièrement toute l'équipe (recharge 50s) mais tue le lanceur.", requiresStaff:true },
+  // --- Sorts pouvoir de la nature (tous nécessitent baguette ou bâton) ---
+  { name:"Racines", price:5, rarity:'commun', categoryTopId:'sort', categorySubId:'sort_nature', description:"Blesse un ennemi avec une racine sortant du sol.", requiresStaff:true },
+  { name:"Peau de Pierre", price:4, rarity:'commun', categoryTopId:'sort', categorySubId:'sort_nature', description:"Protège le lanceur de 50% pour la prochaine attaque.", requiresStaff:true },
+  { name:"Appel du Loup", price:9, rarity:'commun', categoryTopId:'sort', categorySubId:'sort_nature', description:"Transforme le lanceur en loup ; s'il meurt, le lanceur redevient humain.", requiresStaff:true },
+  { name:"Pic de pierre", price:6, rarity:'commun', categoryTopId:'sort', categorySubId:'sort_nature', description:"Empale l'ennemi avec un pic de pierre sortant du sol.", requiresStaff:true },
+  { name:"Mur de racine", price:7, rarity:'commun', categoryTopId:'sort', categorySubId:'sort_nature', description:"Invoque un mur de racines protégeant de toute attaque.", requiresStaff:true },
+  // --- Sorts spéciaux (nécessitent baguette ou bâton) ---
+  { name:"Invisibilité", price:12, rarity:'rare', categoryTopId:'sort', categorySubId:'sort_speciaux', description:"Le lanceur peut devenir invisible pendant 10s.", requiresStaff:true },
+  { name:"Temps Suspendu", price:13, rarity:'rare', categoryTopId:'sort', categorySubId:'sort_speciaux', description:"Arrête le temps sauf pour le lanceur pendant 5s.", requiresStaff:true },
+  // --- Potions ---
+  { name:"Potion de Force", price:5, rarity:'commun', categoryTopId:'potion', categorySubId:null, description:"Votre prochaine attaque (non magique) est plus forte." },
+  { name:"Potion de soin", price:5, rarity:'commun', categoryTopId:'potion', categorySubId:null, description:"Vous soigne partiellement." },
+  { name:"Potion de mana", price:5, rarity:'commun', categoryTopId:'potion', categorySubId:null, description:"Votre prochaine attaque par sort est plus forte." },
+  // --- Enchantements arme ---
+  { name:"Feu", price:9, rarity:'commun', categoryTopId:'enchantement', categorySubId:'enchant_arme', description:"Votre arme est enflammée." },
+  { name:"Tranchant", price:6, rarity:'commun', categoryTopId:'enchantement', categorySubId:'enchant_arme', description:"Votre arme devient plus tranchante." },
+  { name:"Vampirique", price:12, rarity:'rare', categoryTopId:'enchantement', categorySubId:'enchant_arme', description:"Plus vous attaquez, plus vous vous soignez." },
+  { name:"Givre (arme)", price:7, rarity:'commun', categoryTopId:'enchantement', categorySubId:'enchant_arme', description:"Ralentit l'ennemi." },
+  // --- Enchantements arc ---
+  { name:"Perforante", price:6, rarity:'commun', categoryTopId:'enchantement', categorySubId:'enchant_arc', description:"Vos flèches percent plus facilement les armures." },
+  { name:"Tir explosif", price:14, rarity:'rare', categoryTopId:'enchantement', categorySubId:'enchant_arc', description:"Vos flèches explosent sur vos ennemis." },
+  { name:"Givre (arc)", price:7, rarity:'commun', categoryTopId:'enchantement', categorySubId:'enchant_arc', description:"Vos flèches ralentissent l'ennemi." },
+  // --- Enchantements baguette ---
+  { name:"Canalisation", price:5, rarity:'commun', categoryTopId:'enchantement', categorySubId:'enchant_baguette', description:"Vos attaques par magie infligent plus de dégâts." },
+  { name:"Recharge Rapide", price:9, rarity:'commun', categoryTopId:'enchantement', categorySubId:'enchant_baguette', description:"Le temps de recharge de vos sorts est réduit." }
+];
+function findPreset(name){ return ITEM_PRESETS.find(p=>p.name===name) || null; }
+// Emplacement d'équipement correspondant à une sous-catégorie d'arme.
+function weaponSlotForSub(subId){
+  if(subId==='arme_deux_mains') return 'twohand';
+  if(subId==='arme_une_main' || subId==='arme_autre') return 'hand';
+  if(subId==='arme_distance') return 'distance';
+  if(subId==='arme_magie') return 'magie';
+  return null;
+}
+// Type d'enchantement attendu pour un emplacement d'arme équipée.
+function enchantTypeForSlot(slot){
+  if(slot==='distance') return 'enchant_arc';
+  if(slot==='magie') return 'enchant_baguette';
+  return 'enchant_arme'; // hand1 / hand2
+}
+
 function xpNeeded(level){ return 10*(level+1); }
 
 function confettiHTML(count){
@@ -803,6 +885,18 @@ function setMarketFilter(topId, subId){
   render();
 }
 
+// Un joueur peut lancer les sorts marqués requiresStaff seulement s'il a
+// une baguette ou un bâton (arme_magie) équipé, ou à défaut dans son
+// inventaire.
+async function userHasWandOrStaff(u){
+  if(u.equipment && u.equipment.magie) return true;
+  const catalog = await getData('itemCatalog', {});
+  return (u.items||[]).some(name=>{
+    const info = Object.values(catalog).find(it=>it.name===name);
+    return info && info.categorySubId==='arme_magie';
+  });
+}
+
 async function buyMarketItem(listingId){
   const res = await apiPost('/api/market/buy', { buyerKey: S.currentUser, listingId });
   if(!res.ok){
@@ -810,7 +904,8 @@ async function buyMarketItem(listingId){
       not_enough_gold: "Pas assez d'or.",
       listing_gone: 'Cet objet a déjà été vendu.',
       own_listing: 'Tu ne peux pas acheter ton propre objet.',
-      buyer_not_found: 'Compte introuvable.'
+      buyer_not_found: 'Compte introuvable.',
+      needs_wand_staff: "Ce sort nécessite de posséder ou d'équiper une baguette ou un bâton."
     };
     toast(messages[res.data && res.data.error] || 'Achat impossible.');
     render();
@@ -859,7 +954,30 @@ function updateRarityHint(){
   const hint = document.getElementById('rarity-hint');
   if(!sel || !hint) return;
   const r = RARITIES[sel.value];
-  hint.textContent = r ? `Valeur générée entre ${r.min} et ${r.max} or.` : '';
+  hint.textContent = r ? `Valeur générée entre ${r.min} et ${r.max} or (sauf si un prix fixe est renseigné).` : '';
+}
+
+// Remplit le formulaire de création d'objet avec un objet du catalogue
+// prédéfini (nom, rareté, catégorie, prix, description, restriction sorts).
+function applyItemPreset(name){
+  const p = findPreset(name);
+  const nameEl = document.getElementById('item-name');
+  const raritySel = document.getElementById('item-rarity');
+  const catSel = document.getElementById('item-cat');
+  const priceEl = document.getElementById('item-price-fixed');
+  const descEl = document.getElementById('item-description');
+  const staffEl = document.getElementById('item-requires-staff');
+  if(!p){ return; }
+  nameEl.value = p.name;
+  raritySel.value = p.rarity;
+  updateRarityHint();
+  catSel.value = p.categoryTopId || '';
+  updateSubcatSelect();
+  const subSel = document.getElementById('item-subcat');
+  if(subSel) subSel.value = p.categorySubId || '';
+  priceEl.value = p.price;
+  descEl.value = p.description || '';
+  staffEl.checked = !!p.requiresStaff;
 }
 
 async function adminCreateItem(e){
@@ -870,6 +988,10 @@ async function adminCreateItem(e){
   const catSub = document.getElementById('item-subcat').value;
   const qtyRaw = parseInt(document.getElementById('item-qty').value, 10);
   const qty = Math.min(200, Math.max(1, isNaN(qtyRaw) ? 1 : qtyRaw));
+  const description = (document.getElementById('item-description').value || '').trim();
+  const requiresStaff = !!document.getElementById('item-requires-staff').checked;
+  const fixedPriceRaw = parseInt(document.getElementById('item-price-fixed').value, 10);
+  const fixedPrice = (!isNaN(fixedPriceRaw) && fixedPriceRaw>0) ? fixedPriceRaw : null;
   if(!name || !rarityKey){ toast('Nom et rareté requis.'); return; }
   const r = RARITIES[rarityKey];
   let label = '';
@@ -880,18 +1002,47 @@ async function adminCreateItem(e){
   const catalog = await getData('itemCatalog', {});
   let lastValue = 0;
   for(let i=0; i<qty; i++){
-    const value = r.min + Math.floor(Math.random()*(r.max-r.min+1));
+    const value = fixedPrice != null ? fixedPrice : (r.min + Math.floor(Math.random()*(r.max-r.min+1)));
     lastValue = value;
     const id = 'it_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8)+'_'+i;
     catalog[id] = {
       id, name, rarity:rarityKey, value,
       categoryTopId: catTop||null, categorySubId: catSub||null, categoryLabel: label,
+      description, requiresStaff,
       assignedTo:null, listed:false, createdAt:Date.now()
     };
   }
   await setData('itemCatalog', catalog);
   document.getElementById('item-name').value='';
+  document.getElementById('item-description').value='';
+  document.getElementById('item-price-fixed').value='';
+  document.getElementById('item-requires-staff').checked=false;
+  const presetSel = document.getElementById('item-preset');
+  if(presetSel) presetSel.value='';
   toast(qty>1 ? `${qty} exemplaires de "${name}" créés — ${r.label}.` : `Objet "${name}" créé — ${r.label}, ${lastValue} or.`);
+  render();
+}
+
+// Crée un exemplaire de chaque objet du catalogue prédéfini d'un coup —
+// pratique pour peupler l'hôtel des ventes en une seule fois.
+async function adminCreateAllPresetItems(){
+  const catalog = await getData('itemCatalog', {});
+  ITEM_PRESETS.forEach((p, i)=>{
+    let label = '';
+    const topCat = findCategoryTop(p.categoryTopId);
+    const subCat = findCategorySub(p.categoryTopId, p.categorySubId);
+    if(topCat) label = topCat.name;
+    if(subCat) label += (label? ' > ':'') + subCat.name;
+    const id = 'it_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8)+'_preset_'+i;
+    catalog[id] = {
+      id, name:p.name, rarity:p.rarity, value:p.price,
+      categoryTopId: p.categoryTopId||null, categorySubId: p.categorySubId||null, categoryLabel: label,
+      description: p.description||'', requiresStaff: !!p.requiresStaff,
+      assignedTo:null, listed:false, createdAt:Date.now()
+    };
+  });
+  await setData('itemCatalog', catalog);
+  toast(`${ITEM_PRESETS.length} objets prédéfinis créés dans le catalogue.`);
   render();
 }
 
@@ -1465,6 +1616,78 @@ async function screenPersonnage(){
   const g = u.guildId ? guilds[u.guildId] : null;
   const need = xpNeeded(u.level);
   const pct = u.level>=MAX_LEVEL ? 100 : Math.min(100, Math.round((u.xp/need)*100));
+  const catalog = await getData('itemCatalog', {});
+  u.equipment = u.equipment || { hand1:null, hand2:null, distance:null, magie:null };
+  const eq = u.equipment;
+
+  const infoByName = (name)=> Object.values(catalog).find(it=>it.name===name) || null;
+  const hasWandOrStaff = !!eq.magie;
+
+  // ---------- Objets (avec description + verrou pour les sorts) ----------
+  const itemPills = u.items.length ? u.items.map(name=>{
+    const info = infoByName(name);
+    const locked = info && info.requiresStaff && !hasWandOrStaff;
+    const title = info && info.description ? info.description.replace(/"/g,'&quot;') : '';
+    return `<span class="item-pill" title="${title}">${name}${locked? ' 🔒':''}</span>`;
+  }).join('') : '<span class="muted">Aucun objet pour le moment.</span>';
+
+  // ---------- Emplacements d'équipement ----------
+  function slotRow(label, slotKey){
+    const item = eq[slotKey];
+    if(!item){
+      return `<div class="memberrow"><span>${label}</span><span class="muted">Vide</span></div>`;
+    }
+    const info = infoByName(item.name);
+    const r = info ? RARITIES[info.rarity] : null;
+    return `<div class="memberrow" style="align-items:flex-start;">
+      <span><strong>${item.name}</strong>${item.twoHanded? ' <span class="muted" style="font-size:12px;">(arme à deux mains)</span>':''}
+        ${r? `<span style="color:${r.color}; font-size:12px; font-family:'Cinzel',serif;"> · ${r.label}</span>`:''}
+        ${item.enchant? `<br><span class="badge gold" style="margin-top:4px;">Enchantée : ${item.enchant.name}</span>`:''}
+      </span>
+      <button class="btn btn-small btn-danger" onclick="unequipSlot('${slotKey}')">Déséquiper</button>
+    </div>`;
+  }
+
+  // hand1/hand2 : si une arme à deux mains occupe les deux, on n'affiche qu'une ligne fusionnée.
+  const handsHtml = (eq.hand1 && eq.hand1.twoHanded)
+    ? slotRow('Mains', 'hand1')
+    : slotRow('Main 1', 'hand1') + slotRow('Main 2', 'hand2');
+
+  // ---------- Sélecteurs pour équiper / enchanter ----------
+  const weaponItems = u.items.filter(name=>{
+    const info = infoByName(name);
+    return info && info.categoryTopId==='arme';
+  });
+  const equipSelect = weaponItems.length ? `
+    <div class="row" style="margin-top:10px;">
+      <select id="equip-weapon-select" style="max-width:260px;">
+        ${weaponItems.map(n=>`<option value="${n.replace(/"/g,'&quot;')}">${n}</option>`).join('')}
+      </select>
+      <button class="btn btn-small btn-primary" onclick="equipWeapon(document.getElementById('equip-weapon-select').value)">Équiper</button>
+    </div>` : `<p class="muted" style="font-size:13px; margin-top:8px;">Aucune arme dans ton inventaire à équiper.</p>`;
+
+  const enchantItems = u.items.filter(name=>{
+    const info = infoByName(name);
+    return info && info.categoryTopId==='enchantement';
+  });
+  const occupiedSlots = [
+    eq.hand1 ? {key:'hand1', label: eq.hand1.twoHanded? 'Mains (2 mains)' : 'Main 1'} : null,
+    (eq.hand2 && !(eq.hand1 && eq.hand1.twoHanded)) ? {key:'hand2', label:'Main 2'} : null,
+    eq.distance ? {key:'distance', label:'Arme à distance'} : null,
+    eq.magie ? {key:'magie', label:'Arme de magie'} : null
+  ].filter(Boolean);
+  const enchantSelect = (enchantItems.length && occupiedSlots.length) ? `
+    <div class="row" style="margin-top:10px;">
+      <select id="enchant-slot-select" style="max-width:200px;">
+        ${occupiedSlots.map(s=>`<option value="${s.key}">${s.label}</option>`).join('')}
+      </select>
+      <select id="enchant-item-select" style="max-width:220px;">
+        ${enchantItems.map(n=>`<option value="${n.replace(/"/g,'&quot;')}">${n}</option>`).join('')}
+      </select>
+      <button class="btn btn-small btn-primary" onclick="enchantSlot(document.getElementById('enchant-slot-select').value, document.getElementById('enchant-item-select').value)">Enchanter</button>
+    </div>
+    <p class="muted" style="font-size:12px; margin-top:6px;">L'enchantement doit correspondre au type d'arme (arme, arc ou baguette) — il est consommé une fois appliqué.</p>` : '';
+
   return `
     ${topbarHTML(u)}
     <button class="btn btn-small" onclick="goVillage()">← Retour au village</button>
@@ -1483,9 +1706,100 @@ async function screenPersonnage(){
       <div class="muted" style="font-size:13px; margin-top:6px;">${u.level>=MAX_LEVEL? 'Niveau maximum atteint' : `${u.xp} / ${need} xp`}</div>
       <div class="divider"></div>
       <label>Objets</label>
-      <div>${u.items.length? u.items.map(i=>`<span class="item-pill">${i}</span>`).join('') : '<span class="muted">Aucun objet pour le moment.</span>'}</div>
+      <div>${itemPills}</div>
+    </div>
+
+    <div class="panel" style="margin-top:20px;">
+      <div class="eyebrow">Équipement</div>
+      <h2>Armes équipées</h2>
+      <p class="muted" style="font-size:13px;">Une arme à deux mains occupe les deux mains ; ou équipe deux armes à une main (ou un bouclier/filet en main secondaire).</p>
+      <div class="divider"></div>
+      ${handsHtml}
+      ${slotRow('Distance (arc)', 'distance')}
+      ${slotRow('Magie (baguette / bâton)', 'magie')}
+      ${!hasWandOrStaff ? `<p style="font-size:12px; color:var(--blood-bright); margin-top:8px;">Sans baguette ni bâton équipé, les sorts marqués 🔒 dans ton inventaire ne peuvent pas être lancés.</p>` : ''}
+      <div class="divider"></div>
+      <label>Équiper une arme</label>
+      ${equipSelect}
+      <div class="divider"></div>
+      <label>Enchanter une arme équipée</label>
+      ${enchantSelect || '<p class="muted" style="font-size:13px;">Il te faut une arme équipée et un enchantement dans ton inventaire.</p>'}
     </div>
   `;
+}
+
+// ---------- Équipement : équiper / déséquiper / enchanter ----------
+async function equipWeapon(itemName){
+  if(!itemName) return;
+  const users = await getData('users', {});
+  const u = users[S.currentUser];
+  if(u.items.indexOf(itemName)===-1){ toast('Tu ne possèdes pas cet objet.'); return; }
+  const catalog = await getData('itemCatalog', {});
+  const info = Object.values(catalog).find(it=>it.name===itemName);
+  if(!info || info.categoryTopId!=='arme'){ toast("Cet objet n'est pas une arme."); return; }
+  u.equipment = u.equipment || { hand1:null, hand2:null, distance:null, magie:null };
+  const slot = weaponSlotForSub(info.categorySubId);
+  if(slot==='twohand'){
+    u.equipment.hand1 = { name:itemName, twoHanded:true, enchant:null };
+    u.equipment.hand2 = { name:itemName, twoHanded:true, enchant:null };
+  } else if(slot==='hand'){
+    if(u.equipment.hand1 && u.equipment.hand1.twoHanded){
+      toast('Déséquipe ton arme à deux mains avant.'); return;
+    }
+    if(!u.equipment.hand1) u.equipment.hand1 = { name:itemName, twoHanded:false, enchant:null };
+    else if(!u.equipment.hand2) u.equipment.hand2 = { name:itemName, twoHanded:false, enchant:null };
+    else { toast('Tes deux mains sont déjà occupées — déséquipe une arme.'); return; }
+  } else if(slot==='distance'){
+    u.equipment.distance = { name:itemName, twoHanded:false, enchant:null };
+  } else if(slot==='magie'){
+    u.equipment.magie = { name:itemName, twoHanded:false, enchant:null };
+  } else {
+    toast("Type d'arme inconnu."); return;
+  }
+  await setData('users', users);
+  toast(`${itemName} équipé(e).`);
+  render();
+}
+
+async function unequipSlot(slot){
+  const users = await getData('users', {});
+  const u = users[S.currentUser];
+  u.equipment = u.equipment || { hand1:null, hand2:null, distance:null, magie:null };
+  if((slot==='hand1'||slot==='hand2') && u.equipment[slot] && u.equipment[slot].twoHanded){
+    u.equipment.hand1 = null;
+    u.equipment.hand2 = null;
+  } else {
+    u.equipment[slot] = null;
+  }
+  await setData('users', users);
+  render();
+}
+
+async function enchantSlot(slot, enchantName){
+  if(!slot || !enchantName) return;
+  const users = await getData('users', {});
+  const u = users[S.currentUser];
+  u.equipment = u.equipment || { hand1:null, hand2:null, distance:null, magie:null };
+  if(!u.equipment[slot]){ toast('Aucune arme équipée dans cet emplacement.'); return; }
+  if(u.items.indexOf(enchantName)===-1){ toast("Tu ne possèdes pas cet enchantement."); return; }
+  const catalog = await getData('itemCatalog', {});
+  const info = Object.values(catalog).find(it=>it.name===enchantName);
+  if(!info || info.categoryTopId!=='enchantement'){ toast("Ce n'est pas un enchantement."); return; }
+  const expectedSub = enchantTypeForSlot(slot);
+  if(info.categorySubId !== expectedSub){ toast("Cet enchantement ne correspond pas à ce type d'arme."); return; }
+
+  const idx = u.items.indexOf(enchantName);
+  u.items.splice(idx, 1);
+  const enchantData = { name: enchantName, desc: info.description||'' };
+  if((slot==='hand1'||slot==='hand2') && u.equipment.hand1 && u.equipment.hand1.twoHanded){
+    u.equipment.hand1.enchant = enchantData;
+    u.equipment.hand2.enchant = enchantData;
+  } else {
+    u.equipment[slot].enchant = enchantData;
+  }
+  await setData('users', users);
+  toast(`${enchantName} appliqué(e) !`);
+  render();
 }
 
 async function screenGuildes(){
@@ -1814,6 +2128,8 @@ async function screenHotelVentes(){
   if(filterCat) listings = listings.filter(l=>l.categoryTopId===filterCat);
   if(filterSub) listings = listings.filter(l=>l.categorySubId===filterSub);
 
+  const hasWandOrStaff = await userHasWandOrStaff(u);
+
   const filterHtml = `
     <div class="row" style="margin-bottom:6px;">
       <select style="max-width:220px;" onchange="setMarketFilter(this.value, '')">
@@ -1832,16 +2148,20 @@ async function screenHotelVentes(){
   const rows = listings.length ? listings.map(l=>{
     const r = RARITIES[l.rarity];
     const rarityLine = r ? `<div style="font-family:'Cinzel',serif; font-size:12px; letter-spacing:0.05em; margin-top:4px; color:${r.color};">${r.label}</div>` : '';
+    const locked = l.requiresStaff && !hasWandOrStaff;
+    const canAfford = u.gold >= l.price;
     return `
     <div class="dungeon-card">
       <div>
-        <div class="display" style="font-size:17px;">${l.itemName}</div>
+        <div class="display" style="font-size:17px;">${l.itemName}${l.requiresStaff? ' 🪄':''}</div>
         ${rarityLine}
+        ${l.description? `<div class="muted" style="font-size:13px; font-style:italic; margin-top:4px;">${l.description}</div>` : ''}
         <div class="muted" style="font-size:13px; margin-top:4px;">${l.categoryLabel? l.categoryLabel+' · ' : ''}vendu par ${l.sellerPseudo}</div>
+        ${locked? `<div style="font-size:12px; color:var(--blood-bright); margin-top:4px;">Nécessite une baguette ou un bâton équipé/possédé.</div>` : ''}
       </div>
       <div style="text-align:right;">
         <div class="badge gold" style="margin-bottom:8px;">${l.price} 🪙</div><br>
-        <button class="btn btn-small btn-primary" ${u.gold<l.price?'disabled':''} onclick="buyMarketItem('${l.id}')">Acheter</button>
+        <button class="btn btn-small btn-primary" ${(!canAfford||locked)?'disabled':''} onclick="buyMarketItem('${l.id}')">Acheter</button>
       </div>
     </div>`;
   }).join('') : `<p class="muted" style="margin-top:14px;">Aucun objet en vente pour l'instant. Reviens plus tard, voyageur.</p>`;
@@ -2024,7 +2344,8 @@ async function screenAdmin(){
     return `
       <div class="memberrow" style="align-items:flex-start; flex-wrap:wrap;">
         <span><strong>${it.name}</strong> <span style="color:${r.color}; font-size:12px; font-family:'Cinzel',serif;">${r.label}</span>
-          <span class="muted" style="font-size:12px;"> — ${it.value} or ${it.categoryLabel? '· '+it.categoryLabel : ''}</span></span>
+          <span class="muted" style="font-size:12px;"> — ${it.value} or ${it.categoryLabel? '· '+it.categoryLabel : ''}${it.requiresStaff? ' · 🪄 nécessite baguette/bâton':''}</span>
+          ${it.description? `<div class="muted" style="font-size:12px; font-style:italic;">${it.description}</div>` : ''}</span>
         <span>${status}</span>
       </div>`;
   }).join('') || '<p class="muted">Aucun objet créé pour l\'instant.</p>';
@@ -2115,6 +2436,13 @@ async function screenAdmin(){
     <div class="panel" style="margin-top:20px;">
       <div class="eyebrow">Hôtel des ventes — objets</div>
       <h2>Créer un objet</h2>
+      <div class="field">
+        <label>Charger un objet prédéfini</label>
+        <select id="item-preset" onchange="applyItemPreset(this.value)">
+          <option value="">— Objet personnalisé —</option>
+          ${ITEM_PRESETS.map(p=>`<option value="${p.name.replace(/"/g,'&quot;')}">${p.name} (${p.price} or · ${RARITIES[p.rarity].label})</option>`).join('')}
+        </select>
+      </div>
       <form onsubmit="adminCreateItem(event)">
         <div class="row">
           <div class="field" style="flex:1; min-width:200px;"><label>Nom de l'objet</label><input id="item-name" type="text" placeholder="Épée de Konne"></div>
@@ -2130,6 +2458,10 @@ async function screenAdmin(){
             <label>Quantité</label>
             <input id="item-qty" type="number" min="1" max="200" value="1">
           </div>
+          <div class="field" style="max-width:140px;">
+            <label>Prix fixe (optionnel)</label>
+            <input id="item-price-fixed" type="number" min="1" placeholder="ex: 5">
+          </div>
         </div>
         <div class="row">
           <div class="field" style="min-width:200px;">
@@ -2144,10 +2476,21 @@ async function screenAdmin(){
             <select id="item-subcat"><option value="">— Sous-catégorie (optionnel) —</option></select>
           </div>
         </div>
+        <div class="field">
+          <label>Description</label>
+          <textarea id="item-description" rows="2" placeholder="Une brève description de l'objet…"></textarea>
+        </div>
+        <div class="field">
+          <label style="display:inline-flex; align-items:center; gap:8px;">
+            <input id="item-requires-staff" type="checkbox" style="width:auto;">
+            Nécessite une baguette ou un bâton équipé pour être utilisé (sorts)
+          </label>
+        </div>
         <button class="btn btn-primary" type="submit">Créer l'objet (ou le lot)</button>
       </form>
       <div class="row" style="margin-top:14px;">
         <button class="btn" onclick="adminDistributeUnassigned()">🎲 Distribuer aléatoirement les objets non confiés à des bots</button>
+        <button class="btn" onclick="adminCreateAllPresetItems()">📜 Créer un exemplaire de chaque objet prédéfini</button>
       </div>
       <div class="divider"></div>
       <label>Catalogue d'objets — ${allItems.length} au total (${unassignedCount} à confier, ${pendingCount} en attente de mise en vente, ${listedCount} en vente)</label>
