@@ -1,3 +1,4 @@
+
 // server.js — Terres de Konne
 // Petit serveur Express qui sert le site et stocke l'état du monde
 // (comptes, guildes, saison, donjon en cours...) dans un fichier JSON
@@ -82,6 +83,17 @@ app.delete('/api/kv/:key', (req, res) => {
 // gagné en vendant pouvait disparaître si un achat était passé juste
 // avant que ce gain soit sauvegardé). Ici, tout se fait en une seule
 // requête traitée de façon synchrone par le serveur, donc sans course.
+// Un acheteur ne peut acquérir un sort marqué "requiresStaff" que s'il a une
+// baguette ou un bâton (catégorie arme_magie) équipé ou déjà en sa possession.
+function buyerHasWandOrStaff(db, buyer) {
+  if (buyer.equipment && buyer.equipment.magie) return true;
+  const catalog = db.itemCatalog || {};
+  return (buyer.items || []).some(name => {
+    const info = Object.values(catalog).find(it => it.name === name);
+    return info && info.categorySubId === 'arme_magie';
+  });
+}
+
 app.post('/api/market/buy', (req, res) => {
   const { buyerKey, listingId } = req.body || {};
   const db = dbCache;
@@ -94,6 +106,9 @@ app.post('/api/market/buy', (req, res) => {
   const listing = db.market.listings[idx];
   if (listing.sellerKey === buyerKey) return res.status(400).json({ ok: false, error: 'own_listing' });
   if ((buyer.gold || 0) < listing.price) return res.status(400).json({ ok: false, error: 'not_enough_gold' });
+  if (listing.requiresStaff && !buyerHasWandOrStaff(db, buyer)) {
+    return res.status(400).json({ ok: false, error: 'needs_wand_staff' });
+  }
 
   db.market.listings.splice(idx, 1);
   buyer.gold = (buyer.gold || 0) - listing.price;
@@ -137,6 +152,8 @@ app.post('/api/market/sell', (req, res) => {
     categoryTopId: catalogMatch ? catalogMatch.categoryTopId : null,
     categorySubId: catalogMatch ? catalogMatch.categorySubId : null,
     categoryLabel: catalogMatch ? catalogMatch.categoryLabel : '',
+    description: catalogMatch ? (catalogMatch.description || '') : '',
+    requiresStaff: catalogMatch ? !!catalogMatch.requiresStaff : false,
     sellerKey, sellerPseudo: seller.pseudo, createdAt: Date.now()
   };
   db.market.listings.push(listing);
@@ -330,6 +347,8 @@ function autoListAssignedItems(db) {
       categoryTopId: item.categoryTopId || null,
       categorySubId: item.categorySubId || null,
       categoryLabel: item.categoryLabel || '',
+      description: item.description || '',
+      requiresStaff: !!item.requiresStaff,
       sellerKey: item.assignedTo,
       sellerPseudo: seller.pseudo,
       createdAt: Date.now()
@@ -376,6 +395,8 @@ function botsBuyItems(db) {
       categoryTopId: listing.categoryTopId || null,
       categorySubId: listing.categorySubId || null,
       categoryLabel: listing.categoryLabel || '',
+      description: listing.description || '',
+      requiresStaff: !!listing.requiresStaff,
       botKey
     });
   });
@@ -408,6 +429,8 @@ function processBotResales(db) {
         categoryTopId: entry.categoryTopId,
         categorySubId: entry.categorySubId,
         categoryLabel: entry.categoryLabel,
+        description: entry.description || '',
+        requiresStaff: !!entry.requiresStaff,
         sellerKey: entry.botKey,
         sellerPseudo: bot.pseudo,
         createdAt: Date.now()
