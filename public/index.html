@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -309,6 +308,36 @@ const RARITIES = {
 };
 // Bonus de puissance gagné en achetant un objet, selon sa rareté.
 const POWER_BY_RARITY = { commun:1, rare:3, tres_rare:6, legendaire:12 };
+
+// Catégories fixes de l'hôtel des ventes — l'admin ne peut plus en créer,
+// il choisit seulement parmi celles-ci en créant un objet.
+const CATEGORY_TREE = [
+  { id:'arme', name:'Arme', subs:[
+    { id:'arme_une_main', name:'Une main' },
+    { id:'arme_deux_mains', name:'2 mains' },
+    { id:'arme_distance', name:'À distance' },
+    { id:'arme_magie', name:'Magie' },
+    { id:'arme_autre', name:'Autre' }
+  ]},
+  { id:'sort', name:'Sort', subs:[
+    { id:'sort_destruction', name:'Destruction' },
+    { id:'sort_soin', name:'Soin' },
+    { id:'sort_nature', name:'Pouvoir de la nature' },
+    { id:'sort_speciaux', name:'Spéciaux' }
+  ]},
+  { id:'potion', name:'Potion', subs:[] },
+  { id:'enchantement', name:'Enchantement', subs:[
+    { id:'enchant_arme', name:'Enchantement arme' },
+    { id:'enchant_arc', name:'Enchantement arc' },
+    { id:'enchant_baguette', name:'Enchantement baguette' }
+  ]}
+];
+function findCategoryTop(id){ return CATEGORY_TREE.find(c=>c.id===id) || null; }
+function findCategorySub(topId, subId){
+  const top = findCategoryTop(topId);
+  if(!top) return null;
+  return top.subs.find(s=>s.id===subId) || null;
+}
 
 function xpNeeded(level){ return 10*(level+1); }
 
@@ -815,14 +844,13 @@ async function sellMyItem(e){
   render();
 }
 
-// ---------- Admin : catégories, objets, bots, minuteur secret ----------
+// ---------- Admin : objets, bots, minuteur secret ----------
 function updateSubcatSelect(){
   const catSel = document.getElementById('item-cat');
   const subSel = document.getElementById('item-subcat');
   if(!catSel || !subSel) return;
-  const catId = catSel.value;
-  const cats = S.categoriesCache || {};
-  const subs = Object.values(cats).filter(c=>c.parentId===catId);
+  const top = findCategoryTop(catSel.value);
+  const subs = top ? top.subs : [];
   subSel.innerHTML = '<option value="">— Sous-catégorie (optionnel) —</option>' +
     subs.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
 }
@@ -832,33 +860,6 @@ function updateRarityHint(){
   if(!sel || !hint) return;
   const r = RARITIES[sel.value];
   hint.textContent = r ? `Valeur générée entre ${r.min} et ${r.max} or.` : '';
-}
-
-async function adminAddCategory(){
-  const el = document.getElementById('new-cat-name');
-  const name = el.value.trim();
-  if(!name){ toast('Nom de catégorie requis.'); return; }
-  const categories = await getData('categories', {});
-  const id = 'cat_'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
-  categories[id] = {id, name, parentId:null};
-  await setData('categories', categories);
-  el.value='';
-  toast(`Catégorie "${name}" créée.`);
-  render();
-}
-async function adminAddSubcategory(){
-  const parentSel = document.getElementById('new-subcat-parent');
-  const nameEl = document.getElementById('new-subcat-name');
-  const parentId = parentSel.value;
-  const name = nameEl.value.trim();
-  if(!parentId || !name){ toast('Catégorie parente et nom requis.'); return; }
-  const categories = await getData('categories', {});
-  const id = 'cat_'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
-  categories[id] = {id, name, parentId};
-  await setData('categories', categories);
-  nameEl.value='';
-  toast(`Sous-catégorie "${name}" créée.`);
-  render();
 }
 
 async function adminCreateItem(e){
@@ -871,10 +872,11 @@ async function adminCreateItem(e){
   const qty = Math.min(200, Math.max(1, isNaN(qtyRaw) ? 1 : qtyRaw));
   if(!name || !rarityKey){ toast('Nom et rareté requis.'); return; }
   const r = RARITIES[rarityKey];
-  const categories = await getData('categories', {});
   let label = '';
-  if(catTop && categories[catTop]) label = categories[catTop].name;
-  if(catSub && categories[catSub]) label += (label? ' > ':'') + categories[catSub].name;
+  const topCat = findCategoryTop(catTop);
+  const subCat = findCategorySub(catTop, catSub);
+  if(topCat) label = topCat.name;
+  if(subCat) label += (label? ' > ':'') + subCat.name;
   const catalog = await getData('itemCatalog', {});
   let lastValue = 0;
   for(let i=0; i<qty; i++){
@@ -1801,13 +1803,14 @@ async function screenHotelVentes(){
   const users = await getData('users', {});
   const u = users[S.currentUser];
   const market = await getData('market', {listings:[]});
-  const categories = await getData('categories', {});
-  const topCats = Object.values(categories).filter(c=>!c.parentId);
+  const topCats = CATEGORY_TREE;
   const filterCat = S.marketFilterCat || '';
   const filterSub = S.marketFilterSub || '';
-  const subCatsOfFilter = filterCat ? Object.values(categories).filter(c=>c.parentId===filterCat) : [];
+  const subCatsOfFilter = filterCat ? (findCategoryTop(filterCat)?.subs || []) : [];
 
   let listings = (market.listings||[]).slice().sort((a,b)=>b.createdAt-a.createdAt);
+  // Sélectionner juste la catégorie (sans sous-catégorie) affiche tout ce
+  // qu'elle contient, sous-catégories comprises.
   if(filterCat) listings = listings.filter(l=>l.categoryTopId===filterCat);
   if(filterSub) listings = listings.filter(l=>l.categorySubId===filterSub);
 
@@ -1921,15 +1924,12 @@ async function screenAdmin(){
   let dungeon = await getData('dungeon', null);
   dungeon = await checkAutoResolve(dungeon);
   const guilds = await getData('guilds', {});
-  const categories = await getData('categories', {});
   const itemCatalog = await getData('itemCatalog', {});
   const market = await getData('market', {listings:[]});
   const botTimer = await getData('dungeonBotTimer', {enabled:false, deadline:null});
   let rpSession = await getData('rpSession', null);
   rpSession = await checkRpAutoResolve(rpSession);
 
-  // rendu accessible à updateSubcatSelect() sans nouvel appel réseau
-  S.categoriesCache = categories;
 
   const realPlayers = Object.values(users).filter(x=>!x.isAdmin && !x.isBot);
   const botCount = Object.values(users).filter(x=>x.isBot).length;
@@ -1991,12 +1991,11 @@ async function screenAdmin(){
     <tr><td>${x.pseudo}</td><td>${CLASSES[x.class]?.label||'-'}</td><td>${x.level}</td><td>${x.gold}</td><td>${x.guildId? (guilds[x.guildId]?.name||'-') : '-'}</td></tr>
   `).join('');
 
-  // ---- Bloc catégories ----
-  const topCats = Object.values(categories).filter(c=>!c.parentId);
+  // ---- Bloc catégories (fixes) ----
+  const topCats = CATEGORY_TREE;
   const catRows = topCats.map(c=>{
-    const subs = Object.values(categories).filter(s=>s.parentId===c.id);
-    return `<div class="memberrow"><span>${c.name}</span><span class="muted" style="font-size:13px;">${subs.length? subs.map(s=>s.name).join(', ') : 'aucune sous-catégorie'}</span></div>`;
-  }).join('') || '<p class="muted">Aucune catégorie créée.</p>';
+    return `<div class="memberrow"><span>${c.name}</span><span class="muted" style="font-size:13px;">${c.subs.length? c.subs.map(s=>s.name).join(', ') : 'aucune sous-catégorie'}</span></div>`;
+  }).join('');
 
   // ---- Bloc création d'objets ----
   const rarityOptions = Object.keys(RARITIES).map(k=>`<option value="${k}">${RARITIES[k].label} (${RARITIES[k].min}-${RARITIES[k].max} or)</option>`).join('');
@@ -2109,20 +2108,8 @@ async function screenAdmin(){
     <div class="panel" style="margin-top:20px;">
       <div class="eyebrow">Hôtel des ventes — catégories</div>
       <h2>Catégories & sous-catégories</h2>
-      ${catRows}
-      <div class="divider"></div>
-      <div class="row">
-        <input id="new-cat-name" type="text" placeholder="Nouvelle catégorie (ex : Armes)" style="max-width:260px;">
-        <button class="btn btn-small" onclick="adminAddCategory()">Créer la catégorie</button>
-      </div>
-      <div class="row" style="margin-top:10px;">
-        <select id="new-subcat-parent" style="max-width:220px;">
-          <option value="">— Catégorie parente —</option>
-          ${topCatOptions}
-        </select>
-        <input id="new-subcat-name" type="text" placeholder="Nouvelle sous-catégorie (ex : Épées)" style="max-width:240px;">
-        <button class="btn btn-small" onclick="adminAddSubcategory()">Créer la sous-catégorie</button>
-      </div>
+      <p class="muted" style="font-size:13px;">Ces catégories sont fixes — choisis simplement parmi elles en créant un objet ci-dessous.</p>
+      <div style="margin-top:10px;">${catRows}</div>
     </div>
 
     <div class="panel" style="margin-top:20px;">
