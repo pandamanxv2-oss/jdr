@@ -1,2721 +1,313 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Terres de Konne</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=EB+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Team Hub</title>
+<script src="/socket.io/socket.io.js"></script>
 <style>
-  :root{
-    --bg:#14121c;
-    --panel:#1e1a29;
-    --panel-2:#25202f;
-    --line:#3a3247;
-    --gold:#c9a24b;
-    --gold-bright:#e9c874;
-    --parchment:#e8e1cf;
-    --parchment-dim:#a89d84;
-    --blood:#8a2f2f;
-    --blood-bright:#c24b4b;
-    --emerald:#4a7c59;
-    --emerald-bright:#6fae83;
-    --sapphire:#3f5f8a;
-  }
-  *{box-sizing:border-box;}
-  html,body{margin:0;padding:0;height:100%;}
-  body{
-    background:
-      radial-gradient(ellipse at top, #241f33 0%, var(--bg) 60%),
-      var(--bg);
-    color:var(--parchment);
-    font-family:'EB Garamond', serif;
-    font-size:18px;
-    min-height:100vh;
-  }
-  h1,h2,h3,h4,.display{
-    font-family:'Cinzel', serif;
-    letter-spacing:0.03em;
-    color:var(--gold-bright);
-    margin:0;
-  }
-  #app{max-width:1000px;margin:0 auto;padding:28px 20px 60px;min-height:100vh;}
-  .eyebrow{
-    font-family:'Cinzel',serif;
-    font-size:12px;
-    letter-spacing:0.28em;
-    text-transform:uppercase;
-    color:var(--parchment-dim);
-    margin-bottom:6px;
-  }
-  .panel{
-    background:linear-gradient(180deg, var(--panel), var(--panel-2));
-    border:1px solid var(--line);
-    border-radius:6px;
-    padding:24px;
-    position:relative;
-  }
-  .panel::before{
-    content:'';
-    position:absolute; inset:6px;
-    border:1px solid rgba(201,162,75,0.15);
-    border-radius:3px;
-    pointer-events:none;
-  }
-  .btn{
-    font-family:'Cinzel',serif;
-    font-size:14px;
-    letter-spacing:0.08em;
-    text-transform:uppercase;
-    background:linear-gradient(180deg, #3a3247, #2a2436);
-    color:var(--parchment);
-    border:1px solid var(--gold);
-    border-radius:4px;
-    padding:12px 20px;
-    cursor:pointer;
-    transition:all .15s ease;
-  }
-  .btn:hover{background:linear-gradient(180deg, #4a4257, #3a3446); color:var(--gold-bright); transform:translateY(-1px);}
-  .btn:active{transform:translateY(0);}
-  .btn:disabled{opacity:0.35; cursor:not-allowed; transform:none;}
-  .btn-primary{background:linear-gradient(180deg, var(--gold), #a4813a); color:#1a1622; border-color:var(--gold-bright); font-weight:700;}
-  .btn-primary:hover{background:linear-gradient(180deg, var(--gold-bright), var(--gold)); color:#1a1622;}
-  .btn-danger{border-color:var(--blood-bright); }
-  .btn-danger:hover{color:var(--blood-bright);}
-  .btn-small{padding:7px 12px; font-size:12px;}
-  input, select, textarea{
-    font-family:'EB Garamond', serif;
-    font-size:17px;
-    background:#100e17;
-    border:1px solid var(--line);
-    color:var(--parchment);
-    border-radius:4px;
-    padding:10px 12px;
-    width:100%;
-  }
-  input:focus, select:focus{outline:none; border-color:var(--gold);}
-  label{display:block; font-size:13px; color:var(--parchment-dim); margin-bottom:6px; font-family:'Cinzel',serif; letter-spacing:0.05em;}
-  .field{margin-bottom:16px;}
-  .row{display:flex; gap:14px; flex-wrap:wrap;}
-  .center{display:flex; align-items:center; justify-content:center;}
-  .muted{color:var(--parchment-dim);}
-  .divider{height:1px; background:linear-gradient(90deg, transparent, var(--line), transparent); margin:22px 0;}
-  .topbar{display:flex; justify-content:space-between; align-items:center; margin-bottom:26px; flex-wrap:wrap; gap:10px;}
-  .brand{display:flex; align-items:center; gap:10px;}
-  .brand .sigil{font-size:26px;}
-  .navgrid{display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr)); gap:14px; margin-top:20px;}
-  .navcard{
-    background:linear-gradient(180deg, var(--panel), var(--panel-2));
-    border:1px solid var(--line);
-    border-radius:6px;
-    padding:22px 16px;
-    text-align:center;
-    cursor:pointer;
-    transition:all .15s ease;
-  }
-  .navcard:hover{border-color:var(--gold); transform:translateY(-2px);}
-  .navcard.locked{opacity:.4; cursor:not-allowed;}
-  .navcard.locked:hover{transform:none; border-color:var(--line);}
-  .navcard .icon{font-size:30px; display:block; margin-bottom:8px;}
-  .navcard .label{font-family:'Cinzel',serif; font-size:14px; letter-spacing:0.05em;}
-  .navcard .sub{font-size:12px; color:var(--parchment-dim); margin-top:4px;}
-  .classcard{
-    border:1px solid var(--line);
-    border-radius:6px;
-    padding:20px;
-    cursor:pointer;
-    text-align:center;
-    background:var(--panel);
-    transition:all .15s ease;
-  }
-  .classcard.selected{border-color:var(--gold); background:var(--panel-2); box-shadow:0 0 0 1px var(--gold) inset;}
-  .classcard .icon{font-size:44px;}
-  .badge{
-    display:inline-block; font-family:'Cinzel',serif; font-size:11px; letter-spacing:0.06em;
-    padding:3px 9px; border-radius:20px; border:1px solid var(--line); color:var(--parchment-dim);
-  }
-  .badge.gold{border-color:var(--gold); color:var(--gold-bright);}
-  .xpbar{height:10px; border-radius:6px; background:#100e17; border:1px solid var(--line); overflow:hidden;}
-  .xpbar-fill{height:100%; background:linear-gradient(90deg, var(--emerald), var(--emerald-bright)); transition:width .4s ease;}
-  .memberrow{display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--line);}
-  .memberrow:last-child{border-bottom:none;}
-  .dungeon-card{
-    border:1px solid var(--line); border-radius:6px; padding:20px; background:var(--panel);
-    display:flex; justify-content:space-between; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:14px;
-  }
-  .diff-Facile{color:var(--emerald-bright);}
-  .diff-Moyen{color:var(--gold-bright);}
-  .diff-Difficile{color:#d98a4b;}
-  .diff-Impossible{color:var(--blood-bright);}
-  .tier-display{
-    font-family:'Cinzel',serif; font-weight:900; font-size:min(22vw,140px); line-height:1;
-    text-align:center; color:var(--gold-bright);
-    text-shadow:0 0 40px rgba(201,162,75,0.35);
-  }
-  .toast{
-    position:fixed; top:18px; right:18px; z-index:999;
-    background:var(--panel-2); border:1px solid var(--gold); border-radius:6px; padding:14px 18px;
-    font-family:'Cinzel',serif; font-size:13px; color:var(--gold-bright); max-width:280px;
-    box-shadow:0 8px 30px rgba(0,0,0,0.5);
-    animation:slidein .25s ease;
-  }
-  @keyframes slidein{from{transform:translateX(30px);opacity:0;} to{transform:translateX(0);opacity:1;}}
-  .levelup-overlay{
-    position:fixed; inset:0; background:rgba(10,8,14,0.85); z-index:1000;
-    display:flex; align-items:center; justify-content:center; flex-direction:column;
-    animation:fadein .3s ease;
-  }
-  @keyframes fadein{from{opacity:0;} to{opacity:1;}}
-  .levelup-num{
-    font-family:'Cinzel',serif; font-weight:900; font-size:120px; color:var(--gold-bright);
-    text-shadow:0 0 60px var(--gold); animation:pop .5s cubic-bezier(.3,1.6,.5,1);
-  }
-  @keyframes pop{0%{transform:scale(0.2); opacity:0;} 70%{transform:scale(1.15);} 100%{transform:scale(1); opacity:1;}}
-  .chest{
-    width:160px; height:160px; margin:0 auto; display:flex; align-items:center; justify-content:center;
-    font-size:80px; cursor:pointer; user-select:none; transition:transform .08s ease;
-    border-radius:50%; border:2px solid var(--gold); background:var(--panel-2);
-  }
-  .chest:active{transform:scale(0.94);}
-  table{width:100%; border-collapse:collapse;}
-  th,td{text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); font-size:15px;}
-  th{font-family:'Cinzel',serif; font-size:11px; letter-spacing:0.06em; color:var(--parchment-dim); text-transform:uppercase;}
-  .authwrap{max-width:420px; margin:6vh auto 0;}
-  .link-btn{background:none; border:none; color:var(--gold-bright); font-family:'EB Garamond',serif; text-decoration:underline; cursor:pointer; font-size:15px; padding:0;}
-  .errbox{color:var(--blood-bright); font-size:14px; margin-top:10px;}
-  .item-pill{display:inline-block; background:var(--panel-2); border:1px solid var(--line); border-radius:20px; padding:4px 12px; font-size:14px; margin:3px 4px 0 0;}
-  ::selection{background:var(--gold); color:#1a1622;}
-  .footer-admin{position:fixed; bottom:10px; left:10px; font-size:11px; color:#4a4257;}
-
-  /* ---- Combat de boss ---- */
-  .boss-panel{
-    border-color:var(--blood-bright) !important;
-    background:linear-gradient(180deg, #2a1416, #1c0f12) !important;
-    animation:bossGlow 2.2s ease-in-out infinite;
-  }
-  @keyframes bossGlow{
-    0%,100%{ box-shadow:0 0 30px rgba(194,75,75,0.25), inset 0 0 40px rgba(138,47,47,0.15); }
-    50%{ box-shadow:0 0 75px rgba(194,75,75,0.6), inset 0 0 90px rgba(138,47,47,0.35); }
-  }
-  .boss-tier-display{
-    font-size:min(28vw,190px) !important;
-    color:var(--blood-bright) !important;
-    text-shadow:0 0 60px rgba(194,75,75,0.7), 0 0 130px rgba(194,75,75,0.4) !important;
-    animation:bossPulseText 1.5s ease-in-out infinite;
-  }
-  @keyframes bossPulseText{0%,100%{transform:scale(1);} 50%{transform:scale(1.06);}}
-  .boss-badge{
-    display:inline-block; font-family:'Cinzel',serif; font-size:16px; letter-spacing:0.12em;
-    padding:9px 22px; border-radius:24px; border:2px solid var(--blood-bright); color:#fff;
-    background:linear-gradient(180deg, var(--blood), #4a1a1a);
-    text-transform:uppercase; margin-top:16px;
-    animation:bossBadgePulse 1.3s ease-in-out infinite;
-  }
-  @keyframes bossBadgePulse{
-    0%,100%{ transform:scale(1); box-shadow:0 0 20px rgba(194,75,75,0.5); }
-    50%{ transform:scale(1.1); box-shadow:0 0 45px rgba(194,75,75,0.95); }
-  }
-  .boss-warn{color:var(--blood-bright); font-family:'Cinzel',serif; letter-spacing:0.06em; margin-top:10px;}
-
-  /* ---- Victoire finale ---- */
-  .confetti-wrap{position:fixed; inset:0; pointer-events:none; overflow:hidden; z-index:998;}
-  .confetti-piece{position:absolute; top:-24px; opacity:0.9; border-radius:2px; animation-name:confettiFall; animation-timing-function:linear; animation-iteration-count:infinite;}
-  @keyframes confettiFall{0%{transform:translateY(-10vh) rotate(0deg);} 100%{transform:translateY(112vh) rotate(360deg);}}
-  .victory-banner{text-align:center; margin:6px 0 18px; animation:victoryPop .7s cubic-bezier(.3,1.6,.5,1);}
-  .victory-title{
-    font-family:'Cinzel',serif; font-weight:900; font-size:min(12vw,58px);
-    background:linear-gradient(180deg, var(--gold-bright), var(--gold));
-    -webkit-background-clip:text; background-clip:text; color:transparent;
-    filter:drop-shadow(0 0 30px rgba(201,162,75,0.6));
-    letter-spacing:0.04em;
-  }
-  @keyframes victoryPop{0%{transform:scale(0.3) rotate(-4deg); opacity:0;} 60%{transform:scale(1.08) rotate(2deg);} 100%{transform:scale(1) rotate(0); opacity:1;}}
-
-  /* ---- Cinématique de fin (épilogue) ---- */
-  .cinematic-overlay{
-    position:fixed; inset:0; z-index:1200;
-    background:radial-gradient(ellipse at 50% 30%, #1c1622 0%, #08070c 75%);
-    display:flex; flex-direction:column; align-items:center;
-    padding:8vh 20px 40px;
-  }
-  .cinematic-skip{position:absolute; top:18px; right:18px; z-index:1201;}
-  .cinematic-crown{font-size:64px; text-align:center; filter:drop-shadow(0 0 25px rgba(233,200,116,0.7)); animation:pop .7s cubic-bezier(.3,1.6,.5,1);}
-  .cinematic-title{
-    font-family:'Cinzel',serif; font-weight:700; letter-spacing:0.3em; text-transform:uppercase;
-    color:var(--gold-bright); font-size:15px; text-align:center; margin-top:10px;
-  }
-  .cinematic-scroll{
-    width:min(640px,90vw); max-height:62vh; overflow-y:auto; margin-top:26px;
-    padding-right:8px;
-  }
-  .cinematic-scroll::-webkit-scrollbar{width:5px;}
-  .cinematic-scroll::-webkit-scrollbar-thumb{background:var(--line); border-radius:4px;}
-  .cinematic-line{
-    font-family:'EB Garamond',serif; font-size:19px; line-height:1.75; color:var(--parchment);
-    text-align:center; margin:0 0 26px;
-    opacity:0; transform:translateY(16px);
-    transition:opacity 1.3s ease, transform 1.3s ease;
-  }
-  .cinematic-line.show{opacity:1; transform:translateY(0);}
-  .cinematic-heroes-title{
-    font-family:'Cinzel',serif; text-align:center; color:var(--gold-bright); font-size:20px;
-    letter-spacing:0.12em; text-transform:uppercase; margin:18px 0 20px;
-    opacity:0; transition:opacity 1.1s ease;
-  }
-  .cinematic-heroes-title.show{opacity:1;}
-  .cinematic-hero-name{
-    font-family:'Cinzel',serif; text-align:center; font-size:27px; color:var(--gold-bright);
-    text-shadow:0 0 22px rgba(201,162,75,0.7); margin-bottom:12px;
-    opacity:0; transform:scale(0.8);
-    transition:opacity .6s ease, transform .6s cubic-bezier(.3,1.6,.5,1);
-  }
-  .cinematic-hero-name.show{opacity:1; transform:scale(1);}
-  .cinematic-continue{margin-top:30px; opacity:0; transition:opacity .6s ease;}
-  .cinematic-continue.show{opacity:1;}
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0f1115; color: #eaeaea; font-family: 'Segoe UI', sans-serif; }
+  #app { max-width: 900px; margin: 0 auto; padding: 20px; }
+  header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  h1 { font-size: 22px; }
+  nav { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+  nav button { padding: 8px 14px; border-radius: 8px; border: none; cursor: pointer; background: #1c1f26; color: #fff; }
+  nav button.active { background: #4f7cff; font-weight: 600; }
+  input, textarea { padding: 8px; border-radius: 6px; background: #1c1f26; color: #fff; border: 1px solid #333; }
+  button.primary { padding: 8px 14px; border-radius: 6px; border: none; background: #4f7cff; color: #fff; cursor: pointer; }
+  .card { background: #1c1f26; padding: 12px; border-radius: 8px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+  .tab { display: none; }
+  .tab.active { display: block; }
+  #chat-box, #ai-box { height: 400px; overflow-y: auto; background: #1c1f26; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+  .msg { margin-bottom: 8px; }
+  .msg b { color: #f0ad4e; }
+  .msg.me b { color: #4f7cff; }
+  #name-screen { height: 100vh; display: flex; align-items: center; justify-content: center; text-align: center; }
 </style>
 </head>
 <body>
-<div id="app"></div>
-<div id="overlays"></div>
-<div id="yt-music-mount" style="position:fixed; bottom:0; right:0; width:1px; height:1px; overflow:hidden; opacity:0;"></div>
-
-<script>
-/* =========================================================
-   TERRES DE KONNE — mini-MMORPG simulé
-   Etat partagé via window.storage (shared:true) pour que
-   tous les joueurs / l'admin voient le même monde.
-   ========================================================= */
-
-// ---------- Config ----------
-const DUNGEONS = {
-  facile:      { key:'facile',      name:'Camp Barbares',            diff:'Facile',      tiers:3, gold:2, xp:5  },
-  moyen:       { key:'moyen',       name:'Pyramides du Sphinx',      diff:'Moyen',       tiers:4, gold:4, xp:15 },
-  difficile:   { key:'difficile',   name:'Le Cimetière',             diff:'Difficile',   tiers:5, gold:6, xp:35 },
-  impossible:  { key:'impossible',  name:"Château de l'Empereur Konne", diff:'Impossible', tiers:6, gold:9, xp:50 }
-};
-const TIER_MS = 10*60*1000;
-const BREAK_MS = 10*60*1000;
-const MAX_LEVEL = 30;
-const CLASSES = {
-  guerrier:{label:'Guerrier', icon:'⚔️', desc:'Force brute et endurance au corps-à-corps.'},
-  mage:{label:'Mage', icon:'🔮', desc:'Maîtrise des arcanes et de la magie destructrice.'},
-  paladin:{label:'Paladin', icon:'🛡️', desc:'Foi et acier, gardien de ses compagnons.'}
-};
-const RARITIES = {
-  commun:     {label:'Commun',     min:1,  max:10,  color:'#a8a2b8'},
-  rare:       {label:'Rare',       min:10, max:30,  color:'#3f5f8a'},
-  tres_rare:  {label:'Très rare',  min:30, max:50,  color:'#8a5fc9'},
-  legendaire: {label:'Légendaire', min:50, max:100, color:'#e9c874'}
-};
-// Bonus de puissance gagné en achetant un objet, selon sa rareté.
-const POWER_BY_RARITY = { commun:1, rare:3, tres_rare:6, legendaire:12 };
-
-// Catégories fixes de l'hôtel des ventes — l'admin ne peut plus en créer,
-// il choisit seulement parmi celles-ci en créant un objet.
-const CATEGORY_TREE = [
-  { id:'arme', name:'Arme', subs:[
-    { id:'arme_une_main', name:'Une main' },
-    { id:'arme_deux_mains', name:'2 mains' },
-    { id:'arme_distance', name:'À distance' },
-    { id:'arme_magie', name:'Magie' },
-    { id:'arme_autre', name:'Autre' }
-  ]},
-  { id:'sort', name:'Sort', subs:[
-    { id:'sort_destruction', name:'Destruction' },
-    { id:'sort_soin', name:'Soin' },
-    { id:'sort_nature', name:'Pouvoir de la nature' },
-    { id:'sort_speciaux', name:'Spéciaux' }
-  ]},
-  { id:'potion', name:'Potion', subs:[] },
-  { id:'enchantement', name:'Enchantement', subs:[
-    { id:'enchant_arme', name:'Enchantement arme' },
-    { id:'enchant_arc', name:'Enchantement arc' },
-    { id:'enchant_baguette', name:'Enchantement baguette' }
-  ]}
-];
-function findCategoryTop(id){ return CATEGORY_TREE.find(c=>c.id===id) || null; }
-function findCategorySub(topId, subId){
-  const top = findCategoryTop(topId);
-  if(!top) return null;
-  return top.subs.find(s=>s.id===subId) || null;
-}
-
-// Catalogue prédéfini complet — l'admin peut piocher dedans pour créer un
-// objet en un clic (nom, rareté, catégorie, prix et description déjà
-// remplis), ou tout créer d'un coup avec adminCreateAllPresetItems().
-// requiresStaff = true pour les sorts qui ne peuvent être lancés que par un
-// porteur de baguette ou de bâton (arme de catégorie "arme_magie").
-const ITEM_PRESETS = [
-  // --- Armes une main ---
-  { name:"Épée en acier", price:5, rarity:'commun', categoryTopId:'arme', categorySubId:'arme_une_main', description:"Une épée basique." },
-  { name:"Dague du voleur", price:4, rarity:'commun', categoryTopId:'arme', categorySubId:'arme_une_main', description:"Bonus si vous attaquez par surprise." },
-  { name:"Épée rouillée", price:2, rarity:'commun', categoryTopId:'arme', categorySubId:'arme_une_main', description:"Une vieille épée." },
-  { name:"Épée du feu du destin", price:14, rarity:'rare', categoryTopId:'arme', categorySubId:'arme_une_main', description:"Une épée forgée il y a bien longtemps." },
-  { name:"Courte épée en obsidienne", price:16, rarity:'rare', categoryTopId:'arme', categorySubId:'arme_une_main', description:"Une épée très solide." },
-  { name:"Sabre du temps", price:35, rarity:'tres_rare', categoryTopId:'arme', categorySubId:'arme_une_main', description:"Permet d'arrêter le temps un court instant." },
-  { name:"Excalibur", price:50, rarity:'legendaire', categoryTopId:'arme', categorySubId:'arme_une_main', description:"La plus puissante." },
-  // --- Armes deux mains ---
-  { name:"Lance en acier", price:8, rarity:'commun', categoryTopId:'arme', categorySubId:'arme_deux_mains', description:"Une lance basique." },
-  { name:"Gant de feu", price:11, rarity:'rare', categoryTopId:'arme', categorySubId:'arme_deux_mains', description:"Un gant enflammé." },
-  { name:"Marteau du tonnerre", price:20, rarity:'tres_rare', categoryTopId:'arme', categorySubId:'arme_deux_mains', description:"Un marteau qui fait beaucoup de bruit." },
-  // --- Armes à distance ---
-  { name:"Arc de chasseur", price:6, rarity:'commun', categoryTopId:'arme', categorySubId:'arme_distance', description:"Un arc basique." },
-  { name:"Arc à double flèche", price:11, rarity:'rare', categoryTopId:'arme', categorySubId:'arme_distance', description:"Permet de tirer 2 flèches en même temps." },
-  // --- Armes magie (baguettes / bâtons) ---
-  { name:"Baguette basique", price:9, rarity:'commun', categoryTopId:'arme', categorySubId:'arme_magie', description:"Une baguette commune." },
-  { name:"Baguette démoniaque", price:12, rarity:'rare', categoryTopId:'arme', categorySubId:'arme_magie', description:"Privilégie les sorts de destruction." },
-  { name:"Bâton de paladin", price:6, rarity:'commun', categoryTopId:'arme', categorySubId:'arme_magie', description:"Privilégie les sorts de soin." },
-  { name:"Baguette naturelle", price:12, rarity:'rare', categoryTopId:'arme', categorySubId:'arme_magie', description:"Privilégie les pouvoirs de la nature." },
-  // --- Armes spéciales ---
-  { name:"Bouclier en bois", price:6, rarity:'commun', categoryTopId:'arme', categorySubId:'arme_autre', description:"Un bouclier commun." },
-  { name:"Filet de pêcheur", price:3, rarity:'commun', categoryTopId:'arme', categorySubId:'arme_autre', description:"Immobilise un adversaire pendant 3s (n'est pas considéré comme une arme principale)." },
-  // --- Sorts de destruction ---
-  { name:"Boule de Feu", price:4, rarity:'commun', categoryTopId:'sort', categorySubId:'sort_destruction', description:"Lance une boule de feu.", requiresStaff:false },
-  { name:"Éclair", price:5, rarity:'commun', categoryTopId:'sort', categorySubId:'sort_destruction', description:"Lance un éclair.", requiresStaff:true },
-  { name:"Lance de Glace", price:5, rarity:'commun', categoryTopId:'sort', categorySubId:'sort_destruction', description:"Lance trois pics de glace.", requiresStaff:true },
-  { name:"Explosion Arcanique", price:6, rarity:'commun', categoryTopId:'sort', categorySubId:'sort_destruction', description:"Fait une explosion sur l'ennemi visé.", requiresStaff:true },
-  { name:"Rayon Solaire", price:7, rarity:'commun', categoryTopId:'sort', categorySubId:'sort_destruction', description:"Lance un rayon solaire sur l'ennemi (efficace contre les morts-vivants).", requiresStaff:true },
-  // --- Sorts de soin ---
-  { name:"Soin Mineur", price:3, rarity:'commun', categoryTopId:'sort', categorySubId:'sort_soin', description:"Soigne faiblement un allié ou soi-même.", requiresStaff:false },
-  { name:"Guérison", price:4, rarity:'commun', categoryTopId:'sort', categorySubId:'sort_soin', description:"Soigne partiellement un allié ou soi-même.", requiresStaff:true },
-  { name:"Purification", price:5, rarity:'commun', categoryTopId:'sort', categorySubId:'sort_soin', description:"Retire le poison, les maladies et les malédictions.", requiresStaff:true },
-  { name:"Miracle", price:11, rarity:'rare', categoryTopId:'sort', categorySubId:'sort_soin', description:"Soigne entièrement toute l'équipe (recharge 50s) mais tue le lanceur.", requiresStaff:true },
-  // --- Sorts pouvoir de la nature (tous nécessitent baguette ou bâton) ---
-  { name:"Racines", price:5, rarity:'commun', categoryTopId:'sort', categorySubId:'sort_nature', description:"Blesse un ennemi avec une racine sortant du sol.", requiresStaff:true },
-  { name:"Peau de Pierre", price:4, rarity:'commun', categoryTopId:'sort', categorySubId:'sort_nature', description:"Protège le lanceur de 50% pour la prochaine attaque.", requiresStaff:true },
-  { name:"Appel du Loup", price:9, rarity:'commun', categoryTopId:'sort', categorySubId:'sort_nature', description:"Transforme le lanceur en loup ; s'il meurt, le lanceur redevient humain.", requiresStaff:true },
-  { name:"Pic de pierre", price:6, rarity:'commun', categoryTopId:'sort', categorySubId:'sort_nature', description:"Empale l'ennemi avec un pic de pierre sortant du sol.", requiresStaff:true },
-  { name:"Mur de racine", price:7, rarity:'commun', categoryTopId:'sort', categorySubId:'sort_nature', description:"Invoque un mur de racines protégeant de toute attaque.", requiresStaff:true },
-  // --- Sorts spéciaux (nécessitent baguette ou bâton) ---
-  { name:"Invisibilité", price:12, rarity:'rare', categoryTopId:'sort', categorySubId:'sort_speciaux', description:"Le lanceur peut devenir invisible pendant 10s.", requiresStaff:true },
-  { name:"Temps Suspendu", price:13, rarity:'rare', categoryTopId:'sort', categorySubId:'sort_speciaux', description:"Arrête le temps sauf pour le lanceur pendant 5s.", requiresStaff:true },
-  // --- Potions ---
-  { name:"Potion de Force", price:5, rarity:'commun', categoryTopId:'potion', categorySubId:null, description:"Votre prochaine attaque (non magique) est plus forte." },
-  { name:"Potion de soin", price:5, rarity:'commun', categoryTopId:'potion', categorySubId:null, description:"Vous soigne partiellement." },
-  { name:"Potion de mana", price:5, rarity:'commun', categoryTopId:'potion', categorySubId:null, description:"Votre prochaine attaque par sort est plus forte." },
-  // --- Enchantements arme ---
-  { name:"Feu", price:9, rarity:'commun', categoryTopId:'enchantement', categorySubId:'enchant_arme', description:"Votre arme est enflammée." },
-  { name:"Tranchant", price:6, rarity:'commun', categoryTopId:'enchantement', categorySubId:'enchant_arme', description:"Votre arme devient plus tranchante." },
-  { name:"Vampirique", price:12, rarity:'rare', categoryTopId:'enchantement', categorySubId:'enchant_arme', description:"Plus vous attaquez, plus vous vous soignez." },
-  { name:"Givre (arme)", price:7, rarity:'commun', categoryTopId:'enchantement', categorySubId:'enchant_arme', description:"Ralentit l'ennemi." },
-  // --- Enchantements arc ---
-  { name:"Perforante", price:6, rarity:'commun', categoryTopId:'enchantement', categorySubId:'enchant_arc', description:"Vos flèches percent plus facilement les armures." },
-  { name:"Tir explosif", price:14, rarity:'rare', categoryTopId:'enchantement', categorySubId:'enchant_arc', description:"Vos flèches explosent sur vos ennemis." },
-  { name:"Givre (arc)", price:7, rarity:'commun', categoryTopId:'enchantement', categorySubId:'enchant_arc', description:"Vos flèches ralentissent l'ennemi." },
-  // --- Enchantements baguette ---
-  { name:"Canalisation", price:5, rarity:'commun', categoryTopId:'enchantement', categorySubId:'enchant_baguette', description:"Vos attaques par magie infligent plus de dégâts." },
-  { name:"Recharge Rapide", price:9, rarity:'commun', categoryTopId:'enchantement', categorySubId:'enchant_baguette', description:"Le temps de recharge de vos sorts est réduit." }
-];
-function findPreset(name){ return ITEM_PRESETS.find(p=>p.name===name) || null; }
-// Emplacement d'équipement correspondant à une sous-catégorie d'arme.
-function weaponSlotForSub(subId){
-  if(subId==='arme_deux_mains') return 'twohand';
-  if(subId==='arme_une_main' || subId==='arme_autre') return 'hand';
-  if(subId==='arme_distance') return 'distance';
-  if(subId==='arme_magie') return 'magie';
-  return null;
-}
-// Type d'enchantement attendu pour un emplacement d'arme équipée.
-function enchantTypeForSlot(slot){
-  if(slot==='distance') return 'enchant_arc';
-  if(slot==='magie') return 'enchant_baguette';
-  return 'enchant_arme'; // hand1 / hand2
-}
-
-function xpNeeded(level){ return 10*(level+1); }
-
-// =========================================================
-// MUSIQUE D'AMBIANCE — un lecteur YouTube caché, embarqué dans le site,
-// qui change de piste selon l'endroit où se trouve le joueur.
-// =========================================================
-const MUSIC_TRACKS = {
-  prologue:     { id:'Pk0hJvyJlQI', label:'Prologue' },
-  village:      { id:'o-b5nMCj5hI', label:'Ambiance du village' },
-  boss:         { id:'rJ8sLgHxa88', label:'Combat de boss' },
-  konne_tier1:  { id:'vEP3sGEjxhY', label:'Konne — Phase 1' },
-  konne_tier2:  { id:'v8jOB5gh7_E', label:'Konne — Phase 2' },
-  konne_final:  { id:'6U8K6SPPNLA', label:'Konne — Phase finale' },
-  epilogue:     { id:'K9tLAH0Z0pA', label:'Épilogue' }
-};
-
-let MUSIC = {
-  enabled: false,     // les navigateurs bloquent l'autoplay avec son : il faut un premier clic
-  apiReady: false,
-  player: null,
-  currentKey: null,   // piste voulue pour l'écran actuel (peut changer avant que le lecteur soit prêt)
-  playingKey: null,   // piste réellement en cours de lecture
-  volume: 25
-};
-
-function loadYouTubeMusicApi(){
-  if(window.YT && window.YT.Player){ onYouTubeIframeAPIReady(); return; }
-  if(document.getElementById('yt-iframe-api-script')) return;
-  const tag = document.createElement('script');
-  tag.id = 'yt-iframe-api-script';
-  tag.src = 'https://www.youtube.com/iframe_api';
-  document.body.appendChild(tag);
-}
-// Appelé automatiquement par le script YouTube une fois chargé.
-window.onYouTubeIframeAPIReady = function(){
-  MUSIC.apiReady = true;
-  MUSIC.player = new YT.Player('yt-music-mount', {
-    height:'1', width:'1',
-    playerVars:{ autoplay:0, controls:0, disablekb:1, fs:0, modestbranding:1, playsinline:1 },
-    events:{
-      onReady: function(e){
-        e.target.setVolume(MUSIC.volume);
-        if(MUSIC.enabled && MUSIC.currentKey) playMusicTrack(MUSIC.currentKey);
-      },
-      onStateChange: function(e){
-        // Le paramètre "loop" de l'API ne fonctionne pas sur une vidéo
-        // seule : on relance donc manuellement à la fin de la piste.
-        if(e.data === YT.PlayerState.ENDED) e.target.playVideo();
-      }
-    }
-  });
-};
-
-function playMusicTrack(key){
-  const track = MUSIC_TRACKS[key];
-  if(!track || !MUSIC.player || !MUSIC.player.loadVideoById) return;
-  MUSIC.playingKey = key;
-  MUSIC.player.loadVideoById(track.id);
-  MUSIC.player.setVolume(MUSIC.volume);
-}
-
-// Change la piste voulue pour l'écran courant ; ne relance rien si c'est
-// déjà celle qui joue (évite les coupures au moindre re-rendu).
-function setMusicForKey(key){
-  if(MUSIC.currentKey === key) return;
-  MUSIC.currentKey = key;
-  if(MUSIC.enabled && MUSIC.apiReady) playMusicTrack(key);
-  updateMusicWidget();
-}
-
-function enableMusic(){
-  MUSIC.enabled = true;
-  if(!MUSIC.apiReady) loadYouTubeMusicApi();
-  else if(MUSIC.currentKey) playMusicTrack(MUSIC.currentKey);
-  updateMusicWidget();
-}
-function toggleMusicMute(){
-  if(MUSIC.enabled){
-    MUSIC.enabled = false;
-    if(MUSIC.player && MUSIC.player.pauseVideo) MUSIC.player.pauseVideo();
-  } else {
-    enableMusic();
-  }
-  updateMusicWidget();
-}
-function setMusicVolume(v){
-  MUSIC.volume = parseInt(v,10) || 0;
-  if(MUSIC.player && MUSIC.player.setVolume) MUSIC.player.setVolume(MUSIC.volume);
-}
-
-// Détermine la piste à jouer selon l'écran actuel — et, pendant un donjon,
-// selon le tier/la phase de boss en cours. Appelé après chaque rendu.
-async function resolveAndSetMusic(){
-  // Ne pas couper la musique d'épilogue tant que la cinématique est affichée.
-  if(document.querySelector('.cinematic-overlay')) return;
-  if(S.view === 'dungeonPlay'){
-    const dungeon = await getData('dungeon', null);
-    if(dungeon && dungeon.status === 'active'){
-      const KONNE_BOSS_PHASES = 3;
-      const isKonneDungeon = dungeon.type === 'impossible';
-      const bossStartTier = isKonneDungeon ? Math.max(1, dungeon.totalTiers - KONNE_BOSS_PHASES + 1) : dungeon.totalTiers;
-      const isBoss = dungeon.currentTier >= bossStartTier;
-      if(isKonneDungeon && isBoss){
-        const phase = dungeon.currentTier - bossStartTier + 1;
-        setMusicForKey(phase>=3 ? 'konne_final' : phase===2 ? 'konne_tier2' : 'konne_tier1');
-      } else if(isBoss){
-        setMusicForKey('boss');
-      } else {
-        setMusicForKey('village');
-      }
-      return;
-    }
-  }
-  setMusicForKey('village');
-}
-
-// Construit (une seule fois) le petit widget de contrôle musique, en dehors
-// de #app puisqu'il ne doit pas être réinitialisé à chaque rendu de vue.
-function ensureMusicWidget(){
-  if(document.getElementById('music-widget')) return;
-  const div = document.createElement('div');
-  div.id = 'music-widget';
-  div.style.cssText = 'position:fixed; bottom:14px; right:14px; z-index:500; background:linear-gradient(180deg,#1e1a29,#25202f); border:1px solid #3a3247; border-radius:8px; padding:10px 12px; font-family:"EB Garamond",serif; color:#e8e1cf; font-size:13px; box-shadow:0 4px 18px rgba(0,0,0,0.4); display:flex; align-items:center; gap:8px;';
-  document.body.appendChild(div);
-  updateMusicWidget();
-}
-function updateMusicWidget(){
-  const div = document.getElementById('music-widget');
-  if(!div) return;
-  const track = MUSIC.currentKey ? MUSIC_TRACKS[MUSIC.currentKey] : null;
-  div.innerHTML = `
-    <span style="cursor:pointer; font-size:18px;" onclick="toggleMusicMute()" title="${MUSIC.enabled?'Couper la musique':'Activer la musique'}">${MUSIC.enabled? '🎵':'🔇'}</span>
-    <span class="muted" style="max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${MUSIC.enabled && track? track.label : (track? 'Musique coupée' : '')}</span>
-    <input type="range" min="0" max="100" value="${MUSIC.volume}" style="width:70px;" oninput="setMusicVolume(this.value)" title="Volume">
-  `;
-}
-
-function confettiHTML(count){
-  const colors = ['#c9a24b','#e9c874','#c24b4b','#8a2f2f','#5fae7a','#3f5f8a','#8a5fc9'];
-  let pieces = '';
-  for(let i=0;i<count;i++){
-    const left = (Math.random()*100).toFixed(2);
-    const delay = (Math.random()*2.2).toFixed(2);
-    const duration = (2.6 + Math.random()*2.2).toFixed(2);
-    const color = colors[Math.floor(Math.random()*colors.length)];
-    const w = (5 + Math.random()*8).toFixed(1);
-    const h = (w*0.45).toFixed(1);
-    pieces += `<div class="confetti-piece" style="left:${left}%; background:${color}; width:${w}px; height:${h}px; animation-delay:${delay}s; animation-duration:${duration}s;"></div>`;
-  }
-  return `<div class="confetti-wrap">${pieces}</div>`;
-}
-
-// ---------- Cinématique d'introduction (prologue) ----------
-const PROLOGUE_PARAGRAPHS = [
-  "Depuis plusieurs années, le royaume est plongé dans le chaos.",
-  "Le seigneur noir Konne cherche à conquérir toutes les terres. Pour y parvenir, plusieurs factions ont choisi de rejoindre son armée, tandis que d'autres résistent encore.",
-  "Vous faites partie des aventuriers qui ont répondu à l'appel. Votre mission est simple : explorer ces terres, aider ceux qui en ont besoin, retrouver les anciens artefacts... et mettre un terme au règne de Konne avant qu'il ne soit trop tard.",
-  "L'avenir du royaume est désormais entre vos mains.",
-  "Bonne chance, aventuriers."
-];
-
-// Affiche le prologue à la toute première connexion d'un joueur (une seule
-// fois, juste avant son entrée dans le village). Même mécanique de défilement
-// que l'épilogue, mais sans révélation de noms de héros à la fin.
-function showPrologueCinematic(onDone){
-  const el = document.getElementById('overlays');
-  const div = document.createElement('div');
-  div.className = 'cinematic-overlay';
-  div.innerHTML = `
-    <div class="cinematic-skip"><button class="btn btn-small" id="prologue-skip-btn">Passer ▶</button></div>
-    <div class="cinematic-crown">⚔️</div>
-    <div class="cinematic-title">Prologue</div>
-    <div class="cinematic-scroll" id="prologue-scroll"></div>
-    <div class="cinematic-continue" id="prologue-continue">
-      <button class="btn btn-primary" id="prologue-continue-btn">Entrer dans le village</button>
+ 
+<div id="name-screen">
+  <div>
+    <h2>Bienvenue sur Team Hub 🎬</h2>
+    <p style="opacity:.7">Entre ton prénom pour rejoindre l'équipe</p>
+    <input id="name-input" placeholder="Ton prénom" />
+    <button class="primary" onclick="setName()">Entrer</button>
+  </div>
+</div>
+ 
+<div id="app" style="display:none">
+  <header>
+    <h1>🎬 Team Hub</h1>
+    <span style="opacity:.7">Connecté en tant que <b id="who"></b></span>
+  </header>
+ 
+  <nav>
+    <button onclick="showTab('tasks')" id="btn-tasks" class="active">📅 Planning</button>
+    <button onclick="showTab('chat')" id="btn-chat">💬 Chat</button>
+    <button onclick="showTab('music')" id="btn-music">🎵 Musique</button>
+    <button onclick="showTab('files')" id="btn-files">📁 Fichiers</button>
+    <button onclick="showTab('ai')" id="btn-ai">🤖 Assistant IA</button>
+  </nav>
+ 
+  <!-- PLANNING -->
+  <div class="tab active" id="tab-tasks">
+    <div style="margin-bottom:16px">
+      <input type="date" id="task-date" />
     </div>
-  `;
-  el.appendChild(div);
-  setMusicForKey('prologue');
-  const scrollEl = div.querySelector('#prologue-scroll');
-  const continueWrap = div.querySelector('#prologue-continue');
-  let timers = [];
-  let finished = false;
-
-  function scrollDown(){ scrollEl.scrollTop = scrollEl.scrollHeight; }
-
-  function revealAll(){
-    timers.forEach(t=>clearTimeout(t));
-    timers = [];
-    if(finished) return;
-    finished = true;
-    scrollEl.innerHTML = '';
-    PROLOGUE_PARAGRAPHS.forEach(txt=>{
-      const p = document.createElement('p');
-      p.className = 'cinematic-line show';
-      p.textContent = txt;
-      scrollEl.appendChild(p);
-    });
-    scrollDown();
-    continueWrap.classList.add('show');
-  }
-
-  function addParagraph(i){
-    if(i >= PROLOGUE_PARAGRAPHS.length){
-      finished = true;
-      continueWrap.classList.add('show');
-      return;
-    }
-    const p = document.createElement('p');
-    p.className = 'cinematic-line';
-    p.textContent = PROLOGUE_PARAGRAPHS[i];
-    scrollEl.appendChild(p);
-    requestAnimationFrame(()=>p.classList.add('show'));
-    scrollDown();
-    timers.push(setTimeout(()=>addParagraph(i+1), 3400));
-  }
-
-  div.querySelector('#prologue-skip-btn').addEventListener('click', revealAll);
-  div.querySelector('#prologue-continue-btn').addEventListener('click', ()=>{
-    div.remove();
-    setMusicForKey('village');
-    if(onDone) onDone();
-  });
-  addParagraph(0);
-}
-
-
-const EPILOGUE_PARAGRAPHS = [
-  "Alors que le dernier écho de la bataille s'éteint, un profond silence retombe sur les terres. Le vent emporte la poussière du combat, et les ténèbres qui pesaient depuis si longtemps sur le royaume commencent enfin à se dissiper.",
-  "Konne est tombé. Celui dont le nom inspirait la peur n'est plus qu'un souvenir. Son ambition, sa colère et son pouvoir se sont éteints avec lui.",
-  "Mais cette victoire n'a pas été offerte par le destin. Elle a été forgée par le courage, la solidarité et les sacrifices de ceux qui ont refusé d'abandonner.",
-  "Aujourd'hui, le royaume retrouve enfin l'espoir. Les villages se relèveront. Les routes seront de nouveau parcourues par les marchands, les aventuriers et les voyageurs.",
-  "Les chants remplaceront les cris de guerre, et les enfants grandiront dans un monde où le nom de Konne ne sera plus qu'une vieille histoire racontée au coin du feu.",
-  "Pourtant, les plus anciens le savent... Aucune paix n'est éternelle. Un jour, d'autres héros devront peut-être se lever pour défendre ces terres. Mais ce jour n'est pas aujourd'hui.",
-  "Aujourd'hui, les armes peuvent être déposées. Aujourd'hui, les flammes des foyers brûlent à nouveau. Aujourd'hui... c'est votre victoire.",
-  "Que vos exploits soient gravés dans la pierre, chantés par les bardes et transmis de génération en génération.",
-  "Car tant que ces histoires seront racontées...",
-  "Vos noms ne tomberont jamais dans l'oubli."
-];
-
-// Affiche l'épilogue : le texte apparaît paragraphe par paragraphe en
-// fondu, le conteneur défile automatiquement, puis les noms des héros
-// se révèlent un par un. Un bouton "Passer" permet de tout afficher
-// d'un coup, et le bouton "Continuer" n'apparaît qu'à la toute fin.
-function showEpilogueCinematic(heroNames){
-  const names = (heroNames && heroNames.length) ? heroNames : ['Un héros sans nom'];
-  const el = document.getElementById('overlays');
-  const div = document.createElement('div');
-  div.className = 'cinematic-overlay';
-  div.innerHTML = `
-    <div class="cinematic-skip"><button class="btn btn-small" id="cinematic-skip-btn">Passer ▶</button></div>
-    <div class="cinematic-crown">👑</div>
-    <div class="cinematic-title">Épilogue</div>
-    <div class="cinematic-scroll" id="cinematic-scroll"></div>
-    <div class="cinematic-continue" id="cinematic-continue">
-      <button class="btn btn-primary" id="cinematic-continue-btn">Continuer</button>
-    </div>
-  `;
-  el.appendChild(div);
-  setMusicForKey('epilogue');
-  const scrollEl = div.querySelector('#cinematic-scroll');
-  const continueWrap = div.querySelector('#cinematic-continue');
-  let timers = [];
-  let finished = false;
-
-  function scrollDown(){ scrollEl.scrollTop = scrollEl.scrollHeight; }
-
-  function revealAll(){
-    timers.forEach(t=>clearTimeout(t));
-    timers = [];
-    if(finished) return;
-    finished = true;
-    scrollEl.innerHTML = '';
-    EPILOGUE_PARAGRAPHS.forEach(txt=>{
-      const p = document.createElement('p');
-      p.className = 'cinematic-line show';
-      p.textContent = txt;
-      scrollEl.appendChild(p);
-    });
-    const h = document.createElement('div');
-    h.className = 'cinematic-heroes-title show';
-    h.textContent = 'Les héros de cette victoire';
-    scrollEl.appendChild(h);
-    names.forEach(name=>{
-      const n = document.createElement('div');
-      n.className = 'cinematic-hero-name show';
-      n.textContent = name;
-      scrollEl.appendChild(n);
-    });
-    scrollDown();
-    continueWrap.classList.add('show');
-  }
-
-  function addHeroNames(i){
-    if(i >= names.length){
-      finished = true;
-      continueWrap.classList.add('show');
-      return;
-    }
-    const n = document.createElement('div');
-    n.className = 'cinematic-hero-name';
-    n.textContent = names[i];
-    scrollEl.appendChild(n);
-    requestAnimationFrame(()=>n.classList.add('show'));
-    scrollDown();
-    timers.push(setTimeout(()=>addHeroNames(i+1), 750));
-  }
-
-  function addHeroesTitle(){
-    const h = document.createElement('div');
-    h.className = 'cinematic-heroes-title';
-    h.textContent = 'Les héros de cette victoire';
-    scrollEl.appendChild(h);
-    requestAnimationFrame(()=>h.classList.add('show'));
-    scrollDown();
-    timers.push(setTimeout(()=>addHeroNames(0), 1400));
-  }
-
-  function addParagraph(i){
-    if(i >= EPILOGUE_PARAGRAPHS.length){
-      timers.push(setTimeout(addHeroesTitle, 900));
-      return;
-    }
-    const p = document.createElement('p');
-    p.className = 'cinematic-line';
-    p.textContent = EPILOGUE_PARAGRAPHS[i];
-    scrollEl.appendChild(p);
-    requestAnimationFrame(()=>p.classList.add('show'));
-    scrollDown();
-    timers.push(setTimeout(()=>addParagraph(i+1), 3400));
-  }
-
-  div.querySelector('#cinematic-skip-btn').addEventListener('click', revealAll);
-  div.querySelector('#cinematic-continue-btn').addEventListener('click', ()=>{ div.remove(); setMusicForKey('village'); });
-  addParagraph(0);
-}
-
-// ---------- Storage helpers ----------
-// Ces fonctions parlent au petit serveur (server.js) qui garde l'état
-// du monde en mémoire / dans un fichier JSON sur le serveur, afin que
-// tous les joueurs connectés à ton site voient le même monde.
-async function getData(key, def){
-  try{
-    const r = await fetch('/api/kv/' + encodeURIComponent(key));
-    if(r.status === 404) return def;
-    if(!r.ok) return def;
-    const data = await r.json();
-    return (data && data.value !== undefined) ? data.value : def;
-  }catch(e){ console.error('getData failed', key, e); return def; }
-}
-async function setData(key, value){
-  try{
-    await fetch('/api/kv/' + encodeURIComponent(key), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ value })
-    });
-  }catch(e){ console.error('setData failed', key, e); }
-}
-// Pour les opérations qui doivent être atomiques côté serveur (achat/vente
-// à l'hôtel des ventes) plutôt qu'un get+set séparé côté client.
-async function apiPost(url, body){
-  try{
-    const r = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body || {})
-    });
-    const data = await r.json().catch(()=>({}));
-    return { ok: r.ok && data.ok !== false, status: r.status, data };
-  }catch(e){ console.error('apiPost failed', url, e); return { ok:false, data:{error:'network'} }; }
-}
-
-// ---------- Global in-memory state ----------
-let S = {
-  currentUser: null,     // pseudo (lowercase key)
-  view: 'loading',
-  authMode: 'login',
-  authError: '',
-  charClass: null,
-  guildCreateStep: false,
-  toasts: [],
-  levelupQueue: [],
-  chestTaps: 0,
-  activeGuildTab: null
-};
-
-let pollTimer = null;
-
-function toast(msg){
-  const id = Math.random().toString(36).slice(2);
-  S.toasts.push({id,msg});
-  renderToasts();
-  setTimeout(()=>{ S.toasts = S.toasts.filter(t=>t.id!==id); renderToasts(); }, 4000);
-}
-function renderToasts(){
-  const el = document.getElementById('overlays');
-  const existing = el.querySelectorAll('.toast');
-  existing.forEach(e=>e.remove());
-  S.toasts.forEach((t,i)=>{
-    const d = document.createElement('div');
-    d.className='toast';
-    d.style.top = (18+i*70)+'px';
-    d.textContent = t.msg;
-    el.appendChild(d);
-  });
-}
-
-// ---------- Boot ----------
-async function boot(){
-  S.view = 'auth';
-  render();
-  if(pollTimer) clearInterval(pollTimer);
-  pollTimer = setInterval(pollWorld, 3500);
-}
-
-async function pollWorld(){
-  if(!S.currentUser) return;
-  // Ne pas rafraîchir automatiquement si l'utilisateur est en train d'écrire
-  // dans un champ (sinon le texte tapé disparaît à chaque re-rendu).
-  const active = document.activeElement;
-  if(active && ['INPUT','TEXTAREA','SELECT'].includes(active.tagName)) return;
-  if(['village','personnage','guildes','guildDetail','donjons','dungeonPlay','dungeonReward','hotelVentes','rp','classements','adminPanel'].includes(S.view)){
-    render();
-  }
-}
-
-// ---------- Auth ----------
-async function handleAuthSubmit(e){
-  e.preventDefault();
-  const pseudo = document.getElementById('inp-pseudo').value.trim();
-  const pass = document.getElementById('inp-pass').value;
-  if(!pseudo || !pass){ S.authError='Pseudo et mot de passe requis.'; render(); return; }
-  const key = pseudo.toLowerCase();
-  const users = await getData('users', {});
-
-  if(S.authMode === 'login'){
-    const u = users[key];
-    if(!u){ S.authError = "Ce pseudo n'existe pas encore. Crée un compte."; render(); return; }
-    if(u.password !== pass){ S.authError = 'Mot de passe incorrect.'; render(); return; }
-    S.currentUser = key;
-    S.authError='';
-    if(u.isAdmin){ S.view='adminPanel'; }
-    else if(!u.class){ S.view='charCreate'; }
-    else { S.view='village'; }
-    render();
-  } else {
-    if(users[key]){ S.authError = 'Ce pseudo est déjà pris.'; render(); return; }
-    const isAdmin = key === 'admin';
-    users[key] = {
-      pseudo, password: pass, isAdmin,
-      class: isAdmin ? 'admin' : null,
-      level: 0, xp: 0, gold: isAdmin ? 0 : 10, power: 0,
-      items: [], guildId: null
-    };
-    await setData('users', users);
-    S.currentUser = key;
-    S.authError='';
-    S.view = isAdmin ? 'adminPanel' : 'charCreate';
-    render();
-  }
-}
-
-function switchAuthMode(mode){ S.authMode = mode; S.authError=''; render(); }
-
-function logout(){
-  S.currentUser = null;
-  S.view = 'auth';
-  render();
-}
-
-// ---------- Character creation ----------
-function selectClass(c){ S.charClass = c; render(); }
-async function confirmCharCreate(){
-  if(!S.charClass){ toast('Choisis une classe.'); return; }
-  const users = await getData('users', {});
-  const u = users[S.currentUser];
-  u.class = S.charClass;
-  const isFirstTime = !u.prologueSeen;
-  u.prologueSeen = true;
-  await setData('users', users);
-  S.view = 'village';
-  render();
-  if(isFirstTime) showPrologueCinematic();
-}
-
-// ---------- Village / navigation ----------
-// Renvoie true si le joueur courant est bloqué dans une scène de RP active
-// (il y a rejoint / a accepté l'invitation, et l'admin l'a lancée).
-async function getRpLock(){
-  if(!S.currentUser) return false;
-  const users = await getData('users', {});
-  const u = users[S.currentUser];
-  if(!u || u.isAdmin) return false;
-  const rp = await getData('rpSession', null);
-  return !!(rp && rp.status==='active' && (rp.participants||[]).includes(S.currentUser));
-}
-
-async function goVillage(){
-  if(await getRpLock()){ toast('Tu ne peux pas quitter la scène de rôle-play en cours.'); S.view='rp'; render(); return; }
-  S.view='village'; render();
-}
-
-async function tryNav(target){
-  const season = await getData('season', {started:false});
-  if(!season.started){ toast("La saison n'a pas encore commencé."); return; }
-  if(target!=='rp' && await getRpLock()){ toast('Tu ne peux pas quitter la scène de rôle-play en cours.'); S.view='rp'; render(); return; }
-  const users = await getData('users', {});
-  const u = users[S.currentUser];
-  let dungeon = await getData('dungeon', null);
-  dungeon = await checkAutoResolve(dungeon);
-  if(dungeon && dungeon.status==='active' && dungeon.participants.includes(S.currentUser) && !dungeon.onBreak){
-    toast('Tu es en plein donjon !'); return;
-  }
-  S.view = target;
-  render();
-}
-
-// ---------- Guilds ----------
-async function createGuildOpen(){ S.view='guildCreate'; render(); }
-
-async function submitGuildCreate(e){
-  e.preventDefault();
-  const name = document.getElementById('g-name').value.trim();
-  const emblem = document.getElementById('g-emblem').value.trim() || '🛡️';
-  const invA = document.getElementById('g-inv1').value.trim().toLowerCase();
-  const invB = document.getElementById('g-inv2').value.trim().toLowerCase();
-  if(!name || !invA || !invB){ toast('Nom et 2 invitations requis.'); return; }
-  if(invA===S.currentUser || invB===S.currentUser || invA===invB){ toast('Invitations invalides.'); return; }
-  const users = await getData('users', {});
-  if(!users[invA] || !users[invB]){ toast("Un des pseudos invités n'existe pas."); return; }
-
-  const guilds = await getData('guilds', {});
-  const id = 'g_'+Date.now().toString(36);
-  guilds[id] = {
-    id, name, emblem, founder: S.currentUser,
-    reputation: 0,
-    members: [S.currentUser],
-    bank: { gold: 0, items: [] },
-    invitesPending: [invA, invB]
-  };
-  await setData('guilds', guilds);
-
-  users[S.currentUser].guildId = id;
-  await setData('users', users);
-
-  const notifs = await getData('notifications', {});
-  [invA, invB].forEach(p=>{
-    notifs[p] = notifs[p] || [];
-    notifs[p].push({type:'guildInvite', guildId:id, guildName:name, from:S.currentUser, ts:Date.now()});
-  });
-  await setData('notifications', notifs);
-
-  toast('Guilde créée !');
-  S.view='guildes';
-  render();
-}
-
-async function respondInvite(idx, accept){
-  const notifs = await getData('notifications', {});
-  const mine = notifs[S.currentUser] || [];
-  const invite = mine[idx];
-  if(!invite) return;
-  mine.splice(idx,1);
-  notifs[S.currentUser] = mine;
-  await setData('notifications', notifs);
-
-  if(invite.type === 'rpInvite'){
-    if(accept){
-      const rp = await getData('rpSession', null);
-      if(rp && (rp.status==='draft' || rp.status==='active')){
-        rp.participants = rp.participants || [];
-        if(!rp.participants.includes(S.currentUser)) rp.participants.push(S.currentUser);
-        if(rp.status==='draft' && !rp.waitingSince) rp.waitingSince = Date.now();
-        await setData('rpSession', rp);
-        toast(rp.status==='draft' ? 'Tu es transporté dans le salon — la scène démarre sous peu...' : 'Tu es transporté dans la scène...');
-        S.view = 'rp';
-      } else {
-        toast('Ce salon est fermé pour le moment.');
-      }
-    } else {
-      toast('Invitation refusée.');
-    }
-    render();
-    return;
-  }
-
-  const guilds = await getData('guilds', {});
-  const g = guilds[invite.guildId];
-  if(g){
-    g.invitesPending = (g.invitesPending||[]).filter(p=>p!==S.currentUser);
-    if(accept){
-      if(!g.members.includes(S.currentUser)) g.members.push(S.currentUser);
-      const users = await getData('users', {});
-      users[S.currentUser].guildId = g.id;
-      await setData('users', users);
-      toast(`Tu as rejoint la guilde ${g.name} !`);
-    } else {
-      toast('Invitation refusée.');
-    }
-    await setData('guilds', guilds);
-  }
-  render();
-}
-
-async function guildBankDeposit(){
-  const amtEl = document.getElementById('bank-gold-amt');
-  const amt = parseInt(amtEl.value,10);
-  if(!amt || amt<=0){ toast('Montant invalide.'); return; }
-  const users = await getData('users', {});
-  const u = users[S.currentUser];
-  if(u.gold < amt){ toast("Pas assez d'or."); return; }
-  const guilds = await getData('guilds', {});
-  const g = guilds[u.guildId];
-  u.gold -= amt;
-  g.bank.gold += amt;
-  await setData('users', users);
-  await setData('guilds', guilds);
-  toast(`${amt} or déposés à la banque.`);
-  render();
-}
-async function guildBankWithdraw(){
-  const amtEl = document.getElementById('bank-gold-amt-w');
-  const amt = parseInt(amtEl.value,10);
-  if(!amt || amt<=0){ toast('Montant invalide.'); return; }
-  const users = await getData('users', {});
-  const u = users[S.currentUser];
-  const guilds = await getData('guilds', {});
-  const g = guilds[u.guildId];
-  if(g.bank.gold < amt){ toast('Fonds insuffisants dans la banque.'); return; }
-  g.bank.gold -= amt;
-  u.gold += amt;
-  await setData('users', users);
-  await setData('guilds', guilds);
-  toast(`${amt} or retirés de la banque.`);
-  render();
-}
-async function guildBankDepositItem(){
-  const el = document.getElementById('bank-item-name');
-  const name = el.value.trim();
-  if(!name) return;
-  const users = await getData('users', {});
-  const u = users[S.currentUser];
-  const idx = u.items.indexOf(name);
-  if(idx===-1){ toast("Tu ne possèdes pas cet objet."); return; }
-  u.items.splice(idx,1);
-  const guilds = await getData('guilds', {});
-  const g = guilds[u.guildId];
-  g.bank.items.push(name);
-  await setData('users', users);
-  await setData('guilds', guilds);
-  toast(`${name} déposé à la banque.`);
-  render();
-}
-async function guildBankWithdrawItem(name){
-  const guilds = await getData('guilds', {});
-  const users = await getData('users', {});
-  const u = users[S.currentUser];
-  const g = guilds[u.guildId];
-  const idx = g.bank.items.indexOf(name);
-  if(idx===-1) return;
-  g.bank.items.splice(idx,1);
-  u.items.push(name);
-  await setData('guilds', guilds);
-  await setData('users', users);
-  toast(`${name} récupéré.`);
-  render();
-}
-
-// ---------- Hôtel des ventes ----------
-function setMarketFilter(topId, subId){
-  S.marketFilterCat = topId || '';
-  S.marketFilterSub = subId || '';
-  render();
-}
-
-// Un joueur peut lancer les sorts marqués requiresStaff seulement s'il a
-// une baguette ou un bâton (arme_magie) équipé, ou à défaut dans son
-// inventaire.
-async function userHasWandOrStaff(u){
-  if(u.equipment && u.equipment.magie) return true;
-  const catalog = await getData('itemCatalog', {});
-  return (u.items||[]).some(name=>{
-    const info = Object.values(catalog).find(it=>it.name===name);
-    return info && info.categorySubId==='arme_magie';
-  });
-}
-
-async function buyMarketItem(listingId){
-  const res = await apiPost('/api/market/buy', { buyerKey: S.currentUser, listingId });
-  if(!res.ok){
-    const messages = {
-      not_enough_gold: "Pas assez d'or.",
-      listing_gone: 'Cet objet a déjà été vendu.',
-      own_listing: 'Tu ne peux pas acheter ton propre objet.',
-      buyer_not_found: 'Compte introuvable.',
-      needs_wand_staff: "Ce sort nécessite de posséder ou d'équiper une baguette ou un bâton."
-    };
-    toast(messages[res.data && res.data.error] || 'Achat impossible.');
-    render();
-    return;
-  }
-  toast(`Tu as acheté ${res.data.listing.itemName} pour ${res.data.listing.price} or !`);
-  render();
-}
-
-async function sellMyItem(e){
-  e.preventDefault();
-  const nameSel = document.getElementById('sell-item-name');
-  const priceEl = document.getElementById('sell-item-price');
-  if(!nameSel || !nameSel.value){ toast('Choisis un objet à vendre.'); return; }
-  const name = nameSel.value;
-  const price = parseInt(priceEl.value, 10);
-  if(!price || price<=0){ toast('Prix invalide.'); return; }
-  const res = await apiPost('/api/market/sell', { sellerKey: S.currentUser, itemName: name, price });
-  if(!res.ok){
-    const messages = {
-      item_not_owned: 'Tu ne possèdes plus cet objet.',
-      invalid_price: 'Prix invalide.',
-      seller_not_found: 'Compte introuvable.'
-    };
-    toast(messages[res.data && res.data.error] || 'Mise en vente impossible.');
-    render();
-    return;
-  }
-  priceEl.value = '';
-  toast(`${name} mis en vente pour ${price} or.`);
-  render();
-}
-
-// ---------- Admin : objets, bots, minuteur secret ----------
-function updateSubcatSelect(){
-  const catSel = document.getElementById('item-cat');
-  const subSel = document.getElementById('item-subcat');
-  if(!catSel || !subSel) return;
-  const top = findCategoryTop(catSel.value);
-  const subs = top ? top.subs : [];
-  subSel.innerHTML = '<option value="">— Sous-catégorie (optionnel) —</option>' +
-    subs.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
-}
-function updateRarityHint(){
-  const sel = document.getElementById('item-rarity');
-  const hint = document.getElementById('rarity-hint');
-  if(!sel || !hint) return;
-  const r = RARITIES[sel.value];
-  hint.textContent = r ? `Valeur générée entre ${r.min} et ${r.max} or (sauf si un prix fixe est renseigné).` : '';
-}
-
-// Remplit le formulaire de création d'objet avec un objet du catalogue
-// prédéfini (nom, rareté, catégorie, prix, description, restriction sorts).
-function applyItemPreset(name){
-  const p = findPreset(name);
-  const nameEl = document.getElementById('item-name');
-  const raritySel = document.getElementById('item-rarity');
-  const catSel = document.getElementById('item-cat');
-  const priceEl = document.getElementById('item-price-fixed');
-  const descEl = document.getElementById('item-description');
-  const staffEl = document.getElementById('item-requires-staff');
-  if(!p){ return; }
-  nameEl.value = p.name;
-  raritySel.value = p.rarity;
-  updateRarityHint();
-  catSel.value = p.categoryTopId || '';
-  updateSubcatSelect();
-  const subSel = document.getElementById('item-subcat');
-  if(subSel) subSel.value = p.categorySubId || '';
-  priceEl.value = p.price;
-  descEl.value = p.description || '';
-  staffEl.checked = !!p.requiresStaff;
-}
-
-async function adminCreateItem(e){
-  e.preventDefault();
-  const name = document.getElementById('item-name').value.trim();
-  const rarityKey = document.getElementById('item-rarity').value;
-  const catTop = document.getElementById('item-cat').value;
-  const catSub = document.getElementById('item-subcat').value;
-  const qtyRaw = parseInt(document.getElementById('item-qty').value, 10);
-  const qty = Math.min(200, Math.max(1, isNaN(qtyRaw) ? 1 : qtyRaw));
-  const description = (document.getElementById('item-description').value || '').trim();
-  const requiresStaff = !!document.getElementById('item-requires-staff').checked;
-  const fixedPriceRaw = parseInt(document.getElementById('item-price-fixed').value, 10);
-  const fixedPrice = (!isNaN(fixedPriceRaw) && fixedPriceRaw>0) ? fixedPriceRaw : null;
-  if(!name || !rarityKey){ toast('Nom et rareté requis.'); return; }
-  const r = RARITIES[rarityKey];
-  let label = '';
-  const topCat = findCategoryTop(catTop);
-  const subCat = findCategorySub(catTop, catSub);
-  if(topCat) label = topCat.name;
-  if(subCat) label += (label? ' > ':'') + subCat.name;
-  const catalog = await getData('itemCatalog', {});
-  let lastValue = 0;
-  for(let i=0; i<qty; i++){
-    const value = fixedPrice != null ? fixedPrice : (r.min + Math.floor(Math.random()*(r.max-r.min+1)));
-    lastValue = value;
-    const id = 'it_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8)+'_'+i;
-    catalog[id] = {
-      id, name, rarity:rarityKey, value,
-      categoryTopId: catTop||null, categorySubId: catSub||null, categoryLabel: label,
-      description, requiresStaff,
-      assignedTo:null, listed:false, createdAt:Date.now()
-    };
-  }
-  await setData('itemCatalog', catalog);
-  document.getElementById('item-name').value='';
-  document.getElementById('item-description').value='';
-  document.getElementById('item-price-fixed').value='';
-  document.getElementById('item-requires-staff').checked=false;
-  const presetSel = document.getElementById('item-preset');
-  if(presetSel) presetSel.value='';
-  toast(qty>1 ? `${qty} exemplaires de "${name}" créés — ${r.label}.` : `Objet "${name}" créé — ${r.label}, ${lastValue} or.`);
-  render();
-}
-
-// Crée un exemplaire de chaque objet du catalogue prédéfini d'un coup —
-// pratique pour peupler l'hôtel des ventes en une seule fois.
-async function adminCreateAllPresetItems(){
-  const catalog = await getData('itemCatalog', {});
-  ITEM_PRESETS.forEach((p, i)=>{
-    let label = '';
-    const topCat = findCategoryTop(p.categoryTopId);
-    const subCat = findCategorySub(p.categoryTopId, p.categorySubId);
-    if(topCat) label = topCat.name;
-    if(subCat) label += (label? ' > ':'') + subCat.name;
-    const id = 'it_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8)+'_preset_'+i;
-    catalog[id] = {
-      id, name:p.name, rarity:p.rarity, value:p.price,
-      categoryTopId: p.categoryTopId||null, categorySubId: p.categorySubId||null, categoryLabel: label,
-      description: p.description||'', requiresStaff: !!p.requiresStaff,
-      assignedTo:null, listed:false, createdAt:Date.now()
-    };
-  });
-  await setData('itemCatalog', catalog);
-  toast(`${ITEM_PRESETS.length} objets prédéfinis créés dans le catalogue.`);
-  render();
-}
-
-async function adminDistributeUnassigned(){
-  const catalog = await getData('itemCatalog', {});
-  const users = await getData('users', {});
-  const botKeys = Object.keys(users).filter(k=>users[k].isBot);
-  if(!botKeys.length){ toast('Aucun bot disponible.'); return; }
-  const unassigned = Object.values(catalog).filter(it=>!it.assignedTo);
-  if(!unassigned.length){ toast('Aucun objet à distribuer — tous sont déjà confiés.'); return; }
-  unassigned.forEach(it=>{
-    const bot = botKeys[Math.floor(Math.random()*botKeys.length)];
-    it.assignedTo = bot;
-    it.listed = false;
-  });
-  await setData('itemCatalog', catalog);
-  toast(`${unassigned.length} objet(s) distribué(s) aléatoirement à des bots — mise en vente imminente.`);
-  render();
-}
-
-async function adminAssignItemToBot(itemId){
-  const sel = document.getElementById('assign-bot-'+itemId);
-  if(!sel || !sel.value){ toast('Choisis un aventurier.'); return; }
-  const catalog = await getData('itemCatalog', {});
-  const it = catalog[itemId];
-  if(!it || it.assignedTo){ toast('Objet déjà confié.'); return; }
-  it.assignedTo = sel.value;
-  it.listed = false;
-  await setData('itemCatalog', catalog);
-  toast(`${it.name} confié — il sera mis en vente sous peu.`);
-  render();
-}
-
-async function adminSetBotTimer(){
-  const el = document.getElementById('bot-timer-min');
-  const min = parseInt(el.value,10);
-  if(!min || min<=0){ toast('Durée invalide.'); return; }
-  await setData('dungeonBotTimer', { enabled:true, deadline: Date.now()+min*60000 });
-  toast(`Minuteur secret activé : ${min} min avant que les bots ne terminent le donjon.`);
-  render();
-}
-async function adminCancelBotTimer(){
-  await setData('dungeonBotTimer', { enabled:false, deadline:null });
-  toast('Minuteur secret désactivé.');
-  render();
-}
-
-// ---------- Dungeons ----------
-async function launchDungeon(key){
-  if(key==='impossible'){
-    const unlocked = await getData('konneUnlocked', false);
-    if(!unlocked){ toast("Ce donjon est scellé — il faut d'abord réussir la quête de l'Anneau de Konne (rôle-play)."); return; }
-  }
-  let dungeon = await getData('dungeon', null);
-  dungeon = await checkAutoResolve(dungeon);
-  if(dungeon && dungeon.status==='active'){ toast('Un donjon est déjà en cours dans le monde.'); return; }
-  const users = await getData('users', {});
-  const u = users[S.currentUser];
-  let participants = [S.currentUser];
-  let guildId = u.guildId || null;
-  if(guildId){
-    const guilds = await getData('guilds', {});
-    const g = guilds[guildId];
-    if(g) participants = g.members.slice();
-  }
-  const cfg = DUNGEONS[key];
-  const newDungeon = {
-    type:key, totalTiers:cfg.tiers, currentTier:1, tiersCompleted:0,
-    startTime: Date.now(), onBreak:false, breakEnd:0,
-    participants, guildId, status:'active',
-    rewardsClaimed:[], repAdded:false
-  };
-  await setData('dungeon', newDungeon);
-  toast(`${cfg.name} commence !`);
-  S.view='dungeonPlay';
-  render();
-}
-
-// admin controls
-async function adminStartSeason(){
-  await setData('season', {started:true});
-  toast('Saison lancée !');
-  render();
-}
-async function adminEndSeason(){
-  await setData('season', {started:false});
-  toast('Saison arrêtée.');
-  render();
-}
-
-// Termine un donjon (victoire ou défaite) : applique le statut,
-// crédite la réputation de guilde une seule fois, et sauvegarde.
-async function finalizeDungeon(dungeon, result){
-  dungeon.status = result;
-  dungeon.onBreak = false;
-  if(result==='won') dungeon.tiersCompleted = dungeon.totalTiers;
-  if(dungeon.guildId && !dungeon.repAdded){
-    const guilds = await getData('guilds', {});
-    const g = guilds[dungeon.guildId];
-    if(g){ g.reputation += dungeon.tiersCompleted; await setData('guilds', guilds); }
-    dungeon.repAdded = true;
-  }
-  await setData('dungeon', dungeon);
-  return dungeon;
-}
-
-// Vérifie si le temps global du donjon est écoulé sans que tous les
-// tiers aient été validés : dans ce cas, défaite automatique.
-// Appelé à chaque affichage pertinent pour rester synchrone entre joueurs.
-async function checkAutoResolve(dungeon){
-  if(!dungeon || dungeon.status!=='active') return dungeon;
-  const totalDuration = dungeon.totalTiers * TIER_MS;
-  const elapsed = Date.now() - dungeon.startTime;
-  if(dungeon.tiersCompleted >= dungeon.totalTiers){
-    return await finalizeDungeon(dungeon, 'won');
-  }
-  if(elapsed >= totalDuration){
-    return await finalizeDungeon(dungeon, 'lost');
-  }
-  return dungeon;
-}
-
-async function adminAdvanceTier(){
-  let dungeon = await getData('dungeon', null);
-  if(!dungeon || dungeon.status!=='active') return;
-  dungeon.tiersCompleted = Math.min(dungeon.tiersCompleted+1, dungeon.totalTiers);
-  if(dungeon.tiersCompleted >= dungeon.totalTiers){
-    dungeon.currentTier = dungeon.totalTiers;
-    dungeon = await finalizeDungeon(dungeon, 'won');
-    toast('Tous les tiers sont vaincus : victoire !');
-  } else {
-    dungeon.currentTier = dungeon.tiersCompleted+1;
-    if(dungeon.tiersCompleted % 2 === 0){
-      dungeon.onBreak = true;
-      dungeon.breakEnd = Date.now()+BREAK_MS;
-    }
-    await setData('dungeon', dungeon);
-  }
-  render();
-}
-async function adminEndBreakNow(){
-  const dungeon = await getData('dungeon', null);
-  if(!dungeon) return;
-  dungeon.onBreak = false;
-  await setData('dungeon', dungeon);
-  render();
-}
-async function adminDeclare(result){
-  let dungeon = await getData('dungeon', null);
-  if(!dungeon || dungeon.status!=='active') return;
-  dungeon = await finalizeDungeon(dungeon, result);
-  toast('Défaite déclarée.');
-  render();
-}
-async function adminResetDungeon(){
-  await setData('dungeon', null);
-  toast('Le monde est de nouveau libre.');
-  render();
-}
-
-// Le meneu de jeu déclenche l'épilogue une fois le donjon final vaincu :
-// ni coffre ni récompense à taper, place au récit — et la saison se
-// termine automatiquement à ce moment-là.
-async function adminLaunchEpilogue(){
-  const dungeon = await getData('dungeon', null);
-  if(!dungeon || dungeon.status!=='won' || dungeon.type!=='impossible' || dungeon.finishedByBots) return;
-  dungeon.epilogueLaunched = true;
-  await setData('dungeon', dungeon);
-  await setData('season', {started:false});
-  toast("Épilogue lancé — la saison est terminée.");
-  render();
-}
-
-// ---------- Rôle-play (salon unique : « L'Anneau de Konne ») ----------
-// Il n'existe qu'une seule scène de rôle-play, fixée à l'avance par le jeu.
-// L'admin ouvre le salon (bouton dans le panneau admin) : une invitation
-// part aussitôt vers tous les joueurs, puis se répète toutes les 10
-// minutes tant que personne n'a rejoint. Dès qu'un premier joueur rejoint
-// le salon d'attente, un compte à rebours de 5 minutes démarre — une fois
-// écoulé, la scène se lance automatiquement (aucune action de l'admin
-// n'est nécessaire) et dure 1h. À la fin (ou pendant), l'admin déclare la
-// réussite ou l'échec de la quête ; la réussite déverrouille le donjon
-// final, le Château de l'Empereur Konne.
-const KONNE_RP = {
-  title: "L'Anneau de Konne",
-  description: "Un émissaire vous approche discrètement : l'Anneau de Konne, artefact d'un pouvoir immense, aurait été localisé. Il faut le retrouver avant que d'autres ne s'en emparent — et convaincre un maximum de factions de rallier votre cause avant l'assaut final sur le château.",
-  objectives: [
-    "Trouver l'Anneau de Konne",
-    "Rallier un maximum de factions alliées à votre cause"
-  ],
-  durationMin: 60,
-  waitMin: 5,
-  inviteIntervalMin: 10
-};
-const RP_WAIT_MS = KONNE_RP.waitMin*60000;
-const RP_DURATION_MS = KONNE_RP.durationMin*60000;
-const RP_INVITE_INTERVAL_MS = KONNE_RP.inviteIntervalMin*60000;
-
-// Fait avancer l'état du salon si besoin : lancement automatique 5 min
-// après l'arrivée du premier joueur, fin automatique après 1h de scène
-// active, et relance des invitations toutes les 10 min tant que ce n'est
-// pas terminé. Appelée à chaque affichage pertinent pour rester synchrone
-// entre tous les joueurs (comme pour les donjons).
-async function checkRpAutoResolve(rp){
-  if(!rp || rp.status==='ended') return rp;
-
-  if(rp.status==='draft' && rp.waitingSince && (rp.participants||[]).length && Date.now()-rp.waitingSince >= RP_WAIT_MS){
-    rp.status = 'active';
-    rp.startTime = Date.now();
-    rp.endTime = Date.now() + RP_DURATION_MS;
-    await setData('rpSession', rp);
-  }
-
-  if(rp.status==='active' && rp.endTime && Date.now() >= rp.endTime){
-    rp.status = 'ended';
-    await setData('rpSession', rp);
-    return rp;
-  }
-
-  if((rp.status==='draft' || rp.status==='active') && rp.autoInviteEnabled){
-    const last = rp.lastInviteAt || 0;
-    if(Date.now() - last >= RP_INVITE_INTERVAL_MS){
-      rp.lastInviteAt = Date.now();
-      await setData('rpSession', rp);
-      await sendRpInvites(rp);
-    }
-  }
-  return rp;
-}
-
-// Envoie/renouvelle une invitation à tous les joueurs réels qui ne sont
-// pas déjà dans le salon. On retire une éventuelle ancienne invitation
-// avant d'en repousser une, pour que ça agisse comme un rappel plutôt
-// que de s'empiler.
-async function sendRpInvites(rp){
-  const users = await getData('users', {});
-  const notifs = await getData('notifications', {});
-  const participants = rp.participants || [];
-  let changed = false;
-  Object.keys(users).forEach(key=>{
-    const usr = users[key];
-    if(!usr || usr.isAdmin || usr.isBot) return;
-    if(participants.includes(key)) return;
-    const mine = (notifs[key] || []).filter(n=>n.type!=='rpInvite');
-    mine.push({type:'rpInvite', title:KONNE_RP.title, ts:Date.now()});
-    notifs[key] = mine;
-    changed = true;
-  });
-  if(changed) await setData('notifications', notifs);
-}
-
-// Ouvre le salon (bouton admin) : envoie la première invitation.
-async function adminActivateRp(){
-  const existing = await getData('rpSession', null);
-  if(existing && existing.status!=='ended'){ toast('Le salon est déjà ouvert.'); return; }
-  const rp = {
-    status:'draft', autoInviteEnabled:true, lastInviteAt:Date.now(),
-    waitingSince:null, startTime:null, endTime:null,
-    participants:[], outcome:null
-  };
-  await setData('rpSession', rp);
-  await sendRpInvites(rp);
-  toast(`Invitations envoyées — le salon « ${KONNE_RP.title} » est ouvert.`);
-  render();
-}
-
-async function adminToggleRpAutoInvite(){
-  const rp = await getData('rpSession', null);
-  if(!rp || rp.status==='ended') return;
-  rp.autoInviteEnabled = !rp.autoInviteEnabled;
-  if(rp.autoInviteEnabled) rp.lastInviteAt = Date.now();
-  await setData('rpSession', rp);
-  render();
-}
-
-async function adminSendRpInviteNow(){
-  const rp = await getData('rpSession', null);
-  if(!rp || rp.status==='ended') return;
-  rp.lastInviteAt = Date.now();
-  await setData('rpSession', rp);
-  await sendRpInvites(rp);
-  toast('Invitations envoyées.');
-  render();
-}
-
-// Ignore le délai de 5 minutes et lance la scène immédiatement.
-async function adminForceLaunchNow(){
-  const rp = await getData('rpSession', null);
-  if(!rp || rp.status!=='draft'){ toast('Le salon doit être ouvert et en attente.'); return; }
-  rp.status = 'active';
-  rp.startTime = Date.now();
-  rp.endTime = Date.now() + RP_DURATION_MS;
-  await setData('rpSession', rp);
-  toast('Scène lancée immédiatement !');
-  render();
-}
-
-async function adminExtendRpSession(minutes){
-  const rp = await getData('rpSession', null);
-  if(!rp || rp.status!=='active') return;
-  rp.endTime += minutes*60000;
-  await setData('rpSession', rp);
-  toast(`${minutes} min ajoutées à la scène.`);
-  render();
-}
-
-// Termine le salon sans se prononcer sur la réussite de la quête.
-async function adminEndRpSession(){
-  const rp = await getData('rpSession', null);
-  if(rp){ rp.status = 'ended'; await setData('rpSession', rp); }
-  toast('Scène terminée — le village est de nouveau accessible pour tous.');
-  render();
-}
-
-// L'admin tranche : la quête est réussie (déverrouille le donjon final
-// de Konne) ou échouée. Termine le salon dans les deux cas.
-async function adminDeclareRpOutcome(outcome){
-  const rp = await getData('rpSession', null);
-  if(!rp){ toast("Aucun salon n'a encore été ouvert."); return; }
-  rp.outcome = outcome;
-  rp.status = 'ended';
-  await setData('rpSession', rp);
-  if(outcome==='success'){
-    await setData('konneUnlocked', true);
-    toast("Quête réussie ! Le Château de l'Empereur Konne est désormais déverrouillé.");
-  } else {
-    toast('Quête déclarée en échec — le donjon de Konne reste scellé.');
-  }
-  render();
-}
-
-// Réinitialise complètement le salon (pour une nouvelle tentative sans
-// déclarer d'issue), sans toucher au verrou du donjon de Konne.
-async function adminResetRp(){
-  await setData('rpSession', null);
-  toast('Le salon a été réinitialisé.');
-  render();
-}
-
-// Un joueur rejoint le salon (après avoir accepté une invitation, ou
-// depuis la carte du village). Démarre le compte à rebours de 5 minutes
-// s'il est le premier à arriver.
-async function joinRpScene(){
-  const rp = await getData('rpSession', null);
-  if(!rp || rp.status==='ended'){ toast('Ce salon est fermé pour le moment.'); S.view='village'; render(); return; }
-  rp.participants = rp.participants || [];
-  if(!rp.participants.includes(S.currentUser)){
-    rp.participants.push(S.currentUser);
-    if(rp.status==='draft' && !rp.waitingSince) rp.waitingSince = Date.now();
-    await setData('rpSession', rp);
-  }
-  S.view = 'rp';
-  render();
-}
-
-// ---------- Reward claiming ----------
-function tapChest(){
-  S.chestTaps++;
-  const need = 3;
-  const chestEl = document.getElementById('chest-el');
-  if(chestEl){ chestEl.style.transform = `scale(${1+Math.min(S.chestTaps,need)*0.05})`; }
-  if(S.chestTaps>=need){ claimReward(); }
-  else { renderChestProgress(); }
-}
-function renderChestProgress(){
-  const p = document.getElementById('chest-progress');
-  if(p) p.textContent = `${S.chestTaps} / 3 — continue de taper !`;
-}
-
-async function claimReward(){
-  const dungeon = await getData('dungeon', null);
-  if(!dungeon) return;
-  const cfg = DUNGEONS[dungeon.type];
-  const users = await getData('users', {});
-  const u = users[S.currentUser];
-  const goldGain = dungeon.tiersCompleted * cfg.gold;
-  const xpGain = dungeon.tiersCompleted * cfg.xp;
-
-  const beforeLevel = u.level;
-  u.gold += goldGain;
-  let xp = u.xp + xpGain;
-  let level = u.level;
-  while(level < MAX_LEVEL && xp >= xpNeeded(level)){
-    xp -= xpNeeded(level);
-    level++;
-  }
-  if(level>=MAX_LEVEL){ level=MAX_LEVEL; xp=0; }
-  u.xp = xp; u.level = level;
-  await setData('users', users);
-
-  dungeon.rewardsClaimed = dungeon.rewardsClaimed || [];
-  if(!dungeon.rewardsClaimed.includes(S.currentUser)) dungeon.rewardsClaimed.push(S.currentUser);
-  await setData('dungeon', dungeon);
-
-  const isGrandVictory = dungeon.type==='impossible' && dungeon.status==='won' && !dungeon.finishedByBots;
-
-  S.view='village';
-  S.chestTaps=0;
-  render();
-
-  if(isGrandVictory){
-    const heroNames = (dungeon.participants||[]).map(p=>users[p]?users[p].pseudo:p);
-    showEpilogueCinematic(heroNames);
-  } else if(level>beforeLevel){
-    showLevelUp(level);
-  }
-  toast(`+${goldGain} or, +${xpGain} xp`);
-}
-
-function showLevelUp(level){
-  const el = document.getElementById('overlays');
-  const div = document.createElement('div');
-  div.className='levelup-overlay';
-  div.innerHTML = `
-    <div class="eyebrow">Niveau supérieur</div>
-    <div class="levelup-num">${level}</div>
-    <div class="muted" style="margin-top:10px;">Ton personnage atteint le niveau ${level} !</div>
-    <button class="btn btn-primary" style="margin-top:24px;" onclick="this.parentElement.remove()">Continuer</button>
-  `;
-  el.appendChild(div);
-}
-
-// ---------- Render dispatcher ----------
-function render(){
-  const app = document.getElementById('app');
-  (async () => {
-    if(S.currentUser && S.view!=='auth' && S.view!=='charCreate' && (await getRpLock())){
-      S.view = 'rp';
-    }
-    const v = S.view;
-    const routes = {
-      auth: screenAuth, charCreate: screenCharCreate, village: screenVillage,
-      personnage: screenPersonnage, guildes: screenGuildes, guildCreate: screenGuildCreate,
-      donjons: screenDonjons, dungeonPlay: screenDungeonPlay, hotelVentes: screenHotelVentes,
-      rp: screenRp,
-      classements: screenClassements, adminPanel: screenAdmin
-    };
-    const fn = routes[v] || screenAuth;
-    const html = await fn();
-    app.innerHTML = html;
-    renderToasts();
-    ensureMusicWidget();
-    resolveAndSetMusic();
-  })();
-}
-
-function topbarHTML(u, title){
-  return `
-    <div class="topbar">
-      <div class="brand"><span class="sigil">🗡️</span><h1 style="font-size:22px;">Terres de Konne</h1></div>
-      <div class="row" style="align-items:center;">
-        ${u? `<span class="badge gold">${u.pseudo}</span>` : ''}
-        <button class="btn btn-small" onclick="logout()">Quitter</button>
-      </div>
-    </div>
-    ${title? `<div class="eyebrow">${title}</div>` : ''}
-  `;
-}
-
-// ---------- Screens ----------
-async function screenAuth(){
-  const isLogin = S.authMode==='login';
-  return `
-  <div class="authwrap panel">
-    <div class="eyebrow" style="text-align:center;">Bienvenue voyageur</div>
-    <h2 style="text-align:center; font-size:28px; margin-bottom:20px;">Terres de Konne</h2>
-    <form onsubmit="handleAuthSubmit(event)">
-      <div class="field">
-        <label>Pseudonyme</label>
-        <input id="inp-pseudo" type="text" autocomplete="off" placeholder="Ton nom de légende">
-      </div>
-      <div class="field">
-        <label>Mot de passe</label>
-        <input id="inp-pass" type="password" placeholder="•••••••">
-      </div>
-      ${S.authError? `<div class="errbox">${S.authError}</div>` : ''}
-      <button class="btn btn-primary" style="width:100%; margin-top:8px;" type="submit">${isLogin? 'Se connecter' : 'Créer mon compte'}</button>
+    <form id="task-form" style="display:flex; gap:8px; margin-bottom:16px">
+      <input id="task-title" placeholder="Nouvelle tâche..." style="flex:1" />
+      <input id="task-assigned" placeholder="Assigné à" style="width:120px" />
+      <button class="primary">Ajouter</button>
     </form>
-    <div class="divider"></div>
-    <div style="text-align:center;" class="muted">
-      ${isLogin? `Pas encore de compte ? <button class="link-btn" onclick="switchAuthMode('register')">Créer un compte</button>`
-                : `Déjà un compte ? <button class="link-btn" onclick="switchAuthMode('login')">Se connecter</button>`}
-    </div>
-  </div>`;
-}
-
-async function screenCharCreate(){
-  const cards = Object.keys(CLASSES).map(k=>{
-    const c = CLASSES[k];
-    return `<div class="classcard ${S.charClass===k?'selected':''}" onclick="selectClass('${k}')">
-      <div class="icon">${c.icon}</div>
-      <div class="display" style="font-size:16px; margin-top:8px;">${c.label}</div>
-      <div class="muted" style="font-size:13px; margin-top:6px;">${c.desc}</div>
-    </div>`;
-  }).join('');
-  return `
-  <div class="panel" style="max-width:700px; margin:6vh auto 0;">
-    <div class="eyebrow" style="text-align:center;">Création du personnage</div>
-    <h2 style="text-align:center; margin-bottom:20px;">Choisis ta voie</h2>
-    <div class="row" style="justify-content:center;">
-      <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:14px; width:100%;">${cards}</div>
-    </div>
-    <div class="center" style="margin-top:26px;">
-      <button class="btn btn-primary" onclick="confirmCharCreate()">Entrer dans le village</button>
-    </div>
-  </div>`;
-}
-
-async function screenVillage(){
-  const users = await getData('users', {});
-  const u = users[S.currentUser];
-  const season = await getData('season', {started:false});
-  const notifs = await getData('notifications', {});
-  const myNotifs = notifs[S.currentUser] || [];
-  let dungeon = await getData('dungeon', null);
-  dungeon = await checkAutoResolve(dungeon);
-  if(dungeon && dungeon.status!=='active' && dungeon.participants && dungeon.participants.includes(S.currentUser) && !dungeon.rewardsClaimed.includes(S.currentUser)){
-    S.view='dungeonPlay';
-    return screenDungeonPlay();
-  }
-  if(dungeon && dungeon.status==='active' && dungeon.participants.includes(S.currentUser) && !dungeon.onBreak){
-    S.view='dungeonPlay';
-    return screenDungeonPlay();
-  }
-  let rp = await getData('rpSession', null);
-  rp = await checkRpAutoResolve(rp);
-
-  const cats = [
-    {id:'personnage', icon:'🧙', label:'Personnage', sub:'Fiche & équipement'},
-    {id:'guildes', icon:'🏰', label:'Guildes', sub:'Ta compagnie'},
-    {id:'hotelVentes', icon:'🏛️', label:'Hôtel des ventes', sub:'Achète & vends'},
-    {id:'donjons', icon:'💀', label:'Donjons', sub:'4 lieux périlleux'},
-    {id:'rp', icon:'📜', label:'Rôle-play', sub: rp && rp.status==='active' ? `🟢 Scène en cours` : (rp && rp.status==='draft' ? `🕯️ Salon ouvert — rejoins-le` : 'Aucun salon ouvert')},
-    {id:'classements', icon:'🏆', label:'Classements', sub:'Gloire & renom'}
-  ];
-  const cards = cats.map(c=>`
-    <div class="navcard ${season.started? '' : 'locked'}" onclick="${season.started? `tryNav('${c.id}')` : ''}">
-      <span class="icon">${c.icon}</span>
-      <div class="label">${c.label}</div>
-      <div class="sub">${season.started? c.sub : 'Verrouillé'}</div>
-    </div>`).join('');
-
-  const inviteBlock = myNotifs.length ? `
-    <div class="panel" style="margin-top:20px;">
-      <div class="eyebrow">Notifications</div>
-      ${myNotifs.map((n,i)=>`
-        <div class="memberrow">
-          <span>${n.type==='rpInvite'
-            ? `Le meneu de jeu te propose de rejoindre la scène <strong>${n.title}</strong>`
-            : `${n.from} t'invite à rejoindre la guilde <strong>${n.guildName}</strong>`}</span>
-          <span class="row">
-            <button class="btn btn-small btn-primary" onclick="respondInvite(${i},true)">Accepter</button>
-            <button class="btn btn-small btn-danger" onclick="respondInvite(${i},false)">Refuser</button>
-          </span>
-        </div>`).join('')}
-    </div>` : '';
-
-  return `
-    ${topbarHTML(u)}
-    <div class="panel">
-      <h2>Le Village</h2>
-      <p class="muted">${season.started? "La saison est lancée. Choisis ta voie." : "L'administrateur n'a pas encore ouvert la saison. Reviens plus tard, voyageur."}</p>
-      <div class="navgrid">${cards}</div>
-    </div>
-    ${inviteBlock}
-  `;
-}
-
-async function screenPersonnage(){
-  const users = await getData('users', {});
-  const u = users[S.currentUser];
-  const guilds = await getData('guilds', {});
-  const g = u.guildId ? guilds[u.guildId] : null;
-  const need = xpNeeded(u.level);
-  const pct = u.level>=MAX_LEVEL ? 100 : Math.min(100, Math.round((u.xp/need)*100));
-  const catalog = await getData('itemCatalog', {});
-  u.equipment = u.equipment || { hand1:null, hand2:null, distance:null, magie:null };
-  const eq = u.equipment;
-
-  const infoByName = (name)=> Object.values(catalog).find(it=>it.name===name) || null;
-  const hasWandOrStaff = !!eq.magie;
-
-  // ---------- Objets (avec description + verrou pour les sorts) ----------
-  const itemPills = u.items.length ? u.items.map(name=>{
-    const info = infoByName(name);
-    const locked = info && info.requiresStaff && !hasWandOrStaff;
-    const title = info && info.description ? info.description.replace(/"/g,'&quot;') : '';
-    return `<span class="item-pill" title="${title}">${name}${locked? ' 🔒':''}</span>`;
-  }).join('') : '<span class="muted">Aucun objet pour le moment.</span>';
-
-  // ---------- Emplacements d'équipement ----------
-  function slotRow(label, slotKey){
-    const item = eq[slotKey];
-    if(!item){
-      return `<div class="memberrow"><span>${label}</span><span class="muted">Vide</span></div>`;
-    }
-    const info = infoByName(item.name);
-    const r = info ? RARITIES[info.rarity] : null;
-    return `<div class="memberrow" style="align-items:flex-start;">
-      <span><strong>${item.name}</strong>${item.twoHanded? ' <span class="muted" style="font-size:12px;">(arme à deux mains)</span>':''}
-        ${r? `<span style="color:${r.color}; font-size:12px; font-family:'Cinzel',serif;"> · ${r.label}</span>`:''}
-        ${item.enchant? `<br><span class="badge gold" style="margin-top:4px;">Enchantée : ${item.enchant.name}</span>`:''}
-      </span>
-      <button class="btn btn-small btn-danger" onclick="unequipSlot('${slotKey}')">Déséquiper</button>
-    </div>`;
-  }
-
-  // hand1/hand2 : si une arme à deux mains occupe les deux, on n'affiche qu'une ligne fusionnée.
-  const handsHtml = (eq.hand1 && eq.hand1.twoHanded)
-    ? slotRow('Mains', 'hand1')
-    : slotRow('Main 1', 'hand1') + slotRow('Main 2', 'hand2');
-
-  // ---------- Sélecteurs pour équiper / enchanter ----------
-  const weaponItems = u.items.filter(name=>{
-    const info = infoByName(name);
-    return info && info.categoryTopId==='arme';
-  });
-  const equipSelect = weaponItems.length ? `
-    <div class="row" style="margin-top:10px;">
-      <select id="equip-weapon-select" style="max-width:260px;">
-        ${weaponItems.map(n=>`<option value="${n.replace(/"/g,'&quot;')}">${n}</option>`).join('')}
-      </select>
-      <button class="btn btn-small btn-primary" onclick="equipWeapon(document.getElementById('equip-weapon-select').value)">Équiper</button>
-    </div>` : `<p class="muted" style="font-size:13px; margin-top:8px;">Aucune arme dans ton inventaire à équiper.</p>`;
-
-  const enchantItems = u.items.filter(name=>{
-    const info = infoByName(name);
-    return info && info.categoryTopId==='enchantement';
-  });
-  const occupiedSlots = [
-    eq.hand1 ? {key:'hand1', label: eq.hand1.twoHanded? 'Mains (2 mains)' : 'Main 1'} : null,
-    (eq.hand2 && !(eq.hand1 && eq.hand1.twoHanded)) ? {key:'hand2', label:'Main 2'} : null,
-    eq.distance ? {key:'distance', label:'Arme à distance'} : null,
-    eq.magie ? {key:'magie', label:'Arme de magie'} : null
-  ].filter(Boolean);
-  const enchantSelect = (enchantItems.length && occupiedSlots.length) ? `
-    <div class="row" style="margin-top:10px;">
-      <select id="enchant-slot-select" style="max-width:200px;">
-        ${occupiedSlots.map(s=>`<option value="${s.key}">${s.label}</option>`).join('')}
-      </select>
-      <select id="enchant-item-select" style="max-width:220px;">
-        ${enchantItems.map(n=>`<option value="${n.replace(/"/g,'&quot;')}">${n}</option>`).join('')}
-      </select>
-      <button class="btn btn-small btn-primary" onclick="enchantSlot(document.getElementById('enchant-slot-select').value, document.getElementById('enchant-item-select').value)">Enchanter</button>
-    </div>
-    <p class="muted" style="font-size:12px; margin-top:6px;">L'enchantement doit correspondre au type d'arme (arme, arc ou baguette) — il est consommé une fois appliqué.</p>` : '';
-
-  return `
-    ${topbarHTML(u)}
-    <button class="btn btn-small" onclick="goVillage()">← Retour au village</button>
-    <div class="panel" style="margin-top:16px;">
-      <div class="eyebrow">Fiche de personnage</div>
-      <h2>${u.pseudo} <span style="font-size:26px;">${CLASSES[u.class]?.icon||''}</span></h2>
-      <div class="row" style="margin-top:10px;">
-        <span class="badge gold">${CLASSES[u.class]?.label || u.class}</span>
-        <span class="badge">Niveau ${u.level}${u.level>=MAX_LEVEL?' (Max)':''}</span>
-        <span class="badge">${u.gold} 🪙 or</span>
-        <span class="badge">${g? `Guilde: ${g.emblem} ${g.name}` : 'Sans guilde'}</span>
-      </div>
-      <div class="divider"></div>
-      <label>Expérience</label>
-      <div class="xpbar"><div class="xpbar-fill" style="width:${pct}%"></div></div>
-      <div class="muted" style="font-size:13px; margin-top:6px;">${u.level>=MAX_LEVEL? 'Niveau maximum atteint' : `${u.xp} / ${need} xp`}</div>
-      <div class="divider"></div>
-      <label>Objets</label>
-      <div>${itemPills}</div>
-    </div>
-
-    <div class="panel" style="margin-top:20px;">
-      <div class="eyebrow">Équipement</div>
-      <h2>Armes équipées</h2>
-      <p class="muted" style="font-size:13px;">Une arme à deux mains occupe les deux mains ; ou équipe deux armes à une main (ou un bouclier/filet en main secondaire).</p>
-      <div class="divider"></div>
-      ${handsHtml}
-      ${slotRow('Distance (arc)', 'distance')}
-      ${slotRow('Magie (baguette / bâton)', 'magie')}
-      ${!hasWandOrStaff ? `<p style="font-size:12px; color:var(--blood-bright); margin-top:8px;">Sans baguette ni bâton équipé, les sorts marqués 🔒 dans ton inventaire ne peuvent pas être lancés.</p>` : ''}
-      <div class="divider"></div>
-      <label>Équiper une arme</label>
-      ${equipSelect}
-      <div class="divider"></div>
-      <label>Enchanter une arme équipée</label>
-      ${enchantSelect || '<p class="muted" style="font-size:13px;">Il te faut une arme équipée et un enchantement dans ton inventaire.</p>'}
-    </div>
-  `;
-}
-
-// ---------- Équipement : équiper / déséquiper / enchanter ----------
-async function equipWeapon(itemName){
-  if(!itemName) return;
-  const users = await getData('users', {});
-  const u = users[S.currentUser];
-  if(u.items.indexOf(itemName)===-1){ toast('Tu ne possèdes pas cet objet.'); return; }
-  const catalog = await getData('itemCatalog', {});
-  const info = Object.values(catalog).find(it=>it.name===itemName);
-  if(!info || info.categoryTopId!=='arme'){ toast("Cet objet n'est pas une arme."); return; }
-  u.equipment = u.equipment || { hand1:null, hand2:null, distance:null, magie:null };
-  const slot = weaponSlotForSub(info.categorySubId);
-  if(slot==='twohand'){
-    u.equipment.hand1 = { name:itemName, twoHanded:true, enchant:null };
-    u.equipment.hand2 = { name:itemName, twoHanded:true, enchant:null };
-  } else if(slot==='hand'){
-    if(u.equipment.hand1 && u.equipment.hand1.twoHanded){
-      toast('Déséquipe ton arme à deux mains avant.'); return;
-    }
-    if(!u.equipment.hand1) u.equipment.hand1 = { name:itemName, twoHanded:false, enchant:null };
-    else if(!u.equipment.hand2) u.equipment.hand2 = { name:itemName, twoHanded:false, enchant:null };
-    else { toast('Tes deux mains sont déjà occupées — déséquipe une arme.'); return; }
-  } else if(slot==='distance'){
-    u.equipment.distance = { name:itemName, twoHanded:false, enchant:null };
-  } else if(slot==='magie'){
-    u.equipment.magie = { name:itemName, twoHanded:false, enchant:null };
-  } else {
-    toast("Type d'arme inconnu."); return;
-  }
-  await setData('users', users);
-  toast(`${itemName} équipé(e).`);
-  render();
-}
-
-async function unequipSlot(slot){
-  const users = await getData('users', {});
-  const u = users[S.currentUser];
-  u.equipment = u.equipment || { hand1:null, hand2:null, distance:null, magie:null };
-  if((slot==='hand1'||slot==='hand2') && u.equipment[slot] && u.equipment[slot].twoHanded){
-    u.equipment.hand1 = null;
-    u.equipment.hand2 = null;
-  } else {
-    u.equipment[slot] = null;
-  }
-  await setData('users', users);
-  render();
-}
-
-async function enchantSlot(slot, enchantName){
-  if(!slot || !enchantName) return;
-  const users = await getData('users', {});
-  const u = users[S.currentUser];
-  u.equipment = u.equipment || { hand1:null, hand2:null, distance:null, magie:null };
-  if(!u.equipment[slot]){ toast('Aucune arme équipée dans cet emplacement.'); return; }
-  if(u.items.indexOf(enchantName)===-1){ toast("Tu ne possèdes pas cet enchantement."); return; }
-  const catalog = await getData('itemCatalog', {});
-  const info = Object.values(catalog).find(it=>it.name===enchantName);
-  if(!info || info.categoryTopId!=='enchantement'){ toast("Ce n'est pas un enchantement."); return; }
-  const expectedSub = enchantTypeForSlot(slot);
-  if(info.categorySubId !== expectedSub){ toast("Cet enchantement ne correspond pas à ce type d'arme."); return; }
-
-  const idx = u.items.indexOf(enchantName);
-  u.items.splice(idx, 1);
-  const enchantData = { name: enchantName, desc: info.description||'' };
-  if((slot==='hand1'||slot==='hand2') && u.equipment.hand1 && u.equipment.hand1.twoHanded){
-    u.equipment.hand1.enchant = enchantData;
-    u.equipment.hand2.enchant = enchantData;
-  } else {
-    u.equipment[slot].enchant = enchantData;
-  }
-  await setData('users', users);
-  toast(`${enchantName} appliqué(e) !`);
-  render();
-}
-
-async function screenGuildes(){
-  const users = await getData('users', {});
-  const u = users[S.currentUser];
-  const guilds = await getData('guilds', {});
-  const g = u.guildId ? guilds[u.guildId] : null;
-
-  if(!g){
-    return `
-    ${topbarHTML(u)}
-    <button class="btn btn-small" onclick="goVillage()">← Retour au village</button>
-    <div class="panel center" style="flex-direction:column; margin-top:16px; padding:50px 24px;">
-      <div class="eyebrow">Guildes</div>
-      <p class="muted" style="text-align:center; max-width:420px;">Tu ne fais partie d'aucune guilde. Rassemble deux compagnons pour en fonder une.</p>
-      <button class="btn btn-primary" style="margin-top:14px;" onclick="createGuildOpen()">Créer une guilde</button>
-    </div>`;
-  }
-
-  const membersHtml = g.members.map(p=>{
-    const mu = users[p];
-    return `<div class="memberrow">
-      <span>${p===g.founder? '⭐ ':''}${mu?mu.pseudo:p} ${mu?`<span class="muted" style="font-size:13px;">(niv. ${mu.level})</span>`:''}</span>
-      <span class="muted" style="font-size:13px;">${mu&&mu.class? CLASSES[mu.class]?.label : ''}</span>
-    </div>`;
-  }).join('');
-
-  const bankItems = g.bank.items.length? g.bank.items.map(it=>`
-    <span class="item-pill">${it} <button class="link-btn" style="font-size:12px; margin-left:6px;" onclick="guildBankWithdrawItem('${it.replace(/'/g,"\\'")}')">retirer</button></span>
-  `).join('') : '<span class="muted">Coffre vide.</span>';
-
-  return `
-    ${topbarHTML(u)}
-    <button class="btn btn-small" onclick="goVillage()">← Retour au village</button>
-    <div class="panel" style="margin-top:16px;">
-      <div class="eyebrow">Guilde</div>
-      <h2>${g.emblem} ${g.name}</h2>
-      <div class="row" style="margin-top:8px;">
-        <span class="badge gold">Réputation: ${g.reputation}</span>
-        <span class="badge">${g.members.length} membres</span>
-      </div>
-      <div class="divider"></div>
-      <label>Membres</label>
-      ${membersHtml}
-      <div class="divider"></div>
-      <label>Banque de guilde — ${g.bank.gold} 🪙 or</label>
-      <div class="row" style="margin-top:8px;">
-        <input id="bank-gold-amt" type="number" min="1" placeholder="Montant à déposer" style="max-width:200px;">
-        <button class="btn btn-small" onclick="guildBankDeposit()">Déposer</button>
-        <input id="bank-gold-amt-w" type="number" min="1" placeholder="Montant à retirer" style="max-width:200px;">
-        <button class="btn btn-small" onclick="guildBankWithdraw()">Retirer</button>
-      </div>
-      <div class="row" style="margin-top:12px;">
-        <input id="bank-item-name" type="text" placeholder="Nom de l'objet à déposer" style="max-width:240px;">
-        <button class="btn btn-small" onclick="guildBankDepositItem()">Déposer l'objet</button>
-      </div>
-      <div style="margin-top:10px;">${bankItems}</div>
-    </div>
-  `;
-}
-
-async function screenGuildCreate(){
-  const users = await getData('users', {});
-  const u = users[S.currentUser];
-  return `
-    ${topbarHTML(u)}
-    <button class="btn btn-small" onclick="tryNav('guildes')">← Annuler</button>
-    <div class="panel" style="max-width:520px; margin:16px auto 0;">
-      <div class="eyebrow">Nouvelle guilde</div>
-      <h2>Fonder une guilde</h2>
-      <form onsubmit="submitGuildCreate(event)">
-        <div class="field"><label>Nom de la guilde</label><input id="g-name" type="text" placeholder="Les Lames d'Or"></div>
-        <div class="field"><label>Blason (emoji)</label><input id="g-emblem" type="text" placeholder="🛡️" maxlength="4"></div>
-        <div class="field"><label>Inviter un joueur (pseudo)</label><input id="g-inv1" type="text" placeholder="Pseudo du premier compagnon"></div>
-        <div class="field"><label>Inviter un second joueur (pseudo)</label><input id="g-inv2" type="text" placeholder="Pseudo du second compagnon"></div>
-        <button class="btn btn-primary" style="width:100%;" type="submit">Fonder la guilde</button>
+    <div id="task-list"></div>
+  </div>
+ 
+  <!-- CHAT -->
+  <div class="tab" id="tab-chat">
+    <div id="chat-box"></div>
+    <form id="chat-form" style="display:flex; gap:8px">
+      <input id="chat-input" placeholder="Écrire un message..." style="flex:1" />
+      <button class="primary">Envoyer</button>
+    </form>
+  </div>
+ 
+  <!-- MUSIQUE -->
+  <div class="tab" id="tab-music">
+    <div style="background:#1c1f26; padding:20px; border-radius:8px">
+      <h3 id="music-title">🎵 Aucun morceau</h3>
+      <form id="music-form" style="display:flex; gap:8px; margin-bottom:16px">
+        <input id="music-url" placeholder="Colle une URL audio (.mp3) à partager..." style="flex:1" />
+        <button class="primary">Charger</button>
       </form>
+      <audio id="audio-player" style="display:none"></audio>
+      <div id="music-controls" style="display:none; gap:10px; align-items:center">
+        <button class="primary" onclick="playMusic()">▶ Play</button>
+        <button class="primary" onclick="pauseMusic()">⏸ Pause</button>
+        <span id="music-status" style="opacity:.6; font-size:12px"></span>
+      </div>
+      <p style="opacity:.5; font-size:12px; margin-top:16px">💡 Astuce : héberge tes fichiers audio dans l'onglet "Fichiers" puis colle le lien ici.</p>
     </div>
-  `;
+  </div>
+ 
+  <!-- FICHIERS -->
+  <div class="tab" id="tab-files">
+    <label style="display:inline-block; padding:10px 16px; border-radius:6px; background:#4f7cff; color:#fff; cursor:pointer; margin-bottom:16px">
+      <span id="upload-label">📤 Envoyer un fichier</span>
+      <input type="file" id="file-input" style="display:none" onchange="uploadFile()" />
+    </label>
+    <div id="file-list"></div>
+  </div>
+ 
+  <!-- IA -->
+  <div class="tab" id="tab-ai">
+    <div id="ai-box"></div>
+    <form id="ai-form" style="display:flex; gap:8px">
+      <input id="ai-input" placeholder="Demande quelque chose à l'IA..." style="flex:1" />
+      <button class="primary">Envoyer</button>
+    </form>
+  </div>
+</div>
+ 
+<script>
+const socket = io();
+let username = localStorage.getItem('team_username') || '';
+ 
+// ---------- Nom / écran d'accueil ----------
+function setName() {
+  const val = document.getElementById('name-input').value.trim();
+  if (!val) return;
+  username = val;
+  localStorage.setItem('team_username', val);
+  init();
 }
-
-async function screenDonjons(){
-  const users = await getData('users', {});
-  const u = users[S.currentUser];
-  let dungeon = await getData('dungeon', null);
-  dungeon = await checkAutoResolve(dungeon);
-  const busy = dungeon && dungeon.status==='active';
-  const konneUnlocked = await getData('konneUnlocked', false);
-  const cards = Object.values(DUNGEONS).map(d=>{
-    const locked = d.key==='impossible' && !konneUnlocked;
-    return `
-    <div class="dungeon-card">
+function init() {
+  document.getElementById('name-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('who').textContent = username;
+  document.getElementById('task-assigned').value = username;
+  document.getElementById('task-date').value = new Date().toISOString().slice(0, 10);
+  loadTasks();
+  loadFiles();
+  socket.emit('music:request-state');
+}
+if (username) init();
+ 
+// ---------- Navigation ----------
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  document.getElementById('btn-' + name).classList.add('active');
+}
+ 
+// ================= PLANNING =================
+async function loadTasks() {
+  const date = document.getElementById('task-date').value;
+  const res = await fetch('/api/tasks?date=' + date);
+  const tasks = await res.json();
+  const list = document.getElementById('task-list');
+  list.innerHTML = '';
+  if (tasks.length === 0) list.innerHTML = '<p style="opacity:.6">Aucune tâche pour ce jour.</p>';
+  tasks.forEach(t => {
+    const div = document.createElement('div');
+    div.className = 'card';
+    const colors = { todo: '#888', in_progress: '#f0ad4e', done: '#4caf50' };
+    div.innerHTML = `
       <div>
-        <div class="display" style="font-size:18px;">${d.name}</div>
-        <div class="diff-${d.diff}" style="font-family:'Cinzel',serif; font-size:13px; margin-top:4px;">${d.diff} — ${d.tiers} tiers</div>
-        <div class="muted" style="font-size:13px; margin-top:4px;">${d.gold} or & ${d.xp} xp par tier réussi</div>
-        ${locked ? `<div style="font-size:12px; margin-top:6px; color:var(--blood-bright);">🔒 Scellé — retrouve d'abord l'Anneau de Konne (rôle-play)</div>` : ''}
+        <div style="font-weight:600">${escapeHtml(t.title)}</div>
+        <div style="font-size:12px; opacity:.7">👤 ${escapeHtml(t.assigned_to || '—')} · <span style="color:${colors[t.status]}">${t.status}</span></div>
       </div>
-      <button class="btn ${(busy||locked)?'':'btn-primary'}" ${(busy||locked)?'disabled':''} onclick="launchDungeon('${d.key}')">${locked?'Verrouillé':'Lancer'}</button>
-    </div>`;
-  }).join('');
-  return `
-    ${topbarHTML(u)}
-    <button class="btn btn-small" onclick="goVillage()">← Retour au village</button>
-    <div class="panel" style="margin-top:16px;">
-      <div class="eyebrow">Donjons</div>
-      <h2>Choisis ton épreuve</h2>
-      ${u.guildId? `<p class="muted">Tu es en guilde : tous les membres seront envoyés avec toi.</p>` : `<p class="muted">Tu n'as pas de guilde, tu partiras seul.</p>`}
-      ${busy? `<p style="color:var(--blood-bright);">Un donjon est déjà en cours dans le monde.</p>` : ''}
-      <div style="margin-top:14px;">${cards}</div>
-    </div>
-  `;
-}
-
-async function screenDungeonPlay(){
-  const users = await getData('users', {});
-  const u = users[S.currentUser];
-  let dungeon = await getData('dungeon', null);
-  dungeon = await checkAutoResolve(dungeon);
-  if(!dungeon || !dungeon.participants.includes(S.currentUser)){
-    S.view='village'; return screenVillage();
-  }
-  const cfg = DUNGEONS[dungeon.type];
-
-  if(dungeon.status !== 'active'){
-    // reward screen
-    const isGrandVictory = dungeon.type==='impossible' && dungeon.status==='won' && !dungeon.finishedByBots;
-    const already = dungeon.rewardsClaimed && dungeon.rewardsClaimed.includes(S.currentUser);
-
-    if(isGrandVictory){
-      if(!dungeon.epilogueLaunched){
-        return `
-          ${confettiHTML(50)}
-          ${topbarHTML(u)}
-          <div class="panel center" style="flex-direction:column; margin-top:16px; padding:60px 20px;">
-            <div class="victory-banner">
-              <div class="victory-title">🏆 VICTOIRE FINALE 🏆</div>
-              <p class="muted" style="margin-top:10px; max-width:460px; text-align:center;">${cfg.name} est vaincu ! Konne se souviendra de ${dungeon.participants.join(', ')} à jamais.</p>
-            </div>
-            <p class="muted" style="margin-top:18px;">Le meneu de jeu prépare l'épilogue... reste ici, tu vas y être transporté.</p>
-          </div>`;
-      }
-      if(!already){
-        dungeon.rewardsClaimed = dungeon.rewardsClaimed || [];
-        dungeon.rewardsClaimed.push(S.currentUser);
-        await setData('dungeon', dungeon);
-        const heroNames = dungeon.participants.map(p=>users[p]?users[p].pseudo:p);
-        S.view = 'village';
-        const villageHtml = await screenVillage();
-        showEpilogueCinematic(heroNames);
-        return villageHtml;
-      }
-      S.view = 'village';
-      return screenVillage();
-    }
-
-    if(already){
-      return `
-        ${topbarHTML(u)}
-        <div class="panel center" style="flex-direction:column; margin-top:16px; padding:60px 20px;">
-          <div class="eyebrow">${cfg.name}</div><h2>${dungeon.status==='won'? 'Victoire !' : 'Défaite...'}</h2>
-          <p class="muted">Récompense déjà réclamée.</p>
-          <button class="btn btn-primary" style="margin-top:14px;" onclick="goVillage()">Retourner au village</button>
-        </div>`;
-    }
-    return `
-      ${topbarHTML(u)}
-      <div class="panel center" style="flex-direction:column; margin-top:16px; padding:50px 20px;">
-        <div class="eyebrow">${cfg.name}</div>
-        <h2 style="color:${dungeon.status==='won'?'var(--emerald-bright)':'var(--blood-bright)'};">${dungeon.status==='won'? 'Victoire !' : 'Défaite...'}</h2>
-        <p class="muted">${dungeon.tiersCompleted} tier(s) réussi(s) sur ${dungeon.totalTiers}.</p>
-        <p class="muted">Tape sur le coffre pour débloquer ta récompense.</p>
-        <div id="chest-el" class="chest" onclick="tapChest()">🎁</div>
-        <div id="chest-progress" class="muted" style="margin-top:12px;">0 / 3 — continue de taper !</div>
+      <div style="display:flex; gap:6px">
+        <button onclick="toggleStatus('${t.id}','${t.status}')" style="border:none;border-radius:6px;padding:6px 10px;cursor:pointer">↻</button>
+        <button onclick="deleteTask('${t.id}')" style="border:none;border-radius:6px;padding:6px 10px;cursor:pointer;background:#8a2e2e;color:#fff">✕</button>
       </div>`;
+    list.appendChild(div);
+  });
+}
+document.getElementById('task-date').addEventListener('change', loadTasks);
+document.getElementById('task-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const title = document.getElementById('task-title').value.trim();
+  const assigned_to = document.getElementById('task-assigned').value.trim();
+  const due_date = document.getElementById('task-date').value;
+  if (!title) return;
+  await fetch('/api/tasks', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, assigned_to, due_date }),
+  });
+  document.getElementById('task-title').value = '';
+  loadTasks();
+});
+async function toggleStatus(id, current) {
+  const next = current === 'done' ? 'todo' : current === 'todo' ? 'in_progress' : 'done';
+  await fetch('/api/tasks/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: next }) });
+  loadTasks();
+}
+async function deleteTask(id) {
+  await fetch('/api/tasks/' + id, { method: 'DELETE' });
+  loadTasks();
+}
+ 
+// ================= CHAT =================
+socket.on('chat:message', (msg) => {
+  const box = document.getElementById('chat-box');
+  const div = document.createElement('div');
+  div.className = 'msg' + (msg.author === username ? ' me' : '');
+  div.innerHTML = `<b>${escapeHtml(msg.author)}</b> <span style="opacity:.5;font-size:11px">${new Date(msg.ts).toLocaleTimeString()}</span><div>${escapeHtml(msg.text)}</div>`;
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+});
+document.getElementById('chat-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const input = document.getElementById('chat-input');
+  if (!input.value.trim()) return;
+  socket.emit('chat:message', { author: username, text: input.value, ts: Date.now() });
+  input.value = '';
+});
+ 
+// ================= MUSIQUE =================
+const audioPlayer = document.getElementById('audio-player');
+let currentTrackUrl = null;
+socket.on('music:sync', (state) => {
+  if (state.url && state.url !== currentTrackUrl) {
+    currentTrackUrl = state.url;
+    audioPlayer.src = state.url;
+    document.getElementById('music-title').textContent = '🎵 ' + (state.title || 'Morceau partagé');
+    document.getElementById('music-controls').style.display = 'flex';
   }
-
-  // active tier display
-  if(dungeon.onBreak){
-    const remain = Math.max(0, dungeon.breakEnd - Date.now());
-    const m = Math.floor(remain/60000), s = Math.floor((remain%60000)/1000);
-    return `
-      ${topbarHTML(u)}
-      <div class="panel" style="margin-top:16px;">
-        <div class="eyebrow">${cfg.name} — pause</div>
-        <h2>Repos au campement</h2>
-        <p class="muted">Temps avant la reprise : ${m}m ${s<10?'0':''}${s}s</p>
-        <div class="navgrid" style="margin-top:16px;">
-          <div class="navcard" onclick="tryNav('personnage')"><span class="icon">🧙</span><div class="label">Personnage</div></div>
-          <div class="navcard" onclick="tryNav('guildes')"><span class="icon">🏰</span><div class="label">Guildes</div></div>
-          <div class="navcard" onclick="tryNav('hotelVentes')"><span class="icon">🏛️</span><div class="label">Hôtel des ventes</div></div>
-          <div class="navcard" onclick="tryNav('classements')"><span class="icon">🏆</span><div class="label">Classements</div></div>
-        </div>
-      </div>`;
+  if (state.positionSec != null && Math.abs(audioPlayer.currentTime - state.positionSec) > 1.5) {
+    audioPlayer.currentTime = state.positionSec;
   }
-
-  const totalDuration = dungeon.totalTiers * TIER_MS;
-  const remain = Math.max(0, totalDuration - (Date.now()-dungeon.startTime));
-  const m = Math.floor(remain/60000), s = Math.floor((remain%60000)/1000);
-  // Pour le donjon final (Château de l'Empereur Konne), les 3 derniers
-  // tiers sont présentés comme trois phases de boss nommées plutôt que
-  // comme de simples numéros de tier.
-  const KONNE_BOSS_PHASES = 3;
-  const isKonneDungeon = dungeon.type === 'impossible';
-  const bossStartTier = isKonneDungeon ? Math.max(1, dungeon.totalTiers - KONNE_BOSS_PHASES + 1) : dungeon.totalTiers;
-  const isBoss = dungeon.currentTier >= bossStartTier;
-  const konnePhase = isKonneDungeon && isBoss ? (dungeon.currentTier - bossStartTier + 1) : null;
-  return `
-    ${topbarHTML(u)}
-    <div class="panel ${isBoss?'boss-panel':''}" style="margin-top:16px; text-align:center;">
-      <div class="eyebrow" style="${isBoss?'color:var(--blood-bright);':''}">${cfg.name} — ${cfg.diff}</div>
-      ${isBoss? `<div class="boss-badge">⚔️ ${konnePhase ? `Konne — Phase ${konnePhase}` : 'Combat de boss'} ⚔️</div>` : ''}
-      <div class="tier-display ${isBoss?'boss-tier-display':''}">${konnePhase ? konnePhase : dungeon.currentTier}</div>
-      <div class="muted" style="margin-top:6px;">${konnePhase ? `Konne — Phase ${konnePhase} / ${KONNE_BOSS_PHASES}` : `sur ${dungeon.totalTiers} tiers`}</div>
-      ${isBoss? `<p class="boss-warn">${konnePhase ? `L'Empereur Konne déchaîne sa puissance — phase ${konnePhase} sur ${KONNE_BOSS_PHASES}.` : 'Le donjon retient son souffle. C\'est ici que tout se joue.'}</p>` : ''}
-      <div class="divider"></div>
-      <label>Temps restant pour vaincre le donjon</label>
-      <h3 style="font-size:32px; margin-top:6px; ${isBoss?'color:var(--blood-bright);':''}">${m}m ${s<10?'0':''}${s}s</h3>
-      <p class="muted" style="font-size:13px; margin-top:4px;">Si le temps s'écoule avant la fin du donjon, c'est la défaite.</p>
-      <p class="muted" style="margin-top:16px; font-size:14px;">Compagnons : ${dungeon.participants.join(', ')}</p>
-    </div>
-  `;
+  if (state.isPlaying) audioPlayer.play().catch(() => {}); else audioPlayer.pause();
+  document.getElementById('music-status').textContent = state.isPlaying ? "En lecture pour toute l'équipe" : 'En pause';
+});
+document.getElementById('music-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const url = document.getElementById('music-url').value.trim();
+  if (!url) return;
+  currentTrackUrl = url;
+  audioPlayer.src = url;
+  document.getElementById('music-title').textContent = '🎵 Partagé par ' + username;
+  document.getElementById('music-controls').style.display = 'flex';
+  broadcastMusic(0, false);
+});
+function playMusic() { audioPlayer.play(); broadcastMusic(audioPlayer.currentTime, true); }
+function pauseMusic() { audioPlayer.pause(); broadcastMusic(audioPlayer.currentTime, false); }
+function broadcastMusic(positionSec, isPlaying) {
+  socket.emit('music:sync', {
+    url: currentTrackUrl,
+    title: document.getElementById('music-title').textContent.replace('🎵 ', ''),
+    isPlaying, positionSec,
+  });
 }
-
-async function screenRp(){
-  const users = await getData('users', {});
-  const u = users[S.currentUser];
-  let rp = await getData('rpSession', null);
-  rp = await checkRpAutoResolve(rp);
-
-  const objectivesHtml = `
-    <div class="divider"></div>
-    <label>Objectifs de la quête</label>
-    <ul style="margin:8px 0 0; padding-left:22px;">
-      ${KONNE_RP.objectives.map(o=>`<li style="margin-bottom:8px;">${o}</li>`).join('')}
-    </ul>
-  `;
-
-  if(!rp || rp.status==='ended'){
-    const konneUnlocked = await getData('konneUnlocked', false);
-    return `
-      ${topbarHTML(u)}
-      <button class="btn btn-small" onclick="goVillage()">← Retour au village</button>
-      <div class="panel center" style="flex-direction:column; margin-top:16px; padding:60px 20px;">
-        <span style="font-size:44px;">📜</span>
-        <h2 style="margin-top:10px; text-align:center;">${KONNE_RP.title}</h2>
-        ${rp && rp.outcome ? `
-          <p class="muted" style="text-align:center; max-width:460px; margin-top:10px;">
-            ${rp.outcome==='success'
-              ? "Le meneur de jeu a déclaré la quête réussie. L'Anneau de Konne a été retrouvé, et suffisamment de factions se sont ralliées à votre cause."
-              : "Le meneur de jeu a déclaré la quête en échec."}
-          </p>
-          ${rp.outcome==='success' && konneUnlocked ? `<span class="badge gold" style="margin-top:10px;">⚔️ Le Château de l'Empereur Konne est désormais accessible</span>` : ''}
-        ` : `<p class="muted" style="text-align:center; max-width:420px;">Aucun salon n'est ouvert pour le moment. Le meneur de jeu peut en ouvrir un à tout moment — tu recevras alors une invitation.</p>`}
-      </div>`;
+ 
+// ================= FICHIERS =================
+async function loadFiles() {
+  const res = await fetch('/api/files');
+  const files = await res.json();
+  const list = document.getElementById('file-list');
+  list.innerHTML = '';
+  if (files.length === 0) list.innerHTML = '<p style="opacity:.6">Aucun fichier partagé pour l\\'instant.</p>';
+  files.forEach(f => {
+    const div = document.createElement('div');
+    div.className = 'card';
+    div.innerHTML = `<span>${escapeHtml(f.name.replace(/^\\d+-/, ''))}</span><a href="${f.url}" target="_blank" style="color:#4f7cff">Ouvrir / Télécharger</a>`;
+    list.appendChild(div);
+  });
+}
+async function uploadFile() {
+  const input = document.getElementById('file-input');
+  const file = input.files[0];
+  if (!file) return;
+  document.getElementById('upload-label').textContent = 'Envoi en cours...';
+  const formData = new FormData();
+  formData.append('file', file);
+  await fetch('/api/files/upload', { method: 'POST', body: formData });
+  document.getElementById('upload-label').textContent = '📤 Envoyer un fichier';
+  loadFiles();
+}
+ 
+// ================= IA =================
+document.getElementById('ai-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const input = document.getElementById('ai-input');
+  const text = input.value.trim();
+  if (!text) return;
+  addAiMsg('user', text);
+  input.value = '';
+  addAiMsg('assistant', '...réflexion...', true);
+  try {
+    const res = await fetch('/api/ai/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: text }) });
+    const data = await res.json();
+    removeLastAiMsg();
+    addAiMsg('assistant', data.reply || data.error);
+  } catch {
+    removeLastAiMsg();
+    addAiMsg('assistant', "Erreur de connexion à l'IA.");
   }
-
-  const isParticipant = (rp.participants||[]).includes(S.currentUser);
-  const participantsHtml = (rp.participants||[]).length ? `
-    <div class="divider"></div>
-    <label>Présents dans le salon</label>
-    <p class="muted" style="margin-top:6px;">${rp.participants.map(p=>users[p]?users[p].pseudo:p).join(', ')}</p>
-  ` : '';
-
-  if(rp.status==='draft'){
-    const startsIn = rp.waitingSince ? Math.max(0, RP_WAIT_MS - (Date.now()-rp.waitingSince)) : null;
-    const sm = startsIn!==null ? Math.floor(startsIn/60000) : null;
-    const ss = startsIn!==null ? Math.floor((startsIn%60000)/1000) : null;
-    return `
-      ${topbarHTML(u)}
-      ${!isParticipant ? `<button class="btn btn-small" onclick="goVillage()">← Retour au village</button>` : ''}
-      <div class="panel" style="margin-top:16px;">
-        <div class="eyebrow">Salle d'attente</div>
-        <h2>${KONNE_RP.title}</h2>
-        <p class="muted" style="margin-top:12px; white-space:pre-wrap;">${KONNE_RP.description}</p>
-        ${objectivesHtml}
-        ${participantsHtml}
-        <div class="divider"></div>
-        ${isParticipant ? `
-          ${startsIn!==null ? `
-            <span class="badge gold">⏳ La scène démarre dans ${sm}m ${ss<10?'0':''}${ss}s</span>
-            <p class="muted" style="font-size:14px; margin-top:12px;">Tu es dans le salon. La scène démarrera automatiquement dès que ce délai sera écoulé — aucune action nécessaire. Tu peux encore retourner au village en attendant si tu le souhaites.</p>
-          ` : `<p class="muted">Tu es dans le salon, en attente que la scène démarre.</p>`}
-        ` : `
-          <p class="muted" style="font-size:14px;">Cette scène n'a pas encore commencé.</p>
-          <button class="btn btn-primary" style="margin-top:14px;" onclick="joinRpScene()">Rejoindre le salon</button>
-        `}
-      </div>`;
-  }
-
-  // ---- Active : la scène est lancée ----
-  const remain = Math.max(0, rp.endTime - Date.now());
-  const m = Math.floor(remain/60000), s = Math.floor((remain%60000)/1000);
-
-  return `
-    ${topbarHTML(u)}
-    ${!isParticipant ? `<button class="btn btn-small" onclick="goVillage()">← Retour au village</button>` : ''}
-    <div class="panel" style="margin-top:16px;">
-      <div class="eyebrow">Scène en cours</div>
-      <h2>${KONNE_RP.title}</h2>
-      <p class="muted" style="margin-top:12px; white-space:pre-wrap;">${KONNE_RP.description}</p>
-      ${objectivesHtml}
-      ${participantsHtml}
-      <div class="divider"></div>
-      <label>Temps restant</label>
-      <h3 style="font-size:32px; margin-top:6px;">${m}m ${s<10?'0':''}${s}s</h3>
-      ${!isParticipant ? `
-        <button class="btn btn-primary" style="margin-top:16px;" onclick="joinRpScene()">Rejoindre la scène</button>
-      ` : `<p class="muted" style="font-size:13px; margin-top:10px;">La scène est en cours : tu n'as plus accès au reste du village tant qu'elle n'est pas terminée.</p>`}
-    </div>
-  `;
+});
+function addAiMsg(role, text, temp) {
+  const box = document.getElementById('ai-box');
+  const div = document.createElement('div');
+  div.style.marginBottom = '10px';
+  div.style.textAlign = role === 'user' ? 'right' : 'left';
+  if (temp) div.id = 'ai-temp';
+  div.innerHTML = `<span style="display:inline-block;padding:8px 12px;border-radius:10px;max-width:75%;background:${role === 'user' ? '#4f7cff' : '#2a2e38'}">${escapeHtml(text)}</span>`;
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
 }
-
-async function screenHotelVentes(){
-  const users = await getData('users', {});
-  const u = users[S.currentUser];
-  const market = await getData('market', {listings:[]});
-  const topCats = CATEGORY_TREE;
-  const filterCat = S.marketFilterCat || '';
-  const filterSub = S.marketFilterSub || '';
-  const subCatsOfFilter = filterCat ? (findCategoryTop(filterCat)?.subs || []) : [];
-
-  let listings = (market.listings||[]).slice().sort((a,b)=>b.createdAt-a.createdAt);
-  // Sélectionner juste la catégorie (sans sous-catégorie) affiche tout ce
-  // qu'elle contient, sous-catégories comprises.
-  if(filterCat) listings = listings.filter(l=>l.categoryTopId===filterCat);
-  if(filterSub) listings = listings.filter(l=>l.categorySubId===filterSub);
-
-  const hasWandOrStaff = await userHasWandOrStaff(u);
-
-  const filterHtml = `
-    <div class="row" style="margin-bottom:6px;">
-      <select style="max-width:220px;" onchange="setMarketFilter(this.value, '')">
-        <option value="">Toutes les catégories</option>
-        ${topCats.map(c=>`<option value="${c.id}" ${filterCat===c.id?'selected':''}>${c.name}</option>`).join('')}
-      </select>
-      ${filterCat && subCatsOfFilter.length ? `
-        <select style="max-width:220px;" onchange="setMarketFilter('${filterCat}', this.value)">
-          <option value="">Toutes les sous-catégories</option>
-          ${subCatsOfFilter.map(s=>`<option value="${s.id}" ${filterSub===s.id?'selected':''}>${s.name}</option>`).join('')}
-        </select>` : ''}
-      ${filterCat ? `<button class="btn btn-small" onclick="setMarketFilter('','')">Réinitialiser</button>` : ''}
-    </div>
-  `;
-
-  const rows = listings.length ? listings.map(l=>{
-    const r = RARITIES[l.rarity];
-    const rarityLine = r ? `<div style="font-family:'Cinzel',serif; font-size:12px; letter-spacing:0.05em; margin-top:4px; color:${r.color};">${r.label}</div>` : '';
-    const locked = l.requiresStaff && !hasWandOrStaff;
-    const canAfford = u.gold >= l.price;
-    return `
-    <div class="dungeon-card">
-      <div>
-        <div class="display" style="font-size:17px;">${l.itemName}${l.requiresStaff? ' 🪄':''}</div>
-        ${rarityLine}
-        ${l.description? `<div class="muted" style="font-size:13px; font-style:italic; margin-top:4px;">${l.description}</div>` : ''}
-        <div class="muted" style="font-size:13px; margin-top:4px;">${l.categoryLabel? l.categoryLabel+' · ' : ''}vendu par ${l.sellerPseudo}</div>
-        ${locked? `<div style="font-size:12px; color:var(--blood-bright); margin-top:4px;">Nécessite une baguette ou un bâton équipé/possédé.</div>` : ''}
-      </div>
-      <div style="text-align:right;">
-        <div class="badge gold" style="margin-bottom:8px;">${l.price} 🪙</div><br>
-        <button class="btn btn-small btn-primary" ${(!canAfford||locked)?'disabled':''} onclick="buyMarketItem('${l.id}')">Acheter</button>
-      </div>
-    </div>`;
-  }).join('') : `<p class="muted" style="margin-top:14px;">Aucun objet en vente pour l'instant. Reviens plus tard, voyageur.</p>`;
-
-  const sellBlock = u.items.length ? `
-    <div class="panel" style="margin-top:20px;">
-      <div class="eyebrow">Vendre un de tes objets</div>
-      <p class="muted" style="font-size:13px;">D'autres joueurs — et parfois des aventuriers de passage — peuvent l'acheter.</p>
-      <form onsubmit="sellMyItem(event)">
-        <div class="row" style="margin-top:8px;">
-          <select id="sell-item-name" style="max-width:240px;">
-            ${u.items.map(it=>`<option value="${it.replace(/"/g,'&quot;')}">${it}</option>`).join('')}
-          </select>
-          <input id="sell-item-price" type="number" min="1" placeholder="Prix en or" style="max-width:140px;">
-          <button class="btn btn-small btn-primary" type="submit">Mettre en vente</button>
-        </div>
-      </form>
-    </div>` : '';
-
-  return `
-    ${topbarHTML(u)}
-    <button class="btn btn-small" onclick="goVillage()">← Retour au village</button>
-    <div class="panel" style="margin-top:16px;">
-      <div class="eyebrow">Hôtel des ventes</div>
-      <h2>Marché de Konne</h2>
-      <div class="row" style="margin-top:6px;"><span class="badge gold">Ta bourse : ${u.gold} 🪙</span></div>
-      <div class="divider"></div>
-      ${filterHtml}
-      <div style="margin-top:10px;">${rows}</div>
-    </div>
-    ${sellBlock}
-  `;
+function removeLastAiMsg() {
+  const el = document.getElementById('ai-temp');
+  if (el) el.remove();
 }
-
-async function screenClassements(){
-  const users = await getData('users', {});
-  const guilds = await getData('guilds', {});
-  const uArr = Object.values(users).filter(u=>!u.isAdmin)
-    .sort((a,b)=> b.level-a.level || b.xp-a.xp)
-    .slice(0,50);
-  const gArr = Object.values(guilds)
-    .sort((a,b)=>b.reputation-a.reputation)
-    .slice(0,30);
-  const u = users[S.currentUser];
-  return `
-    ${topbarHTML(u)}
-    <button class="btn btn-small" onclick="goVillage()">← Retour au village</button>
-    <div class="panel" style="margin-top:16px;">
-      <div class="eyebrow">Classements</div>
-      <h2>Joueurs</h2>
-      <table><thead><tr><th>#</th><th>Pseudo</th><th>Classe</th><th>Niveau</th></tr></thead>
-      <tbody>${uArr.map((p,i)=>`<tr><td>${i+1}</td><td>${p.pseudo}</td><td>${CLASSES[p.class]?.label||'-'}</td><td>${p.level}</td></tr>`).join('')}</tbody></table>
-      <div class="divider"></div>
-      <h2>Guildes</h2>
-      <table><thead><tr><th>#</th><th>Guilde</th><th>Réputation</th></tr></thead>
-      <tbody>${gArr.map((g,i)=>`<tr><td>${i+1}</td><td>${g.emblem} ${g.name}</td><td>${g.reputation}</td></tr>`).join('')}</tbody></table>
-    </div>
-  `;
+ 
+function escapeHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str ?? '';
+  return d.innerHTML;
 }
-
-function screenPlaceholder(title, icon, msg){
-  return async ()=>{
-    const users = await getData('users', {});
-    const u = users[S.currentUser];
-    return `
-      ${topbarHTML(u)}
-      <button class="btn btn-small" onclick="goVillage()">← Retour au village</button>
-      <div class="panel center" style="flex-direction:column; margin-top:16px; padding:60px 20px;">
-        <span style="font-size:44px;">${icon}</span>
-        <h2 style="margin-top:10px;">${title}</h2>
-        <p class="muted">${msg}</p>
-      </div>`;
-  };
-}
-
-async function screenAdmin(){
-  const users = await getData('users', {});
-  const u = users[S.currentUser];
-  const season = await getData('season', {started:false});
-  let dungeon = await getData('dungeon', null);
-  dungeon = await checkAutoResolve(dungeon);
-  const guilds = await getData('guilds', {});
-  const itemCatalog = await getData('itemCatalog', {});
-  const market = await getData('market', {listings:[]});
-  const botTimer = await getData('dungeonBotTimer', {enabled:false, deadline:null});
-  let rpSession = await getData('rpSession', null);
-  rpSession = await checkRpAutoResolve(rpSession);
-
-
-  const realPlayers = Object.values(users).filter(x=>!x.isAdmin && !x.isBot);
-  const botCount = Object.values(users).filter(x=>x.isBot).length;
-  const botGuildCount = Object.values(guilds).filter(g=>{
-    const mem = (g.members||[]).map(m=>users[m]).filter(Boolean);
-    return mem.length>0 && mem.every(m=>m.isBot);
-  }).length;
-
-  let dungeonBlock = `<p class="muted">Aucun donjon en cours.</p>`;
-  if(dungeon){
-    const cfg = DUNGEONS[dungeon.type];
-    const totalDuration = dungeon.totalTiers * TIER_MS;
-    const remain = Math.max(0, totalDuration - (Date.now()-dungeon.startTime));
-    const rm = Math.floor(remain/60000), rs = Math.floor((remain%60000)/1000);
-    const isGrandVictory = dungeon.type==='impossible' && dungeon.status==='won' && !dungeon.finishedByBots;
-    dungeonBlock = `
-      <div class="row" style="margin-bottom:10px;">
-        <span class="badge gold">${cfg.name}</span>
-        <span class="badge">Statut: ${dungeon.status}</span>
-        <span class="badge">Tier ${dungeon.currentTier}/${dungeon.totalTiers}</span>
-        <span class="badge">Réussis: ${dungeon.tiersCompleted}</span>
-        ${dungeon.status==='active'? `<span class="badge">Temps restant: ${rm}m ${rs<10?'0':''}${rs}s</span>` : ''}
-        ${dungeon.onBreak? '<span class="badge">En pause</span>':''}
-        ${dungeon.finishedByBots? '<span class="badge" style="border-color:var(--blood-bright); color:var(--blood-bright);">Terminé par les bots</span>':''}
-        ${isGrandVictory && dungeon.epilogueLaunched? '<span class="badge gold">Épilogue lancé</span>':''}
-      </div>
-      <p class="muted">Participants : ${dungeon.participants.join(', ')}</p>
-      ${!isGrandVictory ? `<p class="muted">Récompenses réclamées : ${(dungeon.rewardsClaimed||[]).join(', ')||'aucune'}</p>` : ''}
-      <div class="row" style="margin-top:12px;">
-        ${dungeon.status==='active' ? `
-          ${dungeon.onBreak? `<button class="btn" onclick="adminEndBreakNow()">Terminer la pause</button>` : `<button class="btn btn-primary" onclick="adminAdvanceTier()">Tier suivant</button>`}
-          <button class="btn btn-danger" onclick="adminDeclare('lost')">Déclarer défaite</button>
-        ` : isGrandVictory && !dungeon.epilogueLaunched ? `
-          <button class="btn btn-primary" onclick="adminLaunchEpilogue()">Lancer l'épilogue (termine la saison)</button>
-        ` : `<button class="btn" onclick="adminResetDungeon()">Réinitialiser (libérer le monde)</button>`}
-      </div>
-      ${isGrandVictory && !dungeon.epilogueLaunched ? `<p class="muted" style="font-size:13px; margin-top:10px;">Le château est tombé. Les joueurs attendent que tu lances l'épilogue — aucune récompense à réclamer pour ce donjon, place au récit.</p>` : ''}
-      <p class="muted" style="font-size:13px; margin-top:10px;">Victoire automatique dès que le dernier tier est validé. Si le temps global s'épuise avant, c'est une défaite automatique.</p>
-      <div class="divider"></div>
-      <label>Minuteur secret (invisible pour les joueurs)</label>
-      <p class="muted" style="font-size:13px;">Si activé, les bots terminent ce donjon à la place des joueurs une fois le délai écoulé — la saison s'arrête alors automatiquement.</p>
-      ${dungeon.status==='active' ? `
-        ${botTimer.enabled ? `
-          <div class="row" style="margin-top:8px; align-items:center;">
-            <span class="badge gold">Minuteur actif — ${Math.max(0,Math.ceil((botTimer.deadline-Date.now())/60000))} min restantes</span>
-            <button class="btn btn-small btn-danger" onclick="adminCancelBotTimer()">Désactiver</button>
-          </div>
-        ` : `
-          <div class="row" style="margin-top:8px;">
-            <input id="bot-timer-min" type="number" min="1" placeholder="Minutes avant que les bots terminent" style="max-width:260px;">
-            <button class="btn btn-small" onclick="adminSetBotTimer()">Activer le minuteur secret</button>
-          </div>
-        `}
-      ` : `<p class="muted" style="font-size:13px;">Disponible uniquement pendant qu'un donjon est actif.</p>`}
-    `;
-  }
-
-  const userRows = realPlayers.map(x=>`
-    <tr><td>${x.pseudo}</td><td>${CLASSES[x.class]?.label||'-'}</td><td>${x.level}</td><td>${x.gold}</td><td>${x.guildId? (guilds[x.guildId]?.name||'-') : '-'}</td></tr>
-  `).join('');
-
-  // ---- Bloc catégories (fixes) ----
-  const topCats = CATEGORY_TREE;
-  const catRows = topCats.map(c=>{
-    return `<div class="memberrow"><span>${c.name}</span><span class="muted" style="font-size:13px;">${c.subs.length? c.subs.map(s=>s.name).join(', ') : 'aucune sous-catégorie'}</span></div>`;
-  }).join('');
-
-  // ---- Bloc création d'objets ----
-  const rarityOptions = Object.keys(RARITIES).map(k=>`<option value="${k}">${RARITIES[k].label} (${RARITIES[k].min}-${RARITIES[k].max} or)</option>`).join('');
-  const topCatOptions = topCats.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
-
-  // ---- Bloc catalogue d'objets (non assignés / assignés) ----
-  const bots = Object.values(users).filter(x=>x.isBot);
-  const botOptions = bots.slice(0,300).map(b=>`<option value="${Object.keys(users).find(k=>users[k]===b)}">${b.pseudo} (niv. ${b.level})</option>`).join('');
-  const allItems = Object.values(itemCatalog).sort((a,b)=>b.createdAt-a.createdAt);
-  const unassignedCount = allItems.filter(it=>!it.assignedTo).length;
-  const listedCount = allItems.filter(it=>it.listed).length;
-  const pendingCount = allItems.filter(it=>it.assignedTo && !it.listed).length;
-  // priorité d'affichage : non-assignés d'abord (à traiter), puis les plus récents — limité à 40 lignes
-  const displayItems = allItems.filter(it=>!it.assignedTo).slice(0,40)
-    .concat(allItems.filter(it=>it.assignedTo).slice(0,10));
-  const catalogRows = displayItems.map(it=>{
-    const r = RARITIES[it.rarity]||{label:it.rarity,color:'var(--parchment-dim)'};
-    let status;
-    if(it.listed) status = `<span class="badge gold">En vente à l'hôtel des ventes</span>`;
-    else if(it.assignedTo) status = `<span class="badge">Confié, mise en vente imminente…</span>`;
-    else status = `
-      <span class="row" style="align-items:center;">
-        <select id="assign-bot-${it.id}" style="max-width:200px;"><option value="">— choisir un aventurier —</option>${botOptions}</select>
-        <button class="btn btn-small" onclick="adminAssignItemToBot('${it.id}')">Confier & mettre en vente</button>
-      </span>`;
-    return `
-      <div class="memberrow" style="align-items:flex-start; flex-wrap:wrap;">
-        <span><strong>${it.name}</strong> <span style="color:${r.color}; font-size:12px; font-family:'Cinzel',serif;">${r.label}</span>
-          <span class="muted" style="font-size:12px;"> — ${it.value} or ${it.categoryLabel? '· '+it.categoryLabel : ''}${it.requiresStaff? ' · 🪄 nécessite baguette/bâton':''}</span>
-          ${it.description? `<div class="muted" style="font-size:12px; font-style:italic;">${it.description}</div>` : ''}</span>
-        <span>${status}</span>
-      </div>`;
-  }).join('') || '<p class="muted">Aucun objet créé pour l\'instant.</p>';
-
-  return `
-    ${topbarHTML(u)}
-    <div class="panel">
-      <div class="eyebrow">Panneau d'administration</div>
-      <h2>Maître du jeu</h2>
-      <div class="row" style="margin-top:14px;">
-        <span class="badge ${season.started?'gold':''}">Saison ${season.started? 'active':'inactive'}</span>
-        ${season.started? `<button class="btn btn-danger btn-small" onclick="adminEndSeason()">Arrêter la saison</button>`
-                          : `<button class="btn btn-primary btn-small" onclick="adminStartSeason()">Lancer la saison</button>`}
-        <span class="badge">🤖 ${botCount} bots vivants</span>
-        <span class="badge">🏰 ${botGuildCount} guildes de bots</span>
-        <span class="badge">🏛️ ${(market.listings||[]).length} objets en vente</span>
-      </div>
-      <div class="divider"></div>
-      <label>Donjon en cours</label>
-      ${dungeonBlock}
-      <div class="divider"></div>
-      <label>Joueurs réels (${realPlayers.length}) — les bots ne sont pas listés ici</label>
-      <table><thead><tr><th>Pseudo</th><th>Classe</th><th>Niv.</th><th>Or</th><th>Guilde</th></tr></thead>
-      <tbody>${userRows || '<tr><td class="muted">Aucun joueur inscrit.</td></tr>'}</tbody></table>
-    </div>
-
-    <div class="panel" style="margin-top:20px;">
-      <div class="eyebrow">Rôle-play</div>
-      <h2>${KONNE_RP.title}</h2>
-      ${rpSession && rpSession.status==='active' ? `
-        <div class="row" style="margin-bottom:12px;">
-          <span class="badge gold">Scène en cours</span>
-          <span class="badge">${Math.max(0,Math.ceil((rpSession.endTime-Date.now())/60000))} min restantes</span>
-          <span class="badge">${(rpSession.participants||[]).length} présent(s)</span>
-        </div>
-        <p class="muted" style="font-size:13px;">Objectifs : ${KONNE_RP.objectives.join(' · ')}</p>
-        ${(rpSession.participants||[]).length ? `<p class="muted" style="font-size:13px; margin-top:6px;">Présents : ${rpSession.participants.map(p=>users[p]?users[p].pseudo:p).join(', ')}</p>` : ''}
-        <div class="divider"></div>
-        <label>Invitations automatiques</label>
-        <p class="muted" style="font-size:13px;">${rpSession.autoInviteEnabled ? `Activées — une invitation est renvoyée toutes les 10 minutes à ceux qui ne sont pas encore dans le salon.` : `Désactivées.`}</p>
-        <div class="row" style="margin-top:8px;">
-          <button class="btn btn-small" onclick="adminToggleRpAutoInvite()">${rpSession.autoInviteEnabled ? 'Désactiver' : 'Activer'} les invitations auto</button>
-          <button class="btn btn-small" onclick="adminSendRpInviteNow()">Envoyer une invitation maintenant</button>
-        </div>
-        <div class="divider"></div>
-        <label>Résolution de la quête</label>
-        <p class="muted" style="font-size:13px;">Déclare l'issue quand tu juges que la scène est arrivée à son terme — cela ferme aussitôt le salon.</p>
-        <div class="row" style="margin-top:8px;">
-          <button class="btn btn-small" onclick="adminExtendRpSession(10)">+10 min</button>
-          <button class="btn btn-primary btn-small" onclick="adminDeclareRpOutcome('success')">✅ Réussite (déverrouille Konne)</button>
-          <button class="btn btn-danger btn-small" onclick="adminDeclareRpOutcome('failure')">❌ Échec</button>
-          <button class="btn btn-small" onclick="adminEndRpSession()">Terminer sans trancher</button>
-        </div>
-        <p class="muted" style="font-size:13px; margin-top:10px;">La scène est lancée : les participants n'ont plus accès au reste du village tant qu'elle n'est pas terminée.</p>
-      ` : rpSession && rpSession.status==='draft' ? `
-        <div class="row" style="margin-bottom:12px;">
-          <span class="badge gold">Salle d'attente ouverte</span>
-          ${rpSession.waitingSince ? `<span class="badge">Lancement auto dans ${Math.max(0,Math.ceil((RP_WAIT_MS-(Date.now()-rpSession.waitingSince))/60000))} min</span>` : `<span class="badge">En attente du premier joueur</span>`}
-          <span class="badge">${(rpSession.participants||[]).length} dans le salon</span>
-        </div>
-        <p class="muted" style="font-size:13px;">Dès qu'un premier joueur rejoint, la scène se lance automatiquement 5 minutes plus tard.</p>
-        <div class="divider"></div>
-        <label>Joueurs dans le salon d'attente</label>
-        <p class="muted" style="margin-top:6px;">${(rpSession.participants||[]).length ? rpSession.participants.map(p=>users[p]?users[p].pseudo:p).join(', ') : "Personne pour l'instant — les invitations ont été envoyées."}</p>
-        <div class="row" style="margin-top:12px;">
-          <button class="btn btn-small" onclick="adminSendRpInviteNow()">Renvoyer les invitations</button>
-          <button class="btn btn-small" onclick="adminToggleRpAutoInvite()">${rpSession.autoInviteEnabled ? 'Désactiver' : 'Activer'} les relances auto (10 min)</button>
-        </div>
-        <div class="row" style="margin-top:14px;">
-          ${(rpSession.participants||[]).length ? `<button class="btn btn-primary btn-small" onclick="adminForceLaunchNow()">Lancer immédiatement (ignorer le délai)</button>` : ''}
-          <button class="btn btn-small btn-danger" onclick="adminResetRp()">Fermer le salon</button>
-        </div>
-        <p class="muted" style="font-size:13px; margin-top:10px;">Tant que la scène n'a pas démarré, les joueurs présents gardent un accès au village s'ils le souhaitent.</p>
-      ` : `
-        <p class="muted">${rpSession && rpSession.outcome ? `Dernière issue déclarée : ${rpSession.outcome==='success'?'✅ réussite':'❌ échec'}.` : 'Aucun salon en préparation.'}</p>
-        <p class="muted" style="font-size:13px; margin-top:6px;">Objectifs : ${KONNE_RP.objectives.join(' · ')} — durée de la scène une fois lancée : ${KONNE_RP.durationMin} min.</p>
-        <button class="btn btn-primary" style="margin-top:12px;" onclick="adminActivateRp()">Ouvrir le salon et envoyer les invitations</button>
-      `}
-    </div>
-
-    <div class="panel" style="margin-top:20px;">
-      <div class="eyebrow">Hôtel des ventes — catégories</div>
-      <h2>Catégories & sous-catégories</h2>
-      <p class="muted" style="font-size:13px;">Ces catégories sont fixes — choisis simplement parmi elles en créant un objet ci-dessous.</p>
-      <div style="margin-top:10px;">${catRows}</div>
-    </div>
-
-    <div class="panel" style="margin-top:20px;">
-      <div class="eyebrow">Hôtel des ventes — objets</div>
-      <h2>Créer un objet</h2>
-      <div class="field">
-        <label>Charger un objet prédéfini</label>
-        <select id="item-preset" onchange="applyItemPreset(this.value)">
-          <option value="">— Objet personnalisé —</option>
-          ${ITEM_PRESETS.map(p=>`<option value="${p.name.replace(/"/g,'&quot;')}">${p.name} (${p.price} or · ${RARITIES[p.rarity].label})</option>`).join('')}
-        </select>
-      </div>
-      <form onsubmit="adminCreateItem(event)">
-        <div class="row">
-          <div class="field" style="flex:1; min-width:200px;"><label>Nom de l'objet</label><input id="item-name" type="text" placeholder="Épée de Konne"></div>
-          <div class="field" style="min-width:200px;">
-            <label>Rareté</label>
-            <select id="item-rarity" onchange="updateRarityHint()">
-              <option value="">— choisir —</option>
-              ${rarityOptions}
-            </select>
-            <div id="rarity-hint" class="muted" style="font-size:12px; margin-top:4px;"></div>
-          </div>
-          <div class="field" style="max-width:140px;">
-            <label>Quantité</label>
-            <input id="item-qty" type="number" min="1" max="200" value="1">
-          </div>
-          <div class="field" style="max-width:140px;">
-            <label>Prix fixe (optionnel)</label>
-            <input id="item-price-fixed" type="number" min="1" placeholder="ex: 5">
-          </div>
-        </div>
-        <div class="row">
-          <div class="field" style="min-width:200px;">
-            <label>Catégorie</label>
-            <select id="item-cat" onchange="updateSubcatSelect()">
-              <option value="">— Catégorie (optionnel) —</option>
-              ${topCatOptions}
-            </select>
-          </div>
-          <div class="field" style="min-width:200px;">
-            <label>Sous-catégorie</label>
-            <select id="item-subcat"><option value="">— Sous-catégorie (optionnel) —</option></select>
-          </div>
-        </div>
-        <div class="field">
-          <label>Description</label>
-          <textarea id="item-description" rows="2" placeholder="Une brève description de l'objet…"></textarea>
-        </div>
-        <div class="field">
-          <label style="display:inline-flex; align-items:center; gap:8px;">
-            <input id="item-requires-staff" type="checkbox" style="width:auto;">
-            Nécessite une baguette ou un bâton équipé pour être utilisé (sorts)
-          </label>
-        </div>
-        <button class="btn btn-primary" type="submit">Créer l'objet (ou le lot)</button>
-      </form>
-      <div class="row" style="margin-top:14px;">
-        <button class="btn" onclick="adminDistributeUnassigned()">🎲 Distribuer aléatoirement les objets non confiés à des bots</button>
-        <button class="btn" onclick="adminCreateAllPresetItems()">📜 Créer un exemplaire de chaque objet prédéfini</button>
-      </div>
-      <div class="divider"></div>
-      <label>Catalogue d'objets — ${allItems.length} au total (${unassignedCount} à confier, ${pendingCount} en attente de mise en vente, ${listedCount} en vente)</label>
-      ${allItems.length>displayItems.length? `<p class="muted" style="font-size:12px;">Affichage limité aux objets non-confiés en priorité + 10 plus récents assignés.</p>`:''}
-      <div>${catalogRows}</div>
-    </div>
-  `;
-}
-
-boot();
 </script>
 </body>
 </html>
