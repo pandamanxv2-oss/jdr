@@ -1,313 +1,48 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Team Hub</title>
-<script src="/socket.io/socket.io.js"></script>
-<style>
-  * { box-sizing: border-box; }
-  body { margin: 0; background: #0f1115; color: #eaeaea; font-family: 'Segoe UI', sans-serif; }
-  #app { max-width: 900px; margin: 0 auto; padding: 20px; }
-  header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-  h1 { font-size: 22px; }
-  nav { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
-  nav button { padding: 8px 14px; border-radius: 8px; border: none; cursor: pointer; background: #1c1f26; color: #fff; }
-  nav button.active { background: #4f7cff; font-weight: 600; }
-  input, textarea { padding: 8px; border-radius: 6px; background: #1c1f26; color: #fff; border: 1px solid #333; }
-  button.primary { padding: 8px 14px; border-radius: 6px; border: none; background: #4f7cff; color: #fff; cursor: pointer; }
-  .card { background: #1c1f26; padding: 12px; border-radius: 8px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
-  .tab { display: none; }
-  .tab.active { display: block; }
-  #chat-box, #ai-box { height: 400px; overflow-y: auto; background: #1c1f26; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
-  .msg { margin-bottom: 8px; }
-  .msg b { color: #f0ad4e; }
-  .msg.me b { color: #4f7cff; }
-  #name-screen { height: 100vh; display: flex; align-items: center; justify-content: center; text-align: center; }
-</style>
+  <meta charset="UTF-8">
+  <title>EVA Trainer - Prototype</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { margin: 0; overflow: hidden; background: #000; }
+    #info {
+      position: absolute;
+      top: 10px;
+      width: 100%;
+      text-align: center;
+      color: white;
+      font-family: sans-serif;
+      font-size: 14px;
+      z-index: 1;
+    }
+  </style>
 </head>
 <body>
- 
-<div id="name-screen">
-  <div>
-    <h2>Bienvenue sur Team Hub 🎬</h2>
-    <p style="opacity:.7">Entre ton prénom pour rejoindre l'équipe</p>
-    <input id="name-input" placeholder="Ton prénom" />
-    <button class="primary" onclick="setName()">Entrer</button>
-  </div>
-</div>
- 
-<div id="app" style="display:none">
-  <header>
-    <h1>🎬 Team Hub</h1>
-    <span style="opacity:.7">Connecté en tant que <b id="who"></b></span>
-  </header>
- 
-  <nav>
-    <button onclick="showTab('tasks')" id="btn-tasks" class="active">📅 Planning</button>
-    <button onclick="showTab('chat')" id="btn-chat">💬 Chat</button>
-    <button onclick="showTab('music')" id="btn-music">🎵 Musique</button>
-    <button onclick="showTab('files')" id="btn-files">📁 Fichiers</button>
-    <button onclick="showTab('ai')" id="btn-ai">🤖 Assistant IA</button>
-  </nav>
- 
-  <!-- PLANNING -->
-  <div class="tab active" id="tab-tasks">
-    <div style="margin-bottom:16px">
-      <input type="date" id="task-date" />
+  <div id="info">EVA Trainer — prototype 1 : arène + tir + cible</div>
+
+  <div id="menu" style="
+    position: absolute; inset: 0; z-index: 2;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: #101018; color: white; font-family: sans-serif; gap: 20px;">
+    <h1 style="font-size: 22px; font-weight: 500;">EVA Trainer</h1>
+    <p style="color: #aaa; font-size: 14px;">Choisis un mode pour commencer</p>
+    <div style="display: flex; gap: 16px;">
+      <button id="btn-pc" style="padding: 14px 28px; font-size: 16px; cursor: pointer;">Mode PC</button>
+      <button id="btn-vr" style="padding: 14px 28px; font-size: 16px; cursor: pointer;">Mode VR (Pico 4)</button>
     </div>
-    <form id="task-form" style="display:flex; gap:8px; margin-bottom:16px">
-      <input id="task-title" placeholder="Nouvelle tâche..." style="flex:1" />
-      <input id="task-assigned" placeholder="Assigné à" style="width:120px" />
-      <button class="primary">Ajouter</button>
-    </form>
-    <div id="task-list"></div>
+    <p id="menu-msg" style="color: #e24b4a; font-size: 13px; min-height: 18px;"></p>
   </div>
- 
-  <!-- CHAT -->
-  <div class="tab" id="tab-chat">
-    <div id="chat-box"></div>
-    <form id="chat-form" style="display:flex; gap:8px">
-      <input id="chat-input" placeholder="Écrire un message..." style="flex:1" />
-      <button class="primary">Envoyer</button>
-    </form>
-  </div>
- 
-  <!-- MUSIQUE -->
-  <div class="tab" id="tab-music">
-    <div style="background:#1c1f26; padding:20px; border-radius:8px">
-      <h3 id="music-title">🎵 Aucun morceau</h3>
-      <form id="music-form" style="display:flex; gap:8px; margin-bottom:16px">
-        <input id="music-url" placeholder="Colle une URL audio (.mp3) à partager..." style="flex:1" />
-        <button class="primary">Charger</button>
-      </form>
-      <audio id="audio-player" style="display:none"></audio>
-      <div id="music-controls" style="display:none; gap:10px; align-items:center">
-        <button class="primary" onclick="playMusic()">▶ Play</button>
-        <button class="primary" onclick="pauseMusic()">⏸ Pause</button>
-        <span id="music-status" style="opacity:.6; font-size:12px"></span>
-      </div>
-      <p style="opacity:.5; font-size:12px; margin-top:16px">💡 Astuce : héberge tes fichiers audio dans l'onglet "Fichiers" puis colle le lien ici.</p>
-    </div>
-  </div>
- 
-  <!-- FICHIERS -->
-  <div class="tab" id="tab-files">
-    <label style="display:inline-block; padding:10px 16px; border-radius:6px; background:#4f7cff; color:#fff; cursor:pointer; margin-bottom:16px">
-      <span id="upload-label">📤 Envoyer un fichier</span>
-      <input type="file" id="file-input" style="display:none" onchange="uploadFile()" />
-    </label>
-    <div id="file-list"></div>
-  </div>
- 
-  <!-- IA -->
-  <div class="tab" id="tab-ai">
-    <div id="ai-box"></div>
-    <form id="ai-form" style="display:flex; gap:8px">
-      <input id="ai-input" placeholder="Demande quelque chose à l'IA..." style="flex:1" />
-      <button class="primary">Envoyer</button>
-    </form>
-  </div>
-</div>
- 
-<script>
-const socket = io();
-let username = localStorage.getItem('team_username') || '';
- 
-// ---------- Nom / écran d'accueil ----------
-function setName() {
-  const val = document.getElementById('name-input').value.trim();
-  if (!val) return;
-  username = val;
-  localStorage.setItem('team_username', val);
-  init();
-}
-function init() {
-  document.getElementById('name-screen').style.display = 'none';
-  document.getElementById('app').style.display = 'block';
-  document.getElementById('who').textContent = username;
-  document.getElementById('task-assigned').value = username;
-  document.getElementById('task-date').value = new Date().toISOString().slice(0, 10);
-  loadTasks();
-  loadFiles();
-  socket.emit('music:request-state');
-}
-if (username) init();
- 
-// ---------- Navigation ----------
-function showTab(name) {
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
-  document.getElementById('tab-' + name).classList.add('active');
-  document.getElementById('btn-' + name).classList.add('active');
-}
- 
-// ================= PLANNING =================
-async function loadTasks() {
-  const date = document.getElementById('task-date').value;
-  const res = await fetch('/api/tasks?date=' + date);
-  const tasks = await res.json();
-  const list = document.getElementById('task-list');
-  list.innerHTML = '';
-  if (tasks.length === 0) list.innerHTML = '<p style="opacity:.6">Aucune tâche pour ce jour.</p>';
-  tasks.forEach(t => {
-    const div = document.createElement('div');
-    div.className = 'card';
-    const colors = { todo: '#888', in_progress: '#f0ad4e', done: '#4caf50' };
-    div.innerHTML = `
-      <div>
-        <div style="font-weight:600">${escapeHtml(t.title)}</div>
-        <div style="font-size:12px; opacity:.7">👤 ${escapeHtml(t.assigned_to || '—')} · <span style="color:${colors[t.status]}">${t.status}</span></div>
-      </div>
-      <div style="display:flex; gap:6px">
-        <button onclick="toggleStatus('${t.id}','${t.status}')" style="border:none;border-radius:6px;padding:6px 10px;cursor:pointer">↻</button>
-        <button onclick="deleteTask('${t.id}')" style="border:none;border-radius:6px;padding:6px 10px;cursor:pointer;background:#8a2e2e;color:#fff">✕</button>
-      </div>`;
-    list.appendChild(div);
-  });
-}
-document.getElementById('task-date').addEventListener('change', loadTasks);
-document.getElementById('task-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const title = document.getElementById('task-title').value.trim();
-  const assigned_to = document.getElementById('task-assigned').value.trim();
-  const due_date = document.getElementById('task-date').value;
-  if (!title) return;
-  await fetch('/api/tasks', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title, assigned_to, due_date }),
-  });
-  document.getElementById('task-title').value = '';
-  loadTasks();
-});
-async function toggleStatus(id, current) {
-  const next = current === 'done' ? 'todo' : current === 'todo' ? 'in_progress' : 'done';
-  await fetch('/api/tasks/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: next }) });
-  loadTasks();
-}
-async function deleteTask(id) {
-  await fetch('/api/tasks/' + id, { method: 'DELETE' });
-  loadTasks();
-}
- 
-// ================= CHAT =================
-socket.on('chat:message', (msg) => {
-  const box = document.getElementById('chat-box');
-  const div = document.createElement('div');
-  div.className = 'msg' + (msg.author === username ? ' me' : '');
-  div.innerHTML = `<b>${escapeHtml(msg.author)}</b> <span style="opacity:.5;font-size:11px">${new Date(msg.ts).toLocaleTimeString()}</span><div>${escapeHtml(msg.text)}</div>`;
-  box.appendChild(div);
-  box.scrollTop = box.scrollHeight;
-});
-document.getElementById('chat-form').addEventListener('submit', (e) => {
-  e.preventDefault();
-  const input = document.getElementById('chat-input');
-  if (!input.value.trim()) return;
-  socket.emit('chat:message', { author: username, text: input.value, ts: Date.now() });
-  input.value = '';
-});
- 
-// ================= MUSIQUE =================
-const audioPlayer = document.getElementById('audio-player');
-let currentTrackUrl = null;
-socket.on('music:sync', (state) => {
-  if (state.url && state.url !== currentTrackUrl) {
-    currentTrackUrl = state.url;
-    audioPlayer.src = state.url;
-    document.getElementById('music-title').textContent = '🎵 ' + (state.title || 'Morceau partagé');
-    document.getElementById('music-controls').style.display = 'flex';
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
   }
-  if (state.positionSec != null && Math.abs(audioPlayer.currentTime - state.positionSec) > 1.5) {
-    audioPlayer.currentTime = state.positionSec;
-  }
-  if (state.isPlaying) audioPlayer.play().catch(() => {}); else audioPlayer.pause();
-  document.getElementById('music-status').textContent = state.isPlaying ? "En lecture pour toute l'équipe" : 'En pause';
-});
-document.getElementById('music-form').addEventListener('submit', (e) => {
-  e.preventDefault();
-  const url = document.getElementById('music-url').value.trim();
-  if (!url) return;
-  currentTrackUrl = url;
-  audioPlayer.src = url;
-  document.getElementById('music-title').textContent = '🎵 Partagé par ' + username;
-  document.getElementById('music-controls').style.display = 'flex';
-  broadcastMusic(0, false);
-});
-function playMusic() { audioPlayer.play(); broadcastMusic(audioPlayer.currentTime, true); }
-function pauseMusic() { audioPlayer.pause(); broadcastMusic(audioPlayer.currentTime, false); }
-function broadcastMusic(positionSec, isPlaying) {
-  socket.emit('music:sync', {
-    url: currentTrackUrl,
-    title: document.getElementById('music-title').textContent.replace('🎵 ', ''),
-    isPlaying, positionSec,
-  });
-}
- 
-// ================= FICHIERS =================
-async function loadFiles() {
-  const res = await fetch('/api/files');
-  const files = await res.json();
-  const list = document.getElementById('file-list');
-  list.innerHTML = '';
-  if (files.length === 0) list.innerHTML = '<p style="opacity:.6">Aucun fichier partagé pour l\\'instant.</p>';
-  files.forEach(f => {
-    const div = document.createElement('div');
-    div.className = 'card';
-    div.innerHTML = `<span>${escapeHtml(f.name.replace(/^\\d+-/, ''))}</span><a href="${f.url}" target="_blank" style="color:#4f7cff">Ouvrir / Télécharger</a>`;
-    list.appendChild(div);
-  });
-}
-async function uploadFile() {
-  const input = document.getElementById('file-input');
-  const file = input.files[0];
-  if (!file) return;
-  document.getElementById('upload-label').textContent = 'Envoi en cours...';
-  const formData = new FormData();
-  formData.append('file', file);
-  await fetch('/api/files/upload', { method: 'POST', body: formData });
-  document.getElementById('upload-label').textContent = '📤 Envoyer un fichier';
-  loadFiles();
-}
- 
-// ================= IA =================
-document.getElementById('ai-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const input = document.getElementById('ai-input');
-  const text = input.value.trim();
-  if (!text) return;
-  addAiMsg('user', text);
-  input.value = '';
-  addAiMsg('assistant', '...réflexion...', true);
-  try {
-    const res = await fetch('/api/ai/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: text }) });
-    const data = await res.json();
-    removeLastAiMsg();
-    addAiMsg('assistant', data.reply || data.error);
-  } catch {
-    removeLastAiMsg();
-    addAiMsg('assistant', "Erreur de connexion à l'IA.");
-  }
-});
-function addAiMsg(role, text, temp) {
-  const box = document.getElementById('ai-box');
-  const div = document.createElement('div');
-  div.style.marginBottom = '10px';
-  div.style.textAlign = role === 'user' ? 'right' : 'left';
-  if (temp) div.id = 'ai-temp';
-  div.innerHTML = `<span style="display:inline-block;padding:8px 12px;border-radius:10px;max-width:75%;background:${role === 'user' ? '#4f7cff' : '#2a2e38'}">${escapeHtml(text)}</span>`;
-  box.appendChild(div);
-  box.scrollTop = box.scrollHeight;
-}
-function removeLastAiMsg() {
-  const el = document.getElementById('ai-temp');
-  if (el) el.remove();
-}
- 
-function escapeHtml(str) {
-  const d = document.createElement('div');
-  d.textContent = str ?? '';
-  return d.innerHTML;
-}
-</script>
+  </script>
+
+  <script type="module" src="./main.js"></script>
 </body>
 </html>
